@@ -16,8 +16,8 @@ function pingBinance() {
 }
 
 // pingBinance();
-// getCandleSticks("XRPUSDT", "15m");
-getPositions();
+getCandleSticks("XRPUSDT", "15m").then((data) => console.log("CURRENT DATA", data));;
+// getPositions().then((data) => console.log("CURRENT POSITIONS", data));
 
 // app.get("/", (req, res) => {
 //   res.send("Hello World!");

@@ -1,4 +1,5 @@
 import axios from "axios";
+import { Candlestick } from "../types";
 
 export function getCandleSticks(
   symbol: string,
@@ -8,7 +9,7 @@ export function getCandleSticks(
   limit = 10,
 ) {
   return axios
-    .get(`${process.env.BASE_API}/api/v3/klines`, {
+    .get<Candlestick[]>(`${process.env.BASE_API}/api/v3/klines`, {
       params: {
         symbol,
         interval,
@@ -18,7 +19,6 @@ export function getCandleSticks(
       },
     })
     .then((response) => {
-      console.log(response.data);
       return response.data;
     })
     .catch((error) => {
