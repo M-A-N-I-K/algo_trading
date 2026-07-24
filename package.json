@@ -5,6 +5,7 @@
   "main": "dist/app.js",
   "scripts": {
     "start": "tsx --env-file=.env src/app.ts",
+    "backtest": "tsx --env-file=.env src/backtest/run.ts",
     "lint": "eslint . --ext .ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
