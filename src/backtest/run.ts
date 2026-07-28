@@ -2,6 +2,7 @@ import { parseCandlesticks } from "../indicators/utils";
 import {
   createEmaRsiBollingerStrategy,
   createMacdSmaAtrStrategy,
+  createTrendFollowingStrategy,
 } from "../strategies";
 import { Strategy } from "../types";
 import { runBacktest } from "./engine";
@@ -10,6 +11,7 @@ import { fetchCandlestickHistory } from "./fetchHistory";
 const STRATEGIES: Record<string, () => Strategy> = {
   "ema-rsi-bollinger": createEmaRsiBollingerStrategy,
   "macd-sma-atr": createMacdSmaAtrStrategy,
+  "trend-following": createTrendFollowingStrategy,
 };
 
 async function main() {

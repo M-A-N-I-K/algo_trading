@@ -5,3 +5,4 @@ export * from "./rsi";
 export * from "./macd";
 export * from "./bollingerBands";
 export * from "./atr";
+export * from "./adx";
