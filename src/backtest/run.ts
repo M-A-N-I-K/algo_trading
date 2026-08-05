@@ -3,6 +3,7 @@ import {
   createEmaRsiBollingerStrategy,
   createMacdSmaAtrStrategy,
   createTrendFollowingStrategy,
+  createSupplyDemandStrategy,
 } from "../strategies";
 import { Strategy } from "../types";
 import { runBacktest } from "./engine";
@@ -12,6 +13,7 @@ const STRATEGIES: Record<string, () => Strategy> = {
   "ema-rsi-bollinger": createEmaRsiBollingerStrategy,
   "macd-sma-atr": createMacdSmaAtrStrategy,
   "trend-following": createTrendFollowingStrategy,
+  "supply-demand": createSupplyDemandStrategy,
 };
 
 async function main() {
@@ -19,6 +21,7 @@ async function main() {
   const interval = process.env.BACKTEST_INTERVAL || "1h";
   const limit = Number(process.env.BACKTEST_LIMIT) || 500;
   const strategyKey = process.env.BACKTEST_STRATEGY || "ema-rsi-bollinger";
+  const positionSizePercent = Number(process.env.BACKTEST_POSITION_SIZE) || 1;
 
   const createStrategy = STRATEGIES[strategyKey];
   if (!createStrategy) {
@@ -36,7 +39,7 @@ async function main() {
 
   const ohlc = parseCandlesticks(candles);
   const strategy = createStrategy();
-  const result = runBacktest(ohlc, strategy);
+  const result = runBacktest(ohlc, strategy, { positionSizePercent });
 
   console.log(`Strategy: ${strategy.name}`);
   console.log(`Symbol: ${symbol} (${interval}), ${candles.length} candles`);
