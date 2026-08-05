@@ -1,5 +1,5 @@
 import { OHLC } from "../indicators/utils";
-import { Signal, Strategy } from "../types";
+import { Signal, Strategy, TradeTarget } from "../types";
 
 export interface Trade {
   side: "LONG" | "SHORT";
@@ -18,6 +18,8 @@ export interface BacktestOptions {
   positionSizePercent?: number;
   // Per-side fee rate, e.g. 0.0004 for Binance USDT-M futures taker fee.
   feeRate?: number;
+  // Max percentage of account balance risked per trade (e.g. 0.02 for 2%).
+  maxRiskPercent?: number;
 }
 
 export interface BacktestResult {
@@ -34,6 +36,8 @@ interface OpenPosition {
   entryPrice: number;
   entryTime: number;
   quantity: number;
+  stopLoss?: number;
+  takeProfit?: number;
 }
 
 // Simulates trading `signals` against `candles` one-for-one. Signals are
@@ -44,11 +48,13 @@ export function backtest(
   candles: OHLC[],
   signals: Signal[],
   options: BacktestOptions = {},
+  targets?: (TradeTarget | null)[],
 ): BacktestResult {
   const {
     initialBalance = 10000,
     positionSizePercent = 1,
     feeRate = 0.0004,
+    maxRiskPercent,
   } = options;
 
   let balance = initialBalance;
@@ -86,25 +92,74 @@ export function backtest(
     side: "LONG" | "SHORT",
     price: number,
     time: number,
+    stopLoss?: number,
+    takeProfit?: number,
   ) => {
-    const quantity = (balance * positionSizePercent) / price;
-    position = { side, entryPrice: price, entryTime: time, quantity };
+    let quantity = (balance * positionSizePercent) / price;
+    if (maxRiskPercent !== undefined && stopLoss !== undefined) {
+      const lossPerAsset = Math.abs(price - stopLoss);
+      if (lossPerAsset > 0) {
+        const riskQuantity = (balance * maxRiskPercent) / lossPerAsset;
+        quantity = Math.min(riskQuantity, quantity);
+      }
+    }
+    position = { side, entryPrice: price, entryTime: time, quantity, stopLoss, takeProfit };
   };
 
   for (let i = 0; i < candles.length; i++) {
     const signal = signals[i];
     const candle = candles[i];
 
-    if (signal === "BUY") {
-      if (position && position.side === "SHORT") {
-        closePosition(candle.close, candle.closeTime);
+    if (position && targets) {
+      if (position.side === "LONG") {
+        const sl = position.stopLoss!;
+        const tp = position.takeProfit!;
+        if (candle.low <= sl) {
+          const exitPrice = candle.open < sl ? candle.open : sl;
+          closePosition(exitPrice, candle.closeTime);
+        } else if (candle.high >= tp) {
+          const exitPrice = candle.open > tp ? candle.open : tp;
+          closePosition(exitPrice, candle.closeTime);
+        }
+      } else if (position.side === "SHORT") {
+        const sl = position.stopLoss!;
+        const tp = position.takeProfit!;
+        if (candle.high >= sl) {
+          const exitPrice = candle.open > sl ? candle.open : sl;
+          closePosition(exitPrice, candle.closeTime);
+        } else if (candle.low <= tp) {
+          const exitPrice = candle.open < tp ? candle.open : tp;
+          closePosition(exitPrice, candle.closeTime);
+        }
       }
-      if (!position) openPosition("LONG", candle.close, candle.closeTime);
-    } else if (signal === "SELL") {
-      if (position && position.side === "LONG") {
-        closePosition(candle.close, candle.closeTime);
+    }
+
+    if (targets) {
+      if (!position) {
+        if (signal === "BUY") {
+          const target = targets[i];
+          if (target) {
+            openPosition("LONG", candle.close, candle.closeTime, target.stopLoss, target.takeProfit);
+          }
+        } else if (signal === "SELL") {
+          const target = targets[i];
+          if (target) {
+            openPosition("SHORT", candle.close, candle.closeTime, target.stopLoss, target.takeProfit);
+          }
+        }
       }
-      if (!position) openPosition("SHORT", candle.close, candle.closeTime);
+    } else {
+      if (signal === "BUY") {
+        if (position && position.side === "SHORT") {
+          closePosition(candle.close, candle.closeTime);
+        }
+        if (!position) openPosition("LONG", candle.close, candle.closeTime);
+      } else if (signal === "SELL") {
+        if (position && position.side === "LONG") {
+          closePosition(candle.close, candle.closeTime);
+        }
+        if (!position) openPosition("SHORT", candle.close, candle.closeTime);
+      }
     }
 
     let equity = balance;
@@ -151,5 +206,6 @@ export function runBacktest(
   options: BacktestOptions = {},
 ): BacktestResult {
   const signals = strategy.generateSignals(candles);
-  return backtest(candles, signals, options);
+  const targets = strategy.getTradeTargets ? strategy.getTradeTargets(candles) : undefined;
+  return backtest(candles, signals, options, targets);
 }

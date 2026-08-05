@@ -1,19 +1,19 @@
-import axios from "axios";
+// import axios from "axios";
 import { getCandleSticks } from "./tools/getCandlesticks";
-import { getPositions } from "./tools/getPositions";
+// import { getPositions } from "./tools/getPositions";
 // const app = express();
 // const port = 5000;
 
-function pingBinance() {
-  axios
-    .get(`${process.env.BASE_API}/api/v3/ping`)
-    .then((response) => {
-      console.log(response.data);
-    })
-    .catch((error) => {
-      console.error(error);
-    });
-}
+// function pingBinance() {
+//   axios
+//     .get(`${process.env.BASE_API}/api/v3/ping`)
+//     .then((response) => {
+//       console.log(response.data);
+//     })
+//     .catch((error) => {
+//       console.error(error);
+//     });
+// }
 
 // pingBinance();
 getCandleSticks("XRPUSDT", "15m").then((data) => console.log("CURRENT DATA", data));;
