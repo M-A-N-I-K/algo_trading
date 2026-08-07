@@ -1,0 +1,98 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: oklch(0.05 0 0); /* Sleek pitch black base */
+  --foreground: oklch(0.95 0 0);
+  --card: oklch(0.08 0.01 255 / 45%);
+  --card-foreground: oklch(0.95 0 0);
+  --popover: oklch(0.08 0 0);
+  --popover-foreground: oklch(0.95 0 0);
+  --primary: oklch(0.6 0.25 270); /* Neon violet accent color */
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.15 0.02 255);
+  --secondary-foreground: oklch(0.95 0 0);
+  --muted: oklch(0.15 0.01 255);
+  --muted-foreground: oklch(0.65 0.01 255);
+  --accent: oklch(0.2 0.02 255);
+  --accent-foreground: oklch(0.98 0 0);
+  --destructive: oklch(0.6 0.2 25);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: oklch(0.6 0.25 270 / 50%);
+  --radius: 1rem;
+}
+
+.dark {
+  --background: oklch(0.05 0 0);
+  --foreground: oklch(0.95 0 0);
+  --card: oklch(0.08 0.01 255 / 45%);
+  --card-foreground: oklch(0.95 0 0);
+  --popover: oklch(0.08 0 0);
+  --popover-foreground: oklch(0.95 0 0);
+  --primary: oklch(0.6 0.25 270);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.15 0.02 255);
+  --secondary-foreground: oklch(0.95 0 0);
+  --muted: oklch(0.15 0.01 255);
+  --muted-foreground: oklch(0.65 0.01 255);
+  --accent: oklch(0.2 0.02 255);
+  --accent-foreground: oklch(0.98 0 0);
+  --destructive: oklch(0.6 0.2 25);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: oklch(0.6 0.25 270 / 50%);
+}
+
+@theme {
+  --font-Outfit: "Outfit", sans-serif;
+  --font-PlusJakartaSans: "Plus Jakarta Sans", sans-serif;
+  
+  /* Map shadcn theme variables for Tailwind v4 compiler */
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-destructive: var(--destructive);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground min-h-screen font-sans;
+    background-image: 
+      radial-gradient(circle at 10% 20%, rgba(124, 77, 255, 0.06) 0%, transparent 40%),
+      radial-gradient(circle at 80% 80%, rgba(0, 230, 118, 0.03) 0%, transparent 40%),
+      radial-gradient(circle at 50% 50%, rgba(255, 23, 68, 0.01) 0%, transparent 50%);
+    background-attachment: fixed;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* Glassmorphism custom helper utilities */
+.glass {
+  background-color: rgba(15, 15, 25, 0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}

@@ -20,6 +20,8 @@ export interface BacktestOptions {
   feeRate?: number;
   // Max percentage of account balance risked per trade (e.g. 0.02 for 2%).
   maxRiskPercent?: number;
+  // Minimum required Risk-to-Reward ratio to execute a trade setup.
+  minRiskRewardRatio?: number;
 }
 
 export interface BacktestResult {
@@ -136,15 +138,31 @@ export function backtest(
 
     if (targets) {
       if (!position) {
-        if (signal === "BUY") {
+        if (signal === "BUY" || signal === "SELL") {
           const target = targets[i];
-          if (target) {
-            openPosition("LONG", candle.close, candle.closeTime, target.stopLoss, target.takeProfit);
-          }
-        } else if (signal === "SELL") {
-          const target = targets[i];
-          if (target) {
-            openPosition("SHORT", candle.close, candle.closeTime, target.stopLoss, target.takeProfit);
+          if (target && target.stopLoss !== undefined && target.takeProfit !== undefined) {
+            const price = candle.close;
+            const isLong = signal === "BUY";
+            const risk = isLong ? (price - target.stopLoss) : (target.stopLoss - price);
+            const reward = isLong ? (target.takeProfit - price) : (price - target.takeProfit);
+            
+            let passRrCheck = true;
+            if (options.minRiskRewardRatio !== undefined && risk > 0) {
+              const rr = reward / risk;
+              if (rr < options.minRiskRewardRatio) {
+                passRrCheck = false;
+              }
+            }
+
+            if (passRrCheck) {
+              openPosition(
+                isLong ? "LONG" : "SHORT",
+                price,
+                candle.closeTime,
+                target.stopLoss,
+                target.takeProfit
+              );
+            }
           }
         }
       }
