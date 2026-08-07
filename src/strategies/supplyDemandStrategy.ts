@@ -1,17 +1,13 @@
 import { ema } from "../indicators/ema";
 import { OHLC } from "../indicators/utils";
-import { Signal, Strategy } from "../types";
+import { Signal, Strategy, TradeTarget } from "../types";
 
 export interface SupplyDemandOptions {
-  // Lookback used to compute "average body size" when judging whether a
-  // candle is an impulsive institutional move.
   impulseLookback?: number;
-  // How much bigger than average an impulsive candle's body must be.
   impulseMultiplier?: number;
-  // Window (each side) used to confirm a fractal swing high/low.
+  baseMultiplier?: number;
   swingLookback?: number;
   trendEmaPeriod?: number;
-  // A zone is discarded if untouched after this many candles.
   zoneMaxAgeCandles?: number;
 }
 
@@ -19,9 +15,7 @@ interface Zone {
   low: number;
   high: number;
   createdAt: number;
-  // Set once price has touched the zone with slowing momentum; the zone
-  // then waits exactly one more candle for the confirmation trigger.
-  armedAt: number | null;
+  validityReason: string;
 }
 
 function bodySize(candle: OHLC): number {
@@ -46,10 +40,6 @@ function averageBody(candles: OHLC[], endIndex: number, period: number) {
   return count > 0 ? sum / count : 0;
 }
 
-// Fractal swing points: candle i is a swing high/low if it's the most
-// extreme candle within `lookback` bars on both sides. Confirming this
-// requires seeing `lookback` candles *after* i, so callers must only rely
-// on isSwingHigh[i]/isSwingLow[i] once index i + lookback has been reached.
 function findFractalSwingPoints(candles: OHLC[], lookback: number) {
   const isSwingHigh = new Array(candles.length).fill(false);
   const isSwingLow = new Array(candles.length).fill(false);
@@ -69,69 +59,94 @@ function findFractalSwingPoints(candles: OHLC[], lookback: number) {
   return { isSwingHigh, isSwingLow };
 }
 
-// "Buy from demand, sell from supply": trades institutional order-block
-// zones confirmed by a fair value gap and confluence with prior
-// support/resistance. A zone is only ever traded on its first touch (it's
-// discarded either way afterward — "untested zones" only); when multiple
-// zones are eligible on the same candle, only the deepest demand / highest
-// supply zone is taken ("the lowest demand is the strongest"); entry
-// requires wicking into the zone's discount half (below its 50% level for
-// demand, above it for supply) with slowing momentum, in the direction of
-// a confirmed break of structure.
+function findNearestSwingHigh(
+  candles: OHLC[],
+  isSwingHigh: boolean[],
+  t: number,
+  lookback: number,
+): number {
+  for (let i = t - lookback; i >= 0; i--) {
+    if (isSwingHigh[i]) return candles[i].high;
+  }
+  return candles[t].high;
+}
+
+function findNearestSwingLow(
+  candles: OHLC[],
+  isSwingLow: boolean[],
+  t: number,
+  lookback: number,
+): number {
+  for (let i = t - lookback; i >= 0; i--) {
+    if (isSwingLow[i]) return candles[i].low;
+  }
+  return candles[t].low;
+}
+
+/**
+ * Supply & Demand Zones Trading Strategy
+ *
+ * VALIDITY RULES:
+ * 1. A valid zone originates from a small consolidation candle (base size <= 0.8 * avgBody)
+ *    followed by an explosive impulse candle (impulse size >= 1.5 * avgBody).
+ * 2. Market structure determines trend bias:
+ *    - Bullish: Price > 50 EMA and last structure break (BOS) was upward.
+ *    - Bearish: Price < 50 EMA and last structure break was downward.
+ * 3. We wait for a revisit to the zone, and only enter if the revisit candle forms
+ *    either a strong Rejection Pin Bar (wick >= 40% of range) or an Engulfing confirmation.
+ * 4. Stop Loss is set just beyond the zone (0.05% buffer).
+ * 5. Take Profit is placed at the nearest swing high/low, with a minimum 1:2 risk-to-reward ratio.
+ */
 export function createSupplyDemandStrategy(
   options: SupplyDemandOptions = {},
 ): Strategy {
   const {
     impulseLookback = 14,
     impulseMultiplier = 1.5,
-    swingLookback = 3,
+    baseMultiplier = 0.8,
+    swingLookback = 5,
     trendEmaPeriod = 50,
     zoneMaxAgeCandles = 100,
   } = options;
 
+  let computedTargets: (TradeTarget | null)[] = [];
+
   return {
-    name: "Supply & Demand Zones (Order Block + FVG + BOS/EMA Trend)",
+    name: "Strict Supply & Demand (Consolidation + Breakout + Rejection)",
+
     generateSignals(candles: OHLC[]): Signal[] {
       const n = candles.length;
       const signals: Signal[] = new Array(n).fill("HOLD");
+      computedTargets = new Array(n).fill(null);
+
       const warmup = Math.max(trendEmaPeriod, impulseLookback, swingLookback * 2) + 5;
       if (n < warmup) return signals;
 
-      const closes = candles.map((candle) => candle.close);
-      const trendEma = ema(closes, trendEmaPeriod);
-      const { isSwingHigh, isSwingLow } = findFractalSwingPoints(
-        candles,
-        swingLookback,
-      );
+      const closes = candles.map((c) => c.close);
+      const ema50 = ema(closes, trendEmaPeriod);
+      const { isSwingHigh, isSwingLow } = findFractalSwingPoints(candles, swingLookback);
 
-      const confirmedSwingHighs: number[] = [];
-      const confirmedSwingLows: number[] = [];
       let lastSwingHigh: number | null = null;
       let lastSwingLow: number | null = null;
-      let structuralTrend: "up" | "down" | "none" = "none";
+      let structuralTrend: "up" | "down" | "range" = "range";
 
-      const demandZones: Zone[] = [];
-      const supplyZones: Zone[] = [];
+      let demandZones: Zone[] = [];
+      let supplyZones: Zone[] = [];
 
       for (let t = 0; t < n; t++) {
         const candle = candles[t];
 
-        // Reveal swing points only once they're actually confirmable, to
-        // avoid using future information.
+        // Reveal swing points and update structure
         const revealIndex = t - swingLookback;
         if (revealIndex >= 0) {
           if (isSwingHigh[revealIndex]) {
-            confirmedSwingHighs.push(candles[revealIndex].high);
             lastSwingHigh = candles[revealIndex].high;
           }
           if (isSwingLow[revealIndex]) {
-            confirmedSwingLows.push(candles[revealIndex].low);
             lastSwingLow = candles[revealIndex].low;
           }
         }
 
-        // Break of structure: a confirmed close beyond the last swing
-        // flips the ongoing structural trend bias.
         if (lastSwingHigh !== null && candle.close > lastSwingHigh) {
           structuralTrend = "up";
         }
@@ -139,153 +154,129 @@ export function createSupplyDemandStrategy(
           structuralTrend = "down";
         }
 
-        // --- Zone detection: 3-candle pattern (base, impulse, confirm) ---
+        // Market structure classification
+        const isBullishStructure =
+          !isNaN(ema50[t]) && candle.close > ema50[t] && structuralTrend === "up";
+        const isBearishStructure =
+          !isNaN(ema50[t]) && candle.close < ema50[t] && structuralTrend === "down";
+
+        // Invalidate mitigated/expired/broken zones
+        demandZones = demandZones.filter(
+          (zone) => t - zone.createdAt <= zoneMaxAgeCandles && candle.close >= zone.low,
+        );
+        supplyZones = supplyZones.filter(
+          (zone) => t - zone.createdAt <= zoneMaxAgeCandles && candle.close <= zone.high,
+        );
+
+        // Zone detection (3-candle consolidation & explosive breakout pattern)
         if (t >= 2) {
           const base = candles[t - 2];
           const impulse = candles[t - 1];
           const confirm = candle;
           const avgBody = averageBody(candles, t - 2, impulseLookback);
 
-          const bullishImpulse =
-            isBullish(impulse) &&
-            bodySize(impulse) > impulseMultiplier * avgBody;
-          const bearishImpulse =
-            isBearish(impulse) &&
-            bodySize(impulse) > impulseMultiplier * avgBody;
+          const isBaseConsolidation = bodySize(base) <= baseMultiplier * avgBody;
+          const isImpulseExplosive = bodySize(impulse) >= impulseMultiplier * avgBody;
 
-          if (bullishImpulse && isBearish(base) && base.high < confirm.low) {
-            const zoneLow = Math.min(base.open, base.close);
-            const zoneHigh = Math.max(confirm.low, Math.max(base.open, base.close));
-            const hasResistanceConfluence = confirmedSwingHighs.some(
-              (price) => price >= zoneLow && price <= zoneHigh,
-            );
-            if (hasResistanceConfluence) {
-              demandZones.push({ low: zoneLow, high: zoneHigh, createdAt: t, armedAt: null });
+          if (isBaseConsolidation && isImpulseExplosive) {
+            // Demand zone: Bearish base, explosive Bullish impulse, confirm candle stays clear
+            if (isBullish(impulse) && isBearish(base) && base.high < confirm.low) {
+              const zoneLow = Math.min(base.open, base.close);
+              const zoneHigh = Math.max(confirm.low, Math.max(base.open, base.close));
+              demandZones.push({
+                low: zoneLow,
+                high: zoneHigh,
+                createdAt: t,
+                validityReason: `Consolidation base (body ${bodySize(base).toFixed(2)} <= ${(baseMultiplier * avgBody).toFixed(2)}) followed by explosive bullish impulse (body ${bodySize(impulse).toFixed(2)} >= ${(impulseMultiplier * avgBody).toFixed(2)}).`,
+              });
             }
-          }
 
-          if (bearishImpulse && isBullish(base) && base.low > confirm.high) {
-            const zoneHigh = Math.max(base.open, base.close);
-            const zoneLow = Math.min(confirm.high, Math.min(base.open, base.close));
-            const hasSupportConfluence = confirmedSwingLows.some(
-              (price) => price >= zoneLow && price <= zoneHigh,
-            );
-            if (hasSupportConfluence) {
-              supplyZones.push({ low: zoneLow, high: zoneHigh, createdAt: t, armedAt: null });
-            }
-          }
-        }
-
-        // Break of structure must have actually happened — a merely
-        // "not-yet-broken-down" state doesn't count as trend confirmation.
-        const isUptrend =
-          !isNaN(trendEma[t]) &&
-          candle.close > trendEma[t] &&
-          structuralTrend === "up";
-        const isDowntrend =
-          !isNaN(trendEma[t]) &&
-          candle.close < trendEma[t] &&
-          structuralTrend === "down";
-
-        // Expire, break, or resolve each zone's one-shot trigger attempt.
-        // Either way the zone is then done — a zone only gets one look.
-        for (let i = demandZones.length - 1; i >= 0; i--) {
-          const zone = demandZones[i];
-
-          if (t - zone.createdAt > zoneMaxAgeCandles) {
-            demandZones.splice(i, 1);
-            continue;
-          }
-          if (candle.close < zone.low) {
-            demandZones.splice(i, 1); // zone broken
-            continue;
-          }
-          if (zone.armedAt !== null && t === zone.armedAt + 1) {
-            const trigger = candles[zone.armedAt];
-            if (isBullish(candle) && candle.close > trigger.high) {
-              signals[t] = "BUY";
-            }
-            demandZones.splice(i, 1); // tested, one way or the other
-          }
-        }
-        for (let i = supplyZones.length - 1; i >= 0; i--) {
-          const zone = supplyZones[i];
-
-          if (t - zone.createdAt > zoneMaxAgeCandles) {
-            supplyZones.splice(i, 1);
-            continue;
-          }
-          if (candle.close > zone.high) {
-            supplyZones.splice(i, 1); // zone broken
-            continue;
-          }
-          if (zone.armedAt !== null && t === zone.armedAt + 1) {
-            const trigger = candles[zone.armedAt];
-            if (isBearish(candle) && candle.close < trigger.low) {
-              signals[t] = "SELL";
-            }
-            supplyZones.splice(i, 1);
-          }
-        }
-
-        // Untested zones only: any zone this candle wicks/closes into is
-        // consumed — either armed (if it qualifies) or discarded as tested.
-        // Among simultaneously eligible zones, only the deepest demand /
-        // highest supply zone is allowed to arm.
-        let demandArmCandidate: Zone | null = null;
-        const touchedDemandZones: Zone[] = [];
-        for (const zone of demandZones) {
-          if (zone.armedAt !== null || t <= zone.createdAt) continue;
-          const touchesZone = candle.low <= zone.high && candle.close >= zone.low;
-          if (!touchesZone) continue;
-
-          touchedDemandZones.push(zone);
-
-          const zoneMidpoint = (zone.low + zone.high) / 2;
-          const isDiscounted = candle.low <= zoneMidpoint;
-          const slowMomentum = bodySize(candle) <= averageBody(candles, t, 5);
-
-          if (isDiscounted && slowMomentum && isUptrend) {
-            if (!demandArmCandidate || zone.low < demandArmCandidate.low) {
-              demandArmCandidate = zone;
+            // Supply zone: Bullish base, explosive Bearish impulse, confirm candle stays clear
+            if (isBearish(impulse) && isBullish(base) && base.low > confirm.high) {
+              const zoneHigh = Math.max(base.open, base.close);
+              const zoneLow = Math.min(confirm.high, Math.min(base.open, base.close));
+              supplyZones.push({
+                low: zoneLow,
+                high: zoneHigh,
+                createdAt: t,
+                validityReason: `Consolidation base (body ${bodySize(base).toFixed(2)} <= ${(baseMultiplier * avgBody).toFixed(2)}) followed by explosive bearish impulse (body ${bodySize(impulse).toFixed(2)} >= ${(impulseMultiplier * avgBody).toFixed(2)}).`,
+              });
             }
           }
         }
-        if (demandArmCandidate) demandArmCandidate.armedAt = t;
-        for (const zone of touchedDemandZones) {
-          if (zone !== demandArmCandidate) {
-            demandZones.splice(demandZones.indexOf(zone), 1);
-          }
-        }
 
-        let supplyArmCandidate: Zone | null = null;
-        const touchedSupplyZones: Zone[] = [];
-        for (const zone of supplyZones) {
-          if (zone.armedAt !== null || t <= zone.createdAt) continue;
-          const touchesZone = candle.high >= zone.low && candle.close <= zone.high;
-          if (!touchesZone) continue;
+        if (t < warmup) continue;
 
-          touchedSupplyZones.push(zone);
+        // Check for revisits and rejection triggers
+        const range = candle.high - candle.low;
+        const lowerWick = Math.min(candle.open, candle.close) - candle.low;
+        const upperWick = candle.high - Math.max(candle.open, candle.close);
 
-          const zoneMidpoint = (zone.low + zone.high) / 2;
-          const isPremium = candle.high >= zoneMidpoint;
-          const slowMomentum = bodySize(candle) <= averageBody(candles, t, 5);
+        const isBullishRejection = range > 0 && lowerWick / range >= 0.4 && candle.close > candle.open;
+        const isBullishEngulfing = candle.close > candle.open && candle.close > candles[t - 1].high;
 
-          if (isPremium && slowMomentum && isDowntrend) {
-            if (!supplyArmCandidate || zone.high > supplyArmCandidate.high) {
-              supplyArmCandidate = zone;
+        const isBearishRejection = range > 0 && upperWick / range >= 0.4 && candle.close < candle.open;
+        const isBearishEngulfing = candle.close < candle.open && candle.close < candles[t - 1].low;
+
+        // --- LONG ENTRY (DEMAND REVISIT) ---
+        if (isBullishStructure) {
+          for (let i = 0; i < demandZones.length; i++) {
+            const zone = demandZones[i];
+            if (t <= zone.createdAt) continue;
+
+            const priceTouchedZone = candle.low <= zone.high && candle.close >= zone.low;
+            if (priceTouchedZone) {
+              // Trigger entry on strong confirmation
+              if (isBullishRejection || isBullishEngulfing) {
+                const stopLoss = zone.low * 0.9995; // Stop loss just beyond zone
+                if (candle.close > stopLoss) {
+                  signals[t] = "BUY";
+                  const risk = candle.close - stopLoss;
+                  const nearestHigh = findNearestSwingHigh(candles, isSwingHigh, t, swingLookback);
+                  const takeProfit = Math.max(nearestHigh, candle.close + 2.0 * risk);
+                  computedTargets[t] = { stopLoss, takeProfit };
+
+                  // Discard zone after trading it once (freshest zone rule)
+                  demandZones.splice(i, 1);
+                  break;
+                }
+              }
             }
           }
         }
-        if (supplyArmCandidate) supplyArmCandidate.armedAt = t;
-        for (const zone of touchedSupplyZones) {
-          if (zone !== supplyArmCandidate) {
-            supplyZones.splice(supplyZones.indexOf(zone), 1);
+
+        // --- SHORT ENTRY (SUPPLY REVISIT) ---
+        if (isBearishStructure) {
+          for (let i = 0; i < supplyZones.length; i++) {
+            const zone = supplyZones[i];
+            if (t <= zone.createdAt) continue;
+
+            const priceTouchedZone = candle.high >= zone.low && candle.close <= zone.high;
+            if (priceTouchedZone) {
+              if (isBearishRejection || isBearishEngulfing) {
+                const stopLoss = zone.high * 1.0005; // Stop loss just beyond zone
+                if (candle.close < stopLoss) {
+                  signals[t] = "SELL";
+                  const risk = stopLoss - candle.close;
+                  const nearestLow = findNearestSwingLow(candles, isSwingLow, t, swingLookback);
+                  const takeProfit = Math.min(nearestLow, candle.close - 2.0 * risk);
+                  computedTargets[t] = { stopLoss, takeProfit };
+
+                  // Discard zone after trading it once (freshest zone rule)
+                  supplyZones.splice(i, 1);
+                  break;
+                }
+              }
+            }
           }
         }
       }
 
       return signals;
+    },
+
+    getTradeTargets(): (TradeTarget | null)[] {
+      return computedTargets;
     },
   };
 }
