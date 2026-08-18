@@ -1,15 +1,16 @@
 import axios from "axios";
 import * as fs from "fs";
 import * as path from "path";
-import { parseCandlesticks } from "../indicators/utils";
+import { parseCandlesticks, OHLC } from "../indicators/utils";
 import {
   createEmaRsiBollingerStrategy,
   createMacdSmaAtrStrategy,
   createTrendFollowingStrategy,
   createSupplyDemandStrategy,
   createMacd200EmaSrStrategy,
+  createSmartMoneyConceptsStrategy,
 } from "../strategies";
-import { Strategy, Candlestick, OHLC } from "../types";
+import { Strategy, Candlestick } from "../types";
 import { runBacktest, BacktestResult, Trade } from "./engine";
 import { intervalToMs } from "./fetchHistory";
 
@@ -19,6 +20,7 @@ const STRATEGIES: Record<string, () => Strategy> = {
   "trend-following": createTrendFollowingStrategy,
   "supply-demand": createSupplyDemandStrategy,
   "macd-200ema-sr": createMacd200EmaSrStrategy,
+  "smc": createSmartMoneyConceptsStrategy,
 };
 
 const SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"];

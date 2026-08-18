@@ -6,17 +6,20 @@ import {
   createTrendFollowingStrategy,
   createSupplyDemandStrategy,
   createMacd200EmaSrStrategy,
+  createSmartMoneyConceptsStrategy,
 } from "@/strategies";
 import { runBacktest } from "@/backtest/engine";
 import { fetchCandlestickHistory } from "@/backtest/fetchHistory";
 import { authenticateRequest, authChallengeResponse } from "@/lib/auth";
 
-const STRATEGIES: Record<string, () => any> = {
+const STRATEGIES: Record<string, (opts?: any) => any> = {
   "ema-rsi-bollinger": createEmaRsiBollingerStrategy,
   "macd-sma-atr": createMacdSmaAtrStrategy,
   "trend-following": createTrendFollowingStrategy,
   "supply-demand": createSupplyDemandStrategy,
   "macd-200ema-sr": createMacd200EmaSrStrategy,
+  "smc": createSmartMoneyConceptsStrategy,
+  "smart-money-concepts": createSmartMoneyConceptsStrategy,
 };
 
 export async function POST(request: NextRequest) {
