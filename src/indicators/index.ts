@@ -6,3 +6,4 @@ export * from "./macd";
 export * from "./bollingerBands";
 export * from "./atr";
 export * from "./adx";
+export * from "./vwap";

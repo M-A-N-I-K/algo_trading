@@ -4,4 +4,5 @@ export * from "./trendFollowingStrategy";
 export * from "./supplyDemandStrategy";
 export * from "./macd200EmaSrStrategy";
 export * from "./smartMoneyConceptsStrategy";
+export * from "./vwapStrategy";
 

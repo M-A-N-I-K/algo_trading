@@ -6,6 +6,7 @@ import {
   createSupplyDemandStrategy,
   createMacd200EmaSrStrategy,
   createSmartMoneyConceptsStrategy,
+  createVwapStrategy,
 } from "../strategies";
 import { Strategy } from "../types";
 import { runBacktest } from "./engine";
@@ -19,6 +20,7 @@ const STRATEGIES: Record<string, () => Strategy> = {
   "macd-200ema-sr": createMacd200EmaSrStrategy,
   "smc": createSmartMoneyConceptsStrategy,
   "smart-money-concepts": createSmartMoneyConceptsStrategy,
+  "vwap": createVwapStrategy,
 };
 
 async function main() {

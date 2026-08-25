@@ -7,6 +7,7 @@ import {
   createSupplyDemandStrategy,
   createMacd200EmaSrStrategy,
   createSmartMoneyConceptsStrategy,
+  createVwapStrategy,
 } from "@/strategies";
 import { runBacktest } from "@/backtest/engine";
 import { fetchCandlestickHistory } from "@/backtest/fetchHistory";
@@ -20,6 +21,7 @@ const STRATEGIES: Record<string, (opts?: any) => any> = {
   "macd-200ema-sr": createMacd200EmaSrStrategy,
   "smc": createSmartMoneyConceptsStrategy,
   "smart-money-concepts": createSmartMoneyConceptsStrategy,
+  "vwap": createVwapStrategy,
 };
 
 export async function POST(request: NextRequest) {

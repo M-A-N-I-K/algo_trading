@@ -163,6 +163,7 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
               <option value="ema-rsi-bollinger">EMA + RSI + Bollinger</option>
               <option value="macd-sma-atr">MACD + SMA + ATR</option>
               <option value="trend-following">Dual EMA Trend Follow</option>
+              <option value="vwap">VWAP Candle Failure</option>
             </select>
           </div>
 
