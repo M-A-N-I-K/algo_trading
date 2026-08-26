@@ -4,6 +4,7 @@ import Link from "next/link";
 import KPICards from "@/components/trading-journal/KPICards";
 import AnalyticsCharts from "@/components/trading-journal/AnalyticsCharts";
 import TradesTable from "@/components/trading-journal/TradesTable";
+import LossLimitBanner from "@/components/trading-journal/LossLimitBanner";
 import { useDashboard } from "@/components/trading-journal/DashboardContext";
 
 export default function DashboardPage() {
@@ -26,8 +27,15 @@ export default function DashboardPage() {
   const startBal = chronTrades.length > 0 ? chronTrades[0].balanceBefore || 100000 : 100000;
   const growthPct = startBal > 0 ? (netPnl / startBal) * 100 : 0;
 
+  const tradesWithRisk = trades.filter(t => t.initialRiskAmount && t.initialRiskAmount > 0);
+  const avgRMultiple = tradesWithRisk.length > 0
+    ? tradesWithRisk.reduce((sum, t) => sum + t.pnl / (t.initialRiskAmount as number), 0) / tradesWithRisk.length
+    : null;
+
   return (
     <div>
+      <LossLimitBanner trades={trades} />
+
       <KPICards
         netPnl={netPnl}
         growthPct={growthPct}
@@ -38,6 +46,8 @@ export default function DashboardPage() {
         avgRr={avgRr}
         avgWin={avgWin}
         avgLoss={avgLoss}
+        avgRMultiple={avgRMultiple}
+        rMultipleTradeCount={tradesWithRisk.length}
       />
 
       <AnalyticsCharts trades={trades} />

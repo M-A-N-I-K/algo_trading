@@ -24,6 +24,10 @@ interface Trade {
   exitPrice: number;
   strategy: string;
   notes: string;
+  stopLoss?: number | null;
+  initialRiskAmount?: number | null;
+  tags?: string[];
+  checklist?: { label: string; checked: boolean }[] | null;
 }
 
 interface TradesTableProps {
@@ -35,6 +39,8 @@ interface TradesTableProps {
   setFilterStrategy?: (s: string) => void;
   filterOutcome?: string;
   setFilterOutcome?: (o: string) => void;
+  filterTag?: string;
+  setFilterTag?: (t: string) => void;
   onEdit: (t: Trade) => void;
   onDelete: (id: string) => void;
   onInspect: (t: Trade) => void;
@@ -50,6 +56,8 @@ export default function TradesTable({
   setFilterStrategy,
   filterOutcome = "ALL",
   setFilterOutcome,
+  filterTag = "",
+  setFilterTag,
   onEdit,
   onDelete,
   onInspect,
@@ -60,6 +68,7 @@ export default function TradesTable({
     if (setFilterSymbol) setFilterSymbol("ALL");
     if (setFilterStrategy) setFilterStrategy("ALL");
     if (setFilterOutcome) setFilterOutcome("ALL");
+    if (setFilterTag) setFilterTag("");
   };
 
   return (
@@ -94,6 +103,8 @@ export default function TradesTable({
                 <option value="macd-sma-atr">MACD + SMA + ATR</option>
                 <option value="trend-following">Dual EMA Trend Follow</option>
                 <option value="vwap">VWAP Candle Failure</option>
+                <option value="order-block">Order Block</option>
+                <option value="4h-range">4-Hour Range Breakout Fade</option>
               </select>
             </div>
 
@@ -110,7 +121,20 @@ export default function TradesTable({
               </select>
             </div>
 
-            <button 
+            {setFilterTag && (
+              <div className="flex-1 flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tag</label>
+                <input
+                  type="text"
+                  className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
+                  value={filterTag}
+                  onChange={(e) => setFilterTag(e.target.value)}
+                  placeholder="e.g. fomo-entry"
+                />
+              </div>
+            )}
+
+            <button
               className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all self-end"
               onClick={handleResetFilters}
             >
@@ -133,7 +157,8 @@ export default function TradesTable({
                 <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Entry Price</TableHead>
                 <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Exit Price</TableHead>
                 <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Realized PnL</TableHead>
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Strategy</TableHead>
+                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">R</TableHead>
+                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Strategy / Tags</TableHead>
                 <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -158,9 +183,29 @@ export default function TradesTable({
                     {t.pnl >= 0 ? '+' : ''}${t.pnl.toFixed(2)}
                   </TableCell>
                   <TableCell className="py-4">
-                    <span className="text-[11px] bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-md text-slate-400">
-                      {t.strategy}
-                    </span>
+                    {t.initialRiskAmount ? (
+                      <span className={`font-bold text-sm ${t.pnl >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
+                        {t.pnl >= 0 ? '+' : ''}{(t.pnl / t.initialRiskAmount).toFixed(2)}R
+                      </span>
+                    ) : (
+                      <span className="text-slate-600 text-xs">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="py-4">
+                    <div className="flex flex-col gap-1.5 items-start">
+                      <span className="text-[11px] bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-md text-slate-400">
+                        {t.strategy}
+                      </span>
+                      {t.tags && t.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {t.tags.map((tag) => (
+                            <span key={tag} className="text-[10px] bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded-md text-violet-300">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="py-4 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex gap-2 justify-end">
@@ -182,7 +227,7 @@ export default function TradesTable({
               ))}
               {filteredTrades.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-slate-500 font-medium py-12">
+                  <TableCell colSpan={10} className="text-center text-slate-500 font-medium py-12">
                     No matching trade records.
                   </TableCell>
                 </TableRow>

@@ -55,7 +55,9 @@ export async function POST(request: NextRequest) {
           entryPrice: parseFloat(data.entryPrice),
           exitPrice: parseFloat(data.exitPrice),
           strategy: data.strategy,
-          notes: data.notes || ""
+          notes: data.notes || "",
+          stopLoss: data.stopLoss !== undefined && data.stopLoss !== null ? parseFloat(data.stopLoss) : null,
+          initialRiskAmount: data.initialRiskAmount !== undefined && data.initialRiskAmount !== null ? parseFloat(data.initialRiskAmount) : null
         }
       });
       return NextResponse.json(updated);
@@ -75,6 +77,8 @@ export async function POST(request: NextRequest) {
         exitPrice: parseFloat(data.exitPrice),
         strategy: data.strategy || "macd-200ema-sr",
         notes: data.notes || "",
+        stopLoss: data.stopLoss !== undefined && data.stopLoss !== null ? parseFloat(data.stopLoss) : null,
+        initialRiskAmount: data.initialRiskAmount !== undefined && data.initialRiskAmount !== null ? parseFloat(data.initialRiskAmount) : null,
         userId: user.id
       }
     });

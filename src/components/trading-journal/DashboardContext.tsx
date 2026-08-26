@@ -3,6 +3,11 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { useSession } from "next-auth/react";
 
+export interface ChecklistItem {
+  label: string;
+  checked: boolean;
+}
+
 export interface Trade {
   id: string;
   time: string;
@@ -18,6 +23,10 @@ export interface Trade {
   exitPrice: number;
   strategy: string;
   notes: string;
+  stopLoss?: number | null;
+  initialRiskAmount?: number | null;
+  tags?: string[];
+  checklist?: ChecklistItem[] | null;
 }
 
 export interface Notification {
@@ -45,7 +54,7 @@ interface DashboardContextValue {
   notesTrade: Trade | null;
   openNotes: (trade: Trade) => void;
   closeNotes: () => void;
-  handleSaveNotes: (notes: string) => Promise<void>;
+  handleSaveNotes: (details: { notes: string; tags: string[]; checklist: ChecklistItem[] }) => Promise<void>;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -146,13 +155,13 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     setNotesTrade(null);
   };
 
-  const handleSaveNotes = async (notes: string) => {
+  const handleSaveNotes = async (details: { notes: string; tags: string[]; checklist: ChecklistItem[] }) => {
     if (!notesTrade) return;
     try {
       const res = await fetch(`/api/trades/${notesTrade.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes })
+        body: JSON.stringify(details)
       });
       if (res.ok) {
         addNotification("Strategy notes saved successfully!", "success");

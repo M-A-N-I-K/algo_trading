@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle 
+import { Calculator } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle
 } from "@/components/ui/dialog";
 
 interface Trade {
@@ -21,6 +22,9 @@ interface Trade {
   exitPrice: number;
   strategy: string;
   notes: string;
+  stopLoss?: number | null;
+  initialRiskAmount?: number | null;
+  tags?: string[];
 }
 
 interface TradeFormModalProps {
@@ -47,6 +51,9 @@ export default function TradeFormModal({
   const [balBefore, setBalBefore] = useState("");
   const [balAfter, setBalAfter] = useState("");
   const [notes, setNotes] = useState("");
+  const [stopLoss, setStopLoss] = useState("");
+  const [tags, setTags] = useState("");
+  const [riskPercent, setRiskPercent] = useState("1");
 
   // Synchronize form states on activeTrade change
   useEffect(() => {
@@ -74,6 +81,8 @@ export default function TradeFormModal({
       setBalBefore(activeTrade.balanceBefore ? activeTrade.balanceBefore.toString() : "");
       setBalAfter(activeTrade.balanceAfter ? activeTrade.balanceAfter.toString() : "");
       setNotes(activeTrade.notes || "");
+      setStopLoss(activeTrade.stopLoss != null ? activeTrade.stopLoss.toString() : "");
+      setTags((activeTrade.tags || []).join(", "));
     } else {
       const d = new Date();
       const tzOffset = d.getTimezoneOffset() * 60000;
@@ -89,24 +98,60 @@ export default function TradeFormModal({
       setBalBefore("");
       setBalAfter("");
       setNotes("");
+      setStopLoss("");
+      setTags("");
+      setRiskPercent("1");
     }
   }, [activeTrade, isOpen]);
 
+  // Position-size calculator: given entry, stop-loss, account balance, and
+  // a target risk %, back-solve the quantity that risks exactly that %.
+  const canCalculateSize =
+    parseFloat(entry) > 0 &&
+    parseFloat(stopLoss) > 0 &&
+    parseFloat(entry) !== parseFloat(stopLoss) &&
+    parseFloat(balBefore) > 0 &&
+    parseFloat(riskPercent) > 0;
+
+  const handleCalculateSize = () => {
+    const entryNum = parseFloat(entry);
+    const stopNum = parseFloat(stopLoss);
+    const balanceNum = parseFloat(balBefore);
+    const riskNum = parseFloat(riskPercent);
+    if (!canCalculateSize) return;
+
+    const riskAmount = balanceNum * (riskNum / 100);
+    const stopDistance = Math.abs(entryNum - stopNum);
+    const suggestedQty = riskAmount / stopDistance;
+    setQty(suggestedQty.toFixed(6));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const entryNum = parseFloat(entry);
+    const stopNum = parseFloat(stopLoss);
+    const qtyNum = parseFloat(qty);
+    const initialRiskAmount =
+      !isNaN(stopNum) && stopNum > 0 && !isNaN(entryNum) && !isNaN(qtyNum)
+        ? Math.abs(entryNum - stopNum) * qtyNum
+        : undefined;
+
     const body = {
       id: activeTrade?.id || undefined,
       time: time.replace("T", " "),
       symbol: symbol.toUpperCase().trim(),
       side,
       strategy,
-      quantity: parseFloat(qty),
-      entryPrice: parseFloat(entry),
+      quantity: qtyNum,
+      entryPrice: entryNum,
       exitPrice: parseFloat(exit),
       pnl: parseFloat(pnl),
       balanceBefore: parseFloat(balBefore) || undefined,
       balanceAfter: parseFloat(balAfter) || undefined,
-      notes
+      notes,
+      stopLoss: !isNaN(stopNum) && stopNum > 0 ? stopNum : undefined,
+      initialRiskAmount,
+      tags: tags.split(",").map((t) => t.trim()).filter(Boolean)
     };
 
     await onSave(body);
@@ -114,7 +159,7 @@ export default function TradeFormModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>
-      <DialogContent className="w-[95vw] sm:w-[90vw] md:max-w-2xl lg:max-w-3xl bg-slate-950 border border-slate-800 text-slate-200 p-6 md:p-8 rounded-2xl overflow-y-auto max-h-[90vh]">
+      <DialogContent className="max-w-[95vw] sm:max-w-xl md:max-w-2xl lg:max-w-3xl bg-slate-950 border border-slate-800 text-slate-200 p-6 md:p-8 rounded-2xl overflow-y-auto max-h-[90vh]">
         <DialogHeader className="mb-6">
           <DialogTitle className="font-Outfit text-2xl font-bold text-white tracking-tight">
             {activeTrade ? "Edit Trade Setup" : "New Trade Entry"}
@@ -172,59 +217,97 @@ export default function TradeFormModal({
                 <option value="ema-rsi-bollinger">EMA + RSI + Bollinger</option>
                 <option value="macd-sma-atr">MACD + SMA + ATR</option>
                 <option value="trend-following">Dual EMA Trend Follow</option>
+                <option value="smc">Smart Money Concepts</option>
+                <option value="vwap">VWAP Candle Failure</option>
+                <option value="order-block">Order Block</option>
+                <option value="4h-range">4-Hour Range Breakout Fade</option>
               </select>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-400">Quantity</label>
-              <input 
-                type="number" 
-                step="any" 
-                value={qty} 
-                onChange={(e) => setQty(e.target.value)} 
-                placeholder="1.0" 
-                required 
-                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
-              />
-            </div>
+          {/* Position-size calculator: entry + stop-loss + account balance + risk % -> suggested quantity */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end bg-slate-900/40 border border-slate-800 rounded-xl p-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-slate-400">Entry Price</label>
-              <input 
-                type="number" 
-                step="any" 
-                value={entry} 
-                onChange={(e) => setEntry(e.target.value)} 
-                placeholder="68500.00" 
-                required 
+              <input
+                type="number"
+                step="any"
+                value={entry}
+                onChange={(e) => setEntry(e.target.value)}
+                placeholder="68500.00"
+                required
                 className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
               />
             </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-slate-400">Stop Loss</label>
+              <input
+                type="number"
+                step="any"
+                value={stopLoss}
+                onChange={(e) => setStopLoss(e.target.value)}
+                placeholder="67800.00"
+                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-slate-400">Risk % of Balance</label>
+              <input
+                type="number"
+                step="any"
+                value={riskPercent}
+                onChange={(e) => setRiskPercent(e.target.value)}
+                placeholder="1"
+                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
+              />
+            </div>
+            <button
+              type="button"
+              disabled={!canCalculateSize}
+              onClick={handleCalculateSize}
+              className="flex items-center justify-center gap-2 bg-violet-600/20 border border-violet-500/30 hover:bg-violet-600/30 disabled:opacity-40 disabled:cursor-not-allowed text-violet-300 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer"
+            >
+              <Calculator size={16} /> Calculate Size
+            </button>
+            <p className="md:col-span-4 text-[11px] text-slate-500 -mt-1">
+              Uses Balance Before as account size. Fills Quantity below with the size that risks exactly {riskPercent || "?"}% of balance if the stop is hit.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-slate-400">Quantity</label>
+              <input
+                type="number"
+                step="any"
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+                placeholder="1.0"
+                required
+                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
+              />
+            </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-slate-400">Exit Price</label>
-              <input 
-                type="number" 
-                step="any" 
-                value={exit} 
-                onChange={(e) => setExit(e.target.value)} 
-                placeholder="69200.00" 
-                required 
+              <input
+                type="number"
+                step="any"
+                value={exit}
+                onChange={(e) => setExit(e.target.value)}
+                placeholder="69200.00"
+                required
                 className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
               />
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-slate-400">Realized PnL ($)</label>
-              <input 
-                type="number" 
-                step="any" 
-                value={pnl} 
-                onChange={(e) => setPnl(e.target.value)} 
-                placeholder="700.00" 
-                required 
+              <input
+                type="number"
+                step="any"
+                value={pnl}
+                onChange={(e) => setPnl(e.target.value)}
+                placeholder="700.00"
+                required
                 className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
               />
             </div>
@@ -253,6 +336,17 @@ export default function TradeFormModal({
                 className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
               />
             </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-slate-400">Tags (comma-separated)</label>
+            <input
+              type="text"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="clean-setup, fomo-entry, moved-stop, high-conviction"
+              className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
+            />
           </div>
 
           <div className="flex flex-col gap-1.5">

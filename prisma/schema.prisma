@@ -79,7 +79,12 @@ model Trade {
   exitPrice     Float
   strategy      String   @default("macd-200ema-sr")
   notes         String   @default("")
-  
+
+  stopLoss           Float?
+  initialRiskAmount  Float?   // $ amount risked at entry (|entryPrice - stopLoss| * quantity); R-multiple = pnl / initialRiskAmount
+  tags               String[] @default([])
+  checklist          Json?    // [{ label: string, checked: boolean }]
+
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId        String
   createdAt     DateTime @default(now())

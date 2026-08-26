@@ -164,6 +164,8 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
               <option value="macd-sma-atr">MACD + SMA + ATR</option>
               <option value="trend-following">Dual EMA Trend Follow</option>
               <option value="vwap">VWAP Candle Failure</option>
+              <option value="order-block">Order Block</option>
+              <option value="4h-range">4-Hour Range Breakout Fade</option>
             </select>
           </div>
 
@@ -185,6 +187,8 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
               onChange={(e) => setInterval(e.target.value)} 
               className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500"
             >
+              <option value="1m">1 Minute (1m)</option>
+              <option value="5m">5 Minutes (5m)</option>
               <option value="15m">15 Minutes (15m)</option>
               <option value="1h">1 Hour (1h)</option>
               <option value="4h">4 Hours (4h)</option>

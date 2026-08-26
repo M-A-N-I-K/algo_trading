@@ -5,4 +5,6 @@ export * from "./supplyDemandStrategy";
 export * from "./macd200EmaSrStrategy";
 export * from "./smartMoneyConceptsStrategy";
 export * from "./vwapStrategy";
+export * from "./orderBlockStrategy";
+export * from "./fourHourRangeStrategy";
 

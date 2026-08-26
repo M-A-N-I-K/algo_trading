@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sparkles, LineChart, ListTodo, Import, FlaskConical } from "lucide-react";
+import { Sparkles, LineChart, ListTodo, Import, FlaskConical, X } from "lucide-react";
 
 interface SidebarProps {
   user: { name?: string | null; email?: string | null; image?: string | null } | null;
   onLogout: () => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 const NAV_ITEMS = [
@@ -16,16 +18,30 @@ const NAV_ITEMS = [
   { href: "/import", label: "Bulk Import", icon: Import },
 ];
 
-export default function Sidebar({ user, onLogout }: SidebarProps) {
+export default function Sidebar({ user, onLogout, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 bg-slate-950/90 border-r border-slate-900 flex flex-col p-6 backdrop-blur-xl fixed left-0 top-0 h-screen z-10">
-      <div className="flex items-center gap-3 mb-10 px-2">
-        <Sparkles className="text-violet-500 logo-icon animate-pulse" size={24} />
-        <span className="brand-text font-bold text-xl tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent font-Outfit">
-          AuraJournal
-        </span>
+    <aside
+      className={`w-64 bg-slate-950/90 border-r border-slate-900 flex flex-col p-6 backdrop-blur-xl fixed left-0 top-0 h-screen z-40 transform transition-transform duration-300 ease-in-out ${
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      } md:translate-x-0`}
+    >
+      <div className="flex items-center justify-between mb-10 px-2">
+        <div className="flex items-center gap-3">
+          <Sparkles className="text-violet-500 logo-icon animate-pulse" size={24} />
+          <span className="brand-text font-bold text-xl tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent font-Outfit">
+            AuraJournal
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="md:hidden text-slate-400 hover:text-white transition-colors"
+          aria-label="Close menu"
+        >
+          <X size={20} />
+        </button>
       </div>
 
       <nav className="flex flex-col gap-1.5 flex-grow">
@@ -35,6 +51,7 @@ export default function Sidebar({ user, onLogout }: SidebarProps) {
             <Link
               key={href}
               href={href}
+              onClick={onClose}
               className={`flex items-center gap-3.5 px-4 py-3 text-sm text-slate-400 rounded-xl font-medium transition-all cursor-pointer border border-transparent text-left hover:text-white hover:bg-slate-900/50 ${isActive ? "bg-violet-500/10 border-violet-500/20 text-violet-400 font-semibold shadow-[0_4px_20px_rgba(124,77,255,0.06)]" : ""}`}
             >
               <Icon size={16} /> {label}

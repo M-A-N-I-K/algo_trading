@@ -1,8 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession, signIn, signOut } from "next-auth/react";
-import { Plus, CheckCircle, AlertTriangle, Sparkles } from "lucide-react";
+import { Plus, CheckCircle, AlertTriangle, Sparkles, Menu } from "lucide-react";
 import Sidebar from "@/components/trading-journal/Sidebar";
 import TradeFormModal from "@/components/trading-journal/TradeFormModal";
 import TradeNotesDrawer from "@/components/trading-journal/TradeNotesDrawer";
@@ -31,6 +32,13 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const pathname = usePathname();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Close the mobile sidebar automatically whenever the route changes.
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
+
   const {
     notifications,
     isModalOpen,
@@ -96,19 +104,50 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen w-full bg-slate-950 font-sans antialiased text-slate-200">
-      <Sidebar user={session?.user || null} onLogout={() => signOut()} />
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-30 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
-      <main className="flex-grow pl-72 pr-10 py-10 min-w-0 w-[calc(100%-16rem)]">
-        <header className="flex justify-between items-center mb-10">
+      <Sidebar
+        user={session?.user || null}
+        onLogout={() => signOut()}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+
+      {/* Mobile top bar */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-4 border-b border-slate-900 bg-slate-950/95 backdrop-blur-xl">
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          className="text-slate-300 hover:text-white transition-colors"
+          aria-label="Open menu"
+        >
+          <Menu size={22} />
+        </button>
+        <div className="flex items-center gap-2">
+          <Sparkles className="text-violet-500" size={18} />
+          <span className="font-bold text-sm tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent font-Outfit">
+            AuraJournal
+          </span>
+        </div>
+        <div className="w-[22px]" />
+      </div>
+
+      <main className="flex-grow px-4 sm:px-6 md:pl-72 md:pr-10 pt-20 md:pt-10 pb-10 min-w-0 w-full md:w-[calc(100%-16rem)]">
+        <header className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center mb-8 md:mb-10">
           <div>
-            <h1 className="font-Outfit text-3xl font-extrabold text-white tracking-tight">
+            <h1 className="font-Outfit text-2xl md:text-3xl font-extrabold text-white tracking-tight">
               {meta.title}
             </h1>
             <p className="text-slate-400 text-sm mt-1">{meta.subtitle}</p>
           </div>
           <div>
             <button
-              className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white px-5 py-3 rounded-xl text-sm font-semibold flex items-center gap-2 shadow-lg shadow-violet-500/25 transition-all hover:-translate-y-0.5 duration-300 cursor-pointer"
+              className="w-full sm:w-auto justify-center bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white px-5 py-3 rounded-xl text-sm font-semibold flex items-center gap-2 shadow-lg shadow-violet-500/25 transition-all hover:-translate-y-0.5 duration-300 cursor-pointer"
               onClick={() => openTradeForm(null)}
             >
               <Plus size={18} /> New Trade
@@ -133,9 +172,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         onSaveNotes={handleSaveNotes}
       />
 
-      <div className="fixed bottom-8 right-8 z-50 flex flex-col gap-3">
+      <div className="fixed bottom-4 right-4 left-4 sm:left-auto sm:bottom-8 sm:right-8 z-50 flex flex-col gap-3">
         {notifications.map(n => (
-          <div key={n.id} className={`flex items-center gap-3 px-5 py-3.5 rounded-xl border font-semibold text-sm shadow-xl animate-fade-in ${
+          <div key={n.id} className={`flex items-center gap-3 px-5 py-3.5 rounded-xl border font-semibold text-sm shadow-xl animate-fade-in sm:max-w-sm ${
             n.type === "success"
               ? "bg-emerald-950/95 border-emerald-500/20 text-emerald-400"
               : "bg-rose-950/95 border-rose-500/20 text-rose-400"

@@ -8,9 +8,11 @@ import {
   createMacd200EmaSrStrategy,
   createSmartMoneyConceptsStrategy,
   createVwapStrategy,
+  createOrderBlockStrategy,
+  createFourHourRangeStrategy,
 } from "@/strategies";
 import { runBacktest } from "@/backtest/engine";
-import { fetchCandlestickHistory } from "@/backtest/fetchHistory";
+import { fetchCandlestickHistory, intervalToMs } from "@/backtest/fetchHistory";
 import { authenticateRequest, authChallengeResponse } from "@/lib/auth";
 
 const STRATEGIES: Record<string, (opts?: any) => any> = {
@@ -22,6 +24,8 @@ const STRATEGIES: Record<string, (opts?: any) => any> = {
   "smc": createSmartMoneyConceptsStrategy,
   "smart-money-concepts": createSmartMoneyConceptsStrategy,
   "vwap": createVwapStrategy,
+  "order-block": createOrderBlockStrategy,
+  "4h-range": createFourHourRangeStrategy,
 };
 
 export async function POST(request: NextRequest) {
@@ -62,13 +66,24 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      if (strategyKey === "order-block") {
+        // Order blocks are drawn on 1h structure; `interval` is the
+        // lower-timeframe trigger (e.g. 1m/5m) used only for entries.
+        const candlesPerHtfBar = intervalToMs("1h") / intervalToMs(runInterval);
+        const htfLimit = Math.ceil(limitNum / candlesPerHtfBar) + 50;
+        const rawHtf = await fetchCandlestickHistory(sym, "1h", htfLimit);
+        if (rawHtf && rawHtf.length > 0) {
+          htfCandles = parseCandlesticks(rawHtf);
+        }
+      }
+
       const candles = await fetchCandlestickHistory(sym, runInterval, limitNum);
       if (!candles || candles.length === 0) {
         continue;
       }
 
       const ohlc = parseCandlesticks(candles);
-      const strategyInstance = strategyKey === "supply-demand"
+      const strategyInstance = strategyKey === "supply-demand" || strategyKey === "order-block"
         ? createStrategy({ htfCandles })
         : createStrategy();
 

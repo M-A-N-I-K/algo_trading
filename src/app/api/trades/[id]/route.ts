@@ -14,7 +14,7 @@ export async function PUT(
   try {
     const params = await context.params;
     const id = params.id;
-    const { notes, strategy } = await request.json();
+    const { notes, strategy, tags, checklist } = await request.json();
 
     // Verify ownership
     const trade = await prisma.trade.findFirst({
@@ -28,7 +28,9 @@ export async function PUT(
       where: { id },
       data: {
         notes: notes !== undefined ? notes : trade.notes,
-        strategy: strategy !== undefined ? strategy : trade.strategy
+        strategy: strategy !== undefined ? strategy : trade.strategy,
+        tags: tags !== undefined ? tags : trade.tags,
+        checklist: checklist !== undefined ? checklist : trade.checklist ?? undefined
       }
     });
 

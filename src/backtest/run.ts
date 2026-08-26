@@ -7,12 +7,14 @@ import {
   createMacd200EmaSrStrategy,
   createSmartMoneyConceptsStrategy,
   createVwapStrategy,
+  createOrderBlockStrategy,
+  createFourHourRangeStrategy,
 } from "../strategies";
 import { Strategy } from "../types";
 import { runBacktest } from "./engine";
-import { fetchCandlestickHistory } from "./fetchHistory";
+import { fetchCandlestickHistory, intervalToMs } from "./fetchHistory";
 
-const STRATEGIES: Record<string, () => Strategy> = {
+const STRATEGIES: Record<string, (opts?: any) => Strategy> = {
   "ema-rsi-bollinger": createEmaRsiBollingerStrategy,
   "macd-sma-atr": createMacdSmaAtrStrategy,
   "trend-following": createTrendFollowingStrategy,
@@ -21,6 +23,8 @@ const STRATEGIES: Record<string, () => Strategy> = {
   "smc": createSmartMoneyConceptsStrategy,
   "smart-money-concepts": createSmartMoneyConceptsStrategy,
   "vwap": createVwapStrategy,
+  "order-block": createOrderBlockStrategy,
+  "4h-range": createFourHourRangeStrategy,
 };
 
 async function main() {
@@ -67,6 +71,18 @@ async function main() {
   const results: BacktestSummary[] = [];
 
   for (const symbol of symbols) {
+    let htfCandles = undefined;
+    if (strategyKey === "order-block") {
+      // Order blocks are drawn on 1h structure; `interval` is the
+      // lower-timeframe trigger (e.g. 1m/5m) used only for entries.
+      const candlesPerHtfBar = intervalToMs("1h") / intervalToMs(interval);
+      const htfLimit = Math.ceil(limit / candlesPerHtfBar) + 50;
+      const rawHtf = await fetchCandlestickHistory(symbol, "1h", htfLimit);
+      if (rawHtf && rawHtf.length > 0) {
+        htfCandles = parseCandlesticks(rawHtf);
+      }
+    }
+
     const candles = await fetchCandlestickHistory(symbol, interval, limit);
     if (!candles.length) {
       console.error(`Failed to fetch candlesticks for ${symbol}`);
@@ -74,7 +90,7 @@ async function main() {
     }
 
     const ohlc = parseCandlesticks(candles);
-    const strategy = createStrategy();
+    const strategy = strategyKey === "order-block" ? createStrategy({ htfCandles }) : createStrategy();
     const result = runBacktest(ohlc, strategy, {
       initialBalance,
       positionSizePercent,

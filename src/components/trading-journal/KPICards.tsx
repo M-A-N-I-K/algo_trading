@@ -1,4 +1,4 @@
-import { Wallet, CheckCircle, Scale, TrendingUp } from "lucide-react";
+import { Wallet, CheckCircle, Scale, TrendingUp, Target } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface KPICardsProps {
@@ -11,6 +11,8 @@ interface KPICardsProps {
   avgRr: number;
   avgWin: number;
   avgLoss: number;
+  avgRMultiple?: number | null;
+  rMultipleTradeCount?: number;
 }
 
 export default function KPICards({
@@ -23,9 +25,11 @@ export default function KPICards({
   avgRr,
   avgWin,
   avgLoss,
+  avgRMultiple,
+  rMultipleTradeCount = 0,
 }: KPICardsProps) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-10">
       
       {/* Net Profit Card */}
       <Card className="glass hover:translate-y-[-5px] hover:border-violet-500/25 transition-all duration-300">
@@ -87,6 +91,24 @@ export default function KPICards({
           </div>
           <div className="w-12 h-12 rounded-xl flex items-center justify-center rr-bg text-indigo-400 bg-indigo-500/10">
             <TrendingUp size={20} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Avg R-Multiple Card (from journaled stop-loss / risk data) */}
+      <Card className="glass hover:translate-y-[-5px] hover:border-violet-500/25 transition-all duration-300">
+        <CardContent className="flex justify-between items-center p-6">
+          <div>
+            <span className="text-[13px] font-semibold text-slate-400 uppercase tracking-wider">Avg R-Multiple</span>
+            <h3 className={`font-Outfit text-3xl font-bold mt-1.5 mb-1 ${avgRMultiple == null ? "text-slate-500" : avgRMultiple >= 0 ? "text-emerald-400" : "text-rose-500"}`}>
+              {avgRMultiple == null ? "—" : `${avgRMultiple >= 0 ? "+" : ""}${avgRMultiple.toFixed(2)}R`}
+            </h3>
+            <span className="text-xs text-slate-400">
+              {rMultipleTradeCount > 0 ? `From ${rMultipleTradeCount} trades with a stop-loss logged` : "Log a stop-loss to enable"}
+            </span>
+          </div>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-fuchsia-500/10 text-fuchsia-400">
+            <Target size={20} />
           </div>
         </CardContent>
       </Card>

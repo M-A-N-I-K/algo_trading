@@ -8,6 +8,8 @@
     "build": "next build",
     "start": "next start -p 3000",
     "backtest": "tsx --env-file=.env src/backtest/run.ts",
+    "backtest:walk-forward": "tsx --env-file=.env src/backtest/walkForward.ts",
+    "backtest:param-sweep": "tsx --env-file=.env src/backtest/paramSweep.ts",
     "lint": "eslint . --ext .ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
