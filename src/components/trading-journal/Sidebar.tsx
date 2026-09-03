@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sparkles, LineChart, ListTodo, Import, FlaskConical, X } from "lucide-react";
+import { Sparkles, LineChart, ListTodo, Import, FlaskConical, ShieldHalf, X } from "lucide-react";
 
 interface SidebarProps {
   user: { name?: string | null; email?: string | null; image?: string | null } | null;
@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { href: "/trades", label: "Trade Log", icon: ListTodo },
   { href: "/backtest", label: "Backtesting", icon: FlaskConical },
   { href: "/import", label: "Bulk Import", icon: Import },
+  { href: "/risk-calculator", label: "Risk Calculator", icon: ShieldHalf },
 ];
 
 export default function Sidebar({ user, onLogout, isOpen, onClose }: SidebarProps) {
