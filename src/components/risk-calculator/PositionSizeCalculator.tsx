@@ -15,7 +15,6 @@ export default function PositionSizeCalculator({ currency, defaultRiskAmount }: 
 
   useEffect(() => {
     setRiskAmount((prev) => (prev === null ? defaultRiskAmount || null : prev));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const result = computePositionSize({

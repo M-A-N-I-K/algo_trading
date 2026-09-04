@@ -14,7 +14,6 @@ export default function ExpectancyCalculator({ currency, defaultRiskAmount }: { 
 
   useEffect(() => {
     setRiskAmount((prev) => (prev === null ? defaultRiskAmount || null : prev));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const result = computeExpectancy({

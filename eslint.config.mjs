@@ -16,6 +16,6 @@ export default defineConfig([
   tseslint.configs.recommended,
 
   {
-    ignores: ["build/**", "dist/**", "node_modules/**"],
+    ignores: ["build/**", "dist/**", "node_modules/**", ".next/**"],
   },
 ]);

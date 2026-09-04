@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sparkles, LineChart, ListTodo, Import, FlaskConical, ShieldHalf, X } from "lucide-react";
+import { Sparkles, LineChart, ListTodo, Import, FlaskConical, ShieldHalf, CandlestickChart, Layers, Settings, X } from "lucide-react";
 
 interface SidebarProps {
   user: { name?: string | null; email?: string | null; image?: string | null } | null;
@@ -13,11 +13,20 @@ interface SidebarProps {
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LineChart },
-  { href: "/trades", label: "Trade Log", icon: ListTodo },
-  { href: "/backtest", label: "Backtesting", icon: FlaskConical },
+  { href: "/market", label: "Market Data", icon: CandlestickChart },
+  { href: "/strategies", label: "Strategies", icon: Layers },
+  { href: "/risk", label: "Risk Calculator", icon: ShieldHalf },
+  { href: "/backtest", label: "Backtests", icon: FlaskConical },
+  { href: "/trades", label: "Trade Journal", icon: ListTodo },
   { href: "/import", label: "Bulk Import", icon: Import },
-  { href: "/risk-calculator", label: "Risk Calculator", icon: ShieldHalf },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
+
+// Kept separate from the main nav so the two risk tools aren't confused:
+// per-trade instrument position sizing (above) vs. account-level risk
+// management — daily loss limits, drawdown, expectancy (below, unchanged
+// from before this restructure).
+const SECONDARY_NAV_ITEMS = [{ href: "/risk-calculator", label: "Account Risk", icon: ShieldHalf }];
 
 export default function Sidebar({ user, onLogout, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
@@ -47,6 +56,22 @@ export default function Sidebar({ user, onLogout, isOpen, onClose }: SidebarProp
 
       <nav className="flex flex-col gap-1.5 flex-grow">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          const isActive = pathname === href;
+          return (
+            <Link
+              key={href}
+              href={href}
+              onClick={onClose}
+              className={`flex items-center gap-3.5 px-4 py-3 text-sm text-slate-400 rounded-xl font-medium transition-all cursor-pointer border border-transparent text-left hover:text-white hover:bg-slate-900/50 ${isActive ? "bg-violet-500/10 border-violet-500/20 text-violet-400 font-semibold shadow-[0_4px_20px_rgba(124,77,255,0.06)]" : ""}`}
+            >
+              <Icon size={16} /> {label}
+            </Link>
+          );
+        })}
+
+        <div className="border-t border-slate-900 my-3" />
+        <span className="px-4 text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Tools</span>
+        {SECONDARY_NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href;
           return (
             <Link

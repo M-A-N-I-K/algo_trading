@@ -9,23 +9,40 @@ import TradeFormModal from "@/components/trading-journal/TradeFormModal";
 import TradeNotesDrawer from "@/components/trading-journal/TradeNotesDrawer";
 import TraderLoader from "@/components/trading-journal/TraderLoader";
 import { DashboardProvider, useDashboard } from "@/components/trading-journal/DashboardContext";
+import QueryProvider from "@/components/layout/QueryProvider";
 
 const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   "/": {
     title: "Analytics Dashboard",
     subtitle: "Real-time performance metrics and trade distributions.",
   },
-  "/trades": {
-    title: "Trade Log",
-    subtitle: "Audit and inspect your complete historical execution logs.",
+  "/market": {
+    title: "Market Data",
+    subtitle: "Browse historical and demo candlestick data across instruments and timeframes.",
+  },
+  "/strategies": {
+    title: "Strategies",
+    subtitle: "Build and version systematic trading strategies.",
+  },
+  "/risk": {
+    title: "Risk Calculator",
+    subtitle: "Per-trade position sizing with instrument lot size, tick size, and cost modeling.",
   },
   "/backtest": {
-    title: "Strategy Backtesting",
+    title: "Backtests",
     subtitle: "Run simulations to test technical models against historical market candle datasets.",
+  },
+  "/trades": {
+    title: "Trade Journal",
+    subtitle: "Audit and inspect your complete historical execution logs.",
   },
   "/import": {
     title: "Bulk Import",
     subtitle: "Bulk upload your CSV execution lists to merge setups.",
+  },
+  "/settings": {
+    title: "Settings",
+    subtitle: "Manage your account and application preferences.",
   },
 };
 
@@ -190,8 +207,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <DashboardProvider>
-      <DashboardShell>{children}</DashboardShell>
-    </DashboardProvider>
+    <QueryProvider>
+      <DashboardProvider>
+        <DashboardShell>{children}</DashboardShell>
+      </DashboardProvider>
+    </QueryProvider>
   );
 }

@@ -5,6 +5,7 @@ import KPICards from "@/components/trading-journal/KPICards";
 import AnalyticsCharts from "@/components/trading-journal/AnalyticsCharts";
 import TradesTable from "@/components/trading-journal/TradesTable";
 import LossLimitBanner from "@/components/trading-journal/LossLimitBanner";
+import StrategySummaryCard from "@/components/trading-journal/StrategySummaryCard";
 import { useDashboard } from "@/components/trading-journal/DashboardContext";
 
 export default function DashboardPage() {
@@ -51,6 +52,8 @@ export default function DashboardPage() {
       />
 
       <AnalyticsCharts trades={trades} />
+
+      <StrategySummaryCard />
 
       <div className="glass border-slate-800 p-6 rounded-2xl mb-8">
         <div className="flex justify-between items-center mb-6">

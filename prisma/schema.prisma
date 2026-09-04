@@ -22,6 +22,11 @@ model User {
   updatedAt    DateTime  @updatedAt
   trades       Trade[]
 
+  tradingAccounts TradingAccount[]
+  riskProfiles    RiskProfile[]
+  strategies      Strategy[]
+  backtests       Backtest[]
+
   @@map("users")
 }
 
@@ -91,4 +96,229 @@ model Trade {
 
   @@unique([userId, time, pnl])
   @@map("trades")
+}
+
+// ---------------------------------------------------------------------------
+// Trading Lab P0: market data, risk profiles, and strategy/backtest
+// foundation. All additive — no existing model above is modified.
+// ---------------------------------------------------------------------------
+
+// A trading account (balance/equity), distinct from NextAuth's `Account`
+// (OAuth linking) model above, which already owns the "accounts" table name.
+model TradingAccount {
+  id            String   @id @default(uuid())
+  userId        String
+  name          String
+  currency      String   @default("INR")
+  balance       Decimal  @db.Decimal(18, 4)
+  broker        String?
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  riskProfiles  RiskProfile[]
+
+  @@index([userId])
+  @@map("trading_accounts")
+}
+
+enum AssetType {
+  STOCK
+  INDEX
+  FUTURE
+  OPTION
+  ETF
+  CRYPTO
+  FOREX
+}
+
+model Instrument {
+  id         String    @id @default(uuid())
+  symbol     String
+  exchange   String
+  assetType  AssetType
+  currency   String    @default("INR")
+  // Decimal-safe: smallest price increment and smallest tradable quantity
+  // increment. Both stored as Decimal, never float, since they gate
+  // rounding/validation for every position-size calculation.
+  tickSize   Decimal   @db.Decimal(18, 8)
+  lotSize    Decimal   @db.Decimal(18, 8)
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  candles      Candle[]
+  riskProfiles RiskProfile[]
+
+  @@unique([symbol, exchange])
+  @@index([assetType])
+  @@map("instruments")
+}
+
+enum Timeframe {
+  M1
+  M5
+  M15
+  M30
+  H1
+  D1
+}
+
+model Candle {
+  id           String     @id @default(uuid())
+  instrumentId String
+  timestamp    DateTime
+  timeframe    Timeframe
+  // OHLCV stored as Decimal — never JS float — since candle values feed
+  // directly into risk/backtest calculations downstream.
+  open         Decimal    @db.Decimal(18, 8)
+  high         Decimal    @db.Decimal(18, 8)
+  low          Decimal    @db.Decimal(18, 8)
+  close        Decimal    @db.Decimal(18, 8)
+  volume       Decimal    @db.Decimal(24, 8)
+  // Demo/seeded candles must never be mistaken for real market data.
+  isDemo       Boolean    @default(true)
+
+  instrument   Instrument @relation(fields: [instrumentId], references: [id], onDelete: Cascade)
+
+  // Covers "all candles for instrument + timeframe + date range" and
+  // "latest candles for instrument" query patterns.
+  @@unique([instrumentId, timeframe, timestamp])
+  @@index([instrumentId, timeframe, timestamp])
+  @@map("candles")
+}
+
+model RiskProfile {
+  id               String   @id @default(uuid())
+  userId           String
+  tradingAccountId String?
+  instrumentId     String?
+  name             String
+  symbol           String
+  direction        String // LONG or SHORT
+  entryPrice       Decimal  @db.Decimal(18, 8)
+  stopLoss         Decimal  @db.Decimal(18, 8)
+  takeProfit       Decimal? @db.Decimal(18, 8)
+  riskPercent      Decimal  @db.Decimal(8, 4)
+  // Snapshot of the computed result at save time, so a saved profile
+  // reflects what the trader actually saw — not a live recalculation that
+  // could silently drift if instrument/account data changes later.
+  result           Json
+
+  createdAt        DateTime @default(now())
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tradingAccount  TradingAccount? @relation(fields: [tradingAccountId], references: [id], onDelete: SetNull)
+  instrument      Instrument?     @relation(fields: [instrumentId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("risk_profiles")
+}
+
+// DRAFT: incomplete, freely editable. READY: passed validateStrategyDefinition
+// and can be backtested. ARCHIVED: retired, kept for history.
+enum StrategyStatus {
+  DRAFT
+  READY
+  ARCHIVED
+}
+
+// Relational metadata for fast listing/filtering — the full StrategyDefinition
+// (entry/exit/risk/positionSizing/...) lives in StrategyVersion.configuration.
+// name/market/timeframe/status here are denormalized from the latest
+// version's definition at save time.
+model Strategy {
+  id          String         @id @default(uuid())
+  userId      String
+  name        String
+  description String         @default("")
+  market      String
+  timeframe   Timeframe
+  status      StrategyStatus @default(DRAFT)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  versions  StrategyVersion[]
+  backtests Backtest[]
+
+  @@index([userId])
+  @@map("strategies")
+}
+
+// Strategy configuration is versioned and immutable — a new version is
+// always inserted, never overwritten, so backtests stay reproducible
+// against the exact configuration that produced them.
+model StrategyVersion {
+  id          String   @id @default(uuid())
+  strategyId  String
+  version     Int
+  // The full, Zod-validated StrategyDefinition JSON (src/domain/strategies).
+  configuration Json
+  // Optional human/auto-generated note describing what changed vs. the
+  // previous version (see src/domain/strategies/diff.ts).
+  changeNote  String?
+  createdAt   DateTime @default(now())
+
+  strategy  Strategy   @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  backtests Backtest[]
+
+  @@unique([strategyId, version])
+  @@map("strategy_versions")
+}
+
+enum BacktestStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+// Foundation only for P0 — no execution engine wired up yet (see
+// src/domain/backtesting for the placeholder interfaces).
+model Backtest {
+  id                String         @id @default(uuid())
+  strategyId        String
+  strategyVersionId String
+  userId            String
+  status            BacktestStatus @default(PENDING)
+  // Run configuration (date range, symbol, timeframe, initial capital, ...).
+  configuration     Json
+  // Populated only once status = COMPLETED: { metrics, equityCurve, drawdownCurve }.
+  metrics           Json?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime       @default(now())
+
+  strategy        Strategy        @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  strategyVersion StrategyVersion @relation(fields: [strategyVersionId], references: [id], onDelete: Cascade)
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades          BacktestTrade[]
+
+  @@index([strategyId])
+  @@index([userId])
+  @@map("backtests")
+}
+
+model BacktestTrade {
+  id           String   @id @default(uuid())
+  backtestId   String
+  side         String // LONG or SHORT
+  entryTime    DateTime
+  entryPrice   Decimal  @db.Decimal(18, 8)
+  exitTime     DateTime
+  exitPrice    Decimal  @db.Decimal(18, 8)
+  quantity     Decimal  @db.Decimal(18, 8)
+  fees         Decimal  @db.Decimal(18, 8) @default(0)
+  slippage     Decimal  @db.Decimal(18, 8) @default(0)
+  pnl          Decimal  @db.Decimal(18, 4)
+  rMultiple    Decimal? @db.Decimal(10, 4)
+  mae          Decimal? @db.Decimal(18, 4) // Maximum Adverse Excursion
+  mfe          Decimal? @db.Decimal(18, 4) // Maximum Favorable Excursion
+
+  backtest Backtest @relation(fields: [backtestId], references: [id], onDelete: Cascade)
+
+  @@index([backtestId])
+  @@map("backtest_trades")
 }

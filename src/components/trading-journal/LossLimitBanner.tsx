@@ -38,7 +38,6 @@ export default function LossLimitBanner({ trades }: LossLimitBannerProps) {
     const defaultWeekly = storedWeekly ? parseFloat(storedWeekly) : Math.round(latestBalance * 0.08);
     setDailyLimit(defaultDaily);
     setWeeklyLimit(defaultWeekly);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trades.length]);
 
   if (dailyLimit === null || weeklyLimit === null) return null;
