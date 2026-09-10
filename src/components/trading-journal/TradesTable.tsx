@@ -8,6 +8,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
+import { STRATEGY_CATALOG } from "@/lib/strategyCatalog";
 
 interface Trade {
   id: string;
@@ -97,14 +98,11 @@ export default function TradesTable({
                 onChange={(e) => setFilterStrategy(e.target.value)}
               >
                 <option value="ALL">All Strategies</option>
-                <option value="macd-200ema-sr">MACD + 200 EMA + S/R</option>
-                <option value="supply-demand">Supply & Demand Zones</option>
-                <option value="ema-rsi-bollinger">EMA + RSI + Bollinger</option>
-                <option value="macd-sma-atr">MACD + SMA + ATR</option>
-                <option value="trend-following">Dual EMA Trend Follow</option>
-                <option value="vwap">VWAP Candle Failure</option>
-                <option value="order-block">Order Block</option>
-                <option value="4h-range">4-Hour Range Breakout Fade</option>
+                {STRATEGY_CATALOG.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
               </select>
             </div>
 

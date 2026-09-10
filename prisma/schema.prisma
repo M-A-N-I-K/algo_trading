@@ -26,6 +26,7 @@ model User {
   riskProfiles    RiskProfile[]
   strategies      Strategy[]
   backtests       Backtest[]
+  backtestRuns    BacktestRun[]
 
   @@map("users")
 }
@@ -321,4 +322,30 @@ model BacktestTrade {
 
   @@index([backtestId])
   @@map("backtest_trades")
+}
+
+// Stores a completed run from the legacy hardcoded-strategy backtest engine
+// (src/strategies/*, src/app/api/backtest/route.ts) — distinct from the
+// Backtest model above, which is scoped to the newer Strategy Builder's
+// versioned StrategyDefinition and requires a strategyId/strategyVersionId
+// FK that legacy runs don't have. `results` mirrors exactly what the API
+// returns to the client (already bounded to the last 100 trades / 500
+// equity points per symbol), so history playback needs no recomputation.
+model BacktestRun {
+  id                 String   @id @default(uuid())
+  userId             String
+  strategyKey        String
+  strategyName       String
+  symbols            String
+  interval           String
+  candleLimit        Int
+  initialBalance     Decimal  @db.Decimal(18, 2)
+  minRiskRewardRatio Decimal? @db.Decimal(10, 4)
+  results            Json
+  createdAt          DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("backtest_runs")
 }

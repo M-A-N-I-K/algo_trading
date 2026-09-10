@@ -9,6 +9,13 @@ import {
   createVwapStrategy,
   createOrderBlockStrategy,
   createFourHourRangeStrategy,
+  createCmfMacdSwingStopStrategy,
+  createEmaVwapTrendReclaimStrategy,
+  createFibonacciRetracementContinuationStrategy,
+  createIchimokuCloudLongOnlySwingStrategy,
+  createGoldLondonLiquiditySweepStrategy,
+  createSessionLondonOpenBosStrategy,
+  createTrendRsiEngulfingScalpStrategy,
 } from "../strategies";
 import { Strategy } from "../types";
 import { runBacktest } from "./engine";
@@ -25,6 +32,13 @@ const STRATEGIES: Record<string, (opts?: any) => Strategy> = {
   "vwap": createVwapStrategy,
   "order-block": createOrderBlockStrategy,
   "4h-range": createFourHourRangeStrategy,
+  "cmf-macd-swing-stop": createCmfMacdSwingStopStrategy,
+  "ema-vwap-trend-reclaim": createEmaVwapTrendReclaimStrategy,
+  "fib-retracement-continuation": createFibonacciRetracementContinuationStrategy,
+  "ichimoku-long-swing": createIchimokuCloudLongOnlySwingStrategy,
+  "gold-london-sweep": createGoldLondonLiquiditySweepStrategy,
+  "session-london-bos": createSessionLondonOpenBosStrategy,
+  "trend-rsi-engulfing-scalp": createTrendRsiEngulfingScalpStrategy,
 };
 
 async function main() {
@@ -81,6 +95,15 @@ async function main() {
       if (rawHtf && rawHtf.length > 0) {
         htfCandles = parseCandlesticks(rawHtf);
       }
+    } else if (strategyKey === "session-london-bos") {
+      // Bias comes from a 4h EMA; `interval` is the execution timeframe
+      // the break-of-structure entry is triggered on.
+      const candlesPerHtfBar = intervalToMs("4h") / intervalToMs(interval);
+      const htfLimit = Math.ceil(limit / candlesPerHtfBar) + 50;
+      const rawHtf = await fetchCandlestickHistory(symbol, "4h", htfLimit);
+      if (rawHtf && rawHtf.length > 0) {
+        htfCandles = parseCandlesticks(rawHtf);
+      }
     }
 
     const candles = await fetchCandlestickHistory(symbol, interval, limit);
@@ -90,7 +113,10 @@ async function main() {
     }
 
     const ohlc = parseCandlesticks(candles);
-    const strategy = strategyKey === "order-block" ? createStrategy({ htfCandles }) : createStrategy();
+    const strategy =
+      strategyKey === "order-block" || strategyKey === "session-london-bos"
+        ? createStrategy({ htfCandles })
+        : createStrategy();
     const result = runBacktest(ohlc, strategy, {
       initialBalance,
       positionSizePercent,

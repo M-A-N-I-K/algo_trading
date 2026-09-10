@@ -3,6 +3,8 @@ import Chart from "chart.js/auto";
 import { Card, CardContent } from "@/components/ui/card";
 import { Play, TrendingUp, DollarSign, Award, Target, Percent } from "lucide-react";
 import TraderLoader from "@/components/trading-journal/TraderLoader";
+import BacktestHistoryPanel, { BacktestRunRecord } from "@/components/trading-journal/BacktestHistoryPanel";
+import { STRATEGY_CATALOG } from "@/lib/strategyCatalog";
 
 interface BacktestTrade {
   side: "LONG" | "SHORT";
@@ -41,6 +43,13 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
   const [results, setResults] = useState<BacktestResult[]>([]);
   const [selectedResultIndex, setSelectedResultIndex] = useState<number>(0);
 
+  // History panel state — every completed run is auto-saved server-side;
+  // `historyRefreshTrigger` tells the panel to reload its list, and
+  // `activeRunId` highlights whichever run's results are currently shown
+  // (either just-run live, or reopened from history).
+  const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+
   // Chart ref and instance tracking
   const chartRef = useRef<HTMLCanvasElement | null>(null);
   const chartInstance = useRef<Chart | null>(null);
@@ -48,6 +57,7 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
   const runSimulation = async () => {
     setLoading(true);
     setResults([]);
+    setActiveRunId(null);
     try {
       const res = await fetch("/api/backtest", {
         method: "POST",
@@ -65,6 +75,10 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
       if (res.ok) {
         setResults(data.results);
         setSelectedResultIndex(0);
+        if (data.savedRunId) {
+          setActiveRunId(data.savedRunId);
+          setHistoryRefreshTrigger((n) => n + 1);
+        }
         addNotification("Backtest completed successfully!", "success");
       } else {
         addNotification(data.error || "Simulation failed.", "error");
@@ -74,6 +88,12 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSelectHistoryRun = (run: BacktestRunRecord) => {
+    setResults(run.results);
+    setSelectedResultIndex(0);
+    setActiveRunId(run.id);
   };
 
   // Render Chart when selected result changes
@@ -145,11 +165,12 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
 
   return (
     <div className="flex flex-col gap-6">
-      
+
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-6 items-start">
       {/* Parameters Panel */}
       <Card className="glass border-slate-800 p-6 sm:p-8">
         <h3 className="font-Outfit text-lg font-bold text-white mb-6">Simulation Engine Parameters</h3>
-        
+
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-slate-400">Trading Strategy</label>
@@ -158,14 +179,11 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
               onChange={(e) => setStrategy(e.target.value)} 
               className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500"
             >
-              <option value="macd-200ema-sr">MACD + 200 EMA + S/R</option>
-              <option value="supply-demand">Supply & Demand Zones</option>
-              <option value="ema-rsi-bollinger">EMA + RSI + Bollinger</option>
-              <option value="macd-sma-atr">MACD + SMA + ATR</option>
-              <option value="trend-following">Dual EMA Trend Follow</option>
-              <option value="vwap">VWAP Candle Failure</option>
-              <option value="order-block">Order Block</option>
-              <option value="4h-range">4-Hour Range Breakout Fade</option>
+              {STRATEGY_CATALOG.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -252,6 +270,9 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
           </button>
         </div>
       </Card>
+
+      <BacktestHistoryPanel refreshTrigger={historyRefreshTrigger} activeRunId={activeRunId} onSelectRun={handleSelectHistoryRun} />
+      </div>
 
       {/* Results Section */}
       {results.length > 0 && (

@@ -10,10 +10,18 @@ import {
   createVwapStrategy,
   createOrderBlockStrategy,
   createFourHourRangeStrategy,
+  createCmfMacdSwingStopStrategy,
+  createEmaVwapTrendReclaimStrategy,
+  createFibonacciRetracementContinuationStrategy,
+  createIchimokuCloudLongOnlySwingStrategy,
+  createGoldLondonLiquiditySweepStrategy,
+  createSessionLondonOpenBosStrategy,
+  createTrendRsiEngulfingScalpStrategy,
 } from "@/strategies";
 import { runBacktest } from "@/backtest/engine";
 import { fetchCandlestickHistory, intervalToMs } from "@/backtest/fetchHistory";
 import { authenticateRequest, authChallengeResponse } from "@/lib/auth";
+import { createBacktestRun } from "@/db/repositories/backtestRunRepository";
 
 const STRATEGIES: Record<string, (opts?: any) => any> = {
   "ema-rsi-bollinger": createEmaRsiBollingerStrategy,
@@ -26,6 +34,13 @@ const STRATEGIES: Record<string, (opts?: any) => any> = {
   "vwap": createVwapStrategy,
   "order-block": createOrderBlockStrategy,
   "4h-range": createFourHourRangeStrategy,
+  "cmf-macd-swing-stop": createCmfMacdSwingStopStrategy,
+  "ema-vwap-trend-reclaim": createEmaVwapTrendReclaimStrategy,
+  "fib-retracement-continuation": createFibonacciRetracementContinuationStrategy,
+  "ichimoku-long-swing": createIchimokuCloudLongOnlySwingStrategy,
+  "gold-london-sweep": createGoldLondonLiquiditySweepStrategy,
+  "session-london-bos": createSessionLondonOpenBosStrategy,
+  "trend-rsi-engulfing-scalp": createTrendRsiEngulfingScalpStrategy,
 };
 
 export async function POST(request: NextRequest) {
@@ -77,13 +92,24 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      if (strategyKey === "session-london-bos") {
+        // Bias comes from a 4h EMA; `interval` is the execution timeframe
+        // the break-of-structure entry is triggered on.
+        const candlesPerHtfBar = intervalToMs("4h") / intervalToMs(runInterval);
+        const htfLimit = Math.ceil(limitNum / candlesPerHtfBar) + 50;
+        const rawHtf = await fetchCandlestickHistory(sym, "4h", htfLimit);
+        if (rawHtf && rawHtf.length > 0) {
+          htfCandles = parseCandlesticks(rawHtf);
+        }
+      }
+
       const candles = await fetchCandlestickHistory(sym, runInterval, limitNum);
       if (!candles || candles.length === 0) {
         continue;
       }
 
       const ohlc = parseCandlesticks(candles);
-      const strategyInstance = strategyKey === "supply-demand" || strategyKey === "order-block"
+      const strategyInstance = strategyKey === "supply-demand" || strategyKey === "order-block" || strategyKey === "session-london-bos"
         ? createStrategy({ htfCandles })
         : createStrategy();
 
@@ -118,7 +144,31 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ results });
+    // Persist every completed run (with at least one symbol's results) so
+    // it can be compared against later from the History panel — never
+    // block the response on this, but do surface the saved run's id so the
+    // UI can refresh its history list without a second round trip.
+    let savedRunId: string | null = null;
+    if (results.length > 0) {
+      try {
+        const saved = await createBacktestRun({
+          userId: user.id,
+          strategyKey,
+          strategyName: results[0].strategyName,
+          symbols: symbols.join(","),
+          interval,
+          candleLimit: limitNum,
+          initialBalance: balanceNum,
+          minRiskRewardRatio: minRrNum,
+          results,
+        });
+        savedRunId = saved.id;
+      } catch (persistErr) {
+        console.error("Failed to persist backtest run:", persistErr);
+      }
+    }
+
+    return NextResponse.json({ results, savedRunId });
   } catch (e: any) {
     console.error("Backtest API execution failed:", e);
     return NextResponse.json({ error: "Backtest simulation failed: " + e.message }, { status: 500 });
