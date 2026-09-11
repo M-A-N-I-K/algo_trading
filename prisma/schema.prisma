@@ -91,11 +91,16 @@ model Trade {
   tags               String[] @default([])
   checklist          Json?    // [{ label: string, checked: boolean }]
 
+  // Dedup key for trades synced from an exchange API (e.g. "coindcx:<entryFillId>:<exitFillId>").
+  // Null for manually-entered/CSV trades, which dedup on [userId, time, pnl] instead.
+  externalId    String?
+
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId        String
   createdAt     DateTime @default(now())
 
   @@unique([userId, time, pnl])
+  @@unique([userId, exchange, externalId])
   @@map("trades")
 }
 
