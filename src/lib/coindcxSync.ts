@@ -23,6 +23,11 @@ interface RawFuturesFill {
   fee_amount?: number;
 }
 
+interface RawFuturesOrder {
+  id: string;
+  stop_loss_price: number | null;
+}
+
 interface ClosedTrade {
   externalId: string;
   time: Date;
@@ -32,6 +37,8 @@ interface ClosedTrade {
   entryPrice: number;
   exitPrice: number;
   pnl: number;
+  stopLoss?: number;
+  initialRiskAmount?: number;
 }
 
 const SPOT_PAGE_LIMIT = 500;
@@ -96,6 +103,35 @@ async function fetchAllFuturesFills(): Promise<CoinDcxFill[]> {
   return fills;
 }
 
+// Maps futures order id -> stop-loss price, so the FIFO matcher can compute
+// each closed trade's initialRiskAmount (|entryPrice - stopLoss| * qty) for
+// a real R-multiple. CoinDCX attaches stop_loss_price directly to the entry
+// order (bracket-style) rather than exposing it as a separate order — most
+// orders won't have one set, which just means that trade has no R data.
+async function fetchFuturesStopLossByOrderId(): Promise<Map<string, number>> {
+  const stopLossByOrderId = new Map<string, number>();
+  let page = 1;
+
+  while (true) {
+    const raw = await coindcxSignedPost<RawFuturesOrder[]>(
+      "/exchange/v1/derivatives/futures/orders",
+      { page: String(page), size: String(FUTURES_PAGE_SIZE), status: "filled" },
+    );
+    if (!raw.length) break;
+
+    for (const order of raw) {
+      if (order.stop_loss_price != null) {
+        stopLossByOrderId.set(order.id, order.stop_loss_price);
+      }
+    }
+
+    if (raw.length < FUTURES_PAGE_SIZE) break;
+    page += 1;
+  }
+
+  return stopLossByOrderId;
+}
+
 const QUOTE_ASSETS = ["USDT", "INR", "USDC", "BTC", "ETH"];
 
 function inferQuoteCurrency(symbol: string): string {
@@ -114,7 +150,15 @@ function inferQuoteCurrency(symbol: string): string {
 // so the two never collide, even though callers must run this separately
 // per source — spot and futures positions are independent books and must
 // not be netted against each other in one FIFO pass.
-export function matchFillsFifo(fills: CoinDcxFill[], idPrefix: string): ClosedTrade[] {
+//
+// `stopLossByOrderId` (futures only) carries the stop-loss price attached
+// to the order that opened a lot, so a closed trade can report a real
+// initialRiskAmount / R-multiple instead of leaving it unset.
+export function matchFillsFifo(
+  fills: CoinDcxFill[],
+  idPrefix: string,
+  stopLossByOrderId?: Map<string, number>,
+): ClosedTrade[] {
   const bySymbol = new Map<string, CoinDcxFill[]>();
   for (const fill of fills) {
     const arr = bySymbol.get(fill.symbol) ?? [];
@@ -131,6 +175,7 @@ export function matchFillsFifo(fills: CoinDcxFill[], idPrefix: string): ClosedTr
 
     const lots: {
       id: string;
+      orderId: string;
       side: "buy" | "sell";
       remaining: number;
       price: number;
@@ -152,6 +197,8 @@ export function matchFillsFifo(fills: CoinDcxFill[], idPrefix: string): ClosedTr
             ? (fill.price - lot.price) * matchedQty - matchedFee
             : (lot.price - fill.price) * matchedQty - matchedFee;
 
+        const stopLoss = stopLossByOrderId?.get(lot.orderId);
+
         closedTrades.push({
           externalId: `${idPrefix}:${lot.id}:${fill.id}`,
           time: new Date(fill.timestamp),
@@ -161,6 +208,10 @@ export function matchFillsFifo(fills: CoinDcxFill[], idPrefix: string): ClosedTr
           entryPrice: lot.price,
           exitPrice: fill.price,
           pnl,
+          ...(stopLoss != null && {
+            stopLoss,
+            initialRiskAmount: Math.abs(lot.price - stopLoss) * matchedQty,
+          }),
         });
 
         lot.remaining -= matchedQty;
@@ -171,6 +222,7 @@ export function matchFillsFifo(fills: CoinDcxFill[], idPrefix: string): ClosedTr
       if (remainingFillQty > 1e-12) {
         lots.push({
           id: String(fill.id),
+          orderId: fill.order_id,
           side: fill.side,
           remaining: remainingFillQty,
           price: fill.price,
@@ -197,18 +249,21 @@ function toTradeRecord(t: ClosedTrade, exchange: string, strategy: string, userI
     strategy,
     notes: "",
     externalId: t.externalId,
+    stopLoss: t.stopLoss ?? null,
+    initialRiskAmount: t.initialRiskAmount ?? null,
     userId,
   };
 }
 
 export async function syncCoindcxTrades(userId: string) {
-  const [spotFills, futuresFills] = await Promise.all([
+  const [spotFills, futuresFills, futuresStopLossByOrderId] = await Promise.all([
     fetchAllSpotFills(),
     fetchAllFuturesFills(),
+    fetchFuturesStopLossByOrderId(),
   ]);
 
   const spotClosed = matchFillsFifo(spotFills, "coindcx");
-  const futuresClosed = matchFillsFifo(futuresFills, "coindcx-futures");
+  const futuresClosed = matchFillsFifo(futuresFills, "coindcx-futures", futuresStopLossByOrderId);
 
   const records = [
     ...spotClosed.map((t) => toTradeRecord(t, "COINDCX", "coindcx-sync", userId)),
@@ -220,10 +275,26 @@ export async function syncCoindcxTrades(userId: string) {
     return { fetchedFillCount, importedCount: 0 };
   }
 
-  const result = await prisma.trade.createMany({
-    data: records,
-    skipDuplicates: true,
+  const existing = await prisma.trade.findMany({
+    where: { userId, exchange: { in: ["COINDCX", "COINDCX_FUTURES"] } },
+    select: { exchange: true, externalId: true },
   });
+  const existingKeys = new Set(existing.map((t) => `${t.exchange}:${t.externalId}`));
 
-  return { fetchedFillCount, importedCount: result.count };
+  // Upsert (not createMany+skipDuplicates) so a re-sync backfills stopLoss /
+  // initialRiskAmount onto trades that were already imported before their
+  // order's risk data was available.
+  let importedCount = 0;
+  for (const record of records) {
+    const { userId: recordUserId, exchange, externalId, ...rest } = record;
+    if (!existingKeys.has(`${exchange}:${externalId}`)) importedCount += 1;
+
+    await prisma.trade.upsert({
+      where: { userId_exchange_externalId: { userId: recordUserId, exchange, externalId: externalId! } },
+      create: record,
+      update: rest,
+    });
+  }
+
+  return { fetchedFillCount, importedCount };
 }

@@ -21,9 +21,10 @@ interface Trade {
 
 interface AnalyticsChartsProps {
   trades: Trade[];
+  startingBalance?: number;
 }
 
-export default function AnalyticsCharts({ trades }: AnalyticsChartsProps) {
+export default function AnalyticsCharts({ trades, startingBalance = 100000 }: AnalyticsChartsProps) {
   const equityChartRef = useRef<HTMLCanvasElement | null>(null);
   const assetChartRef = useRef<HTMLCanvasElement | null>(null);
   const strategyChartRef = useRef<HTMLCanvasElement | null>(null);
@@ -37,7 +38,7 @@ export default function AnalyticsCharts({ trades }: AnalyticsChartsProps) {
     return () => {
       destroyCharts();
     };
-  }, [trades]);
+  }, [trades, startingBalance]);
 
   const destroyCharts = () => {
     if (equityChartInst.current) {
@@ -63,7 +64,7 @@ export default function AnalyticsCharts({ trades }: AnalyticsChartsProps) {
 
     // 1. Equity Curve Chart
     if (equityChartRef.current) {
-      const startBal = chronTrades[0].balanceBefore || 100000;
+      const startBal = chronTrades[0].balanceBefore || startingBalance;
       let runningBal = startBal;
       const equityData = [startBal];
       const equityLabels = ["Start"];

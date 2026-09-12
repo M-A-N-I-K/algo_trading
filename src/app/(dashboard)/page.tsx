@@ -1,20 +1,37 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import KPICards from "@/components/trading-journal/KPICards";
 import AnalyticsCharts from "@/components/trading-journal/AnalyticsCharts";
 import TradesTable from "@/components/trading-journal/TradesTable";
 import LossLimitBanner from "@/components/trading-journal/LossLimitBanner";
 import StrategySummaryCard from "@/components/trading-journal/StrategySummaryCard";
+import { Card, CardContent } from "@/components/ui/card";
+import DatePicker from "@/components/ui/date-picker";
 import { useDashboard } from "@/components/trading-journal/DashboardContext";
 
 export default function DashboardPage() {
-  const { trades, symbols, openTradeForm, handleDeleteTrade, openNotes } = useDashboard();
+  const { trades, symbols, startingBalance, openTradeForm, handleDeleteTrade, openNotes } = useDashboard();
 
-  const wins = trades.filter(t => t.pnl > 0);
-  const losses = trades.filter(t => t.pnl <= 0);
-  const netPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
-  const winRate = trades.length > 0 ? (wins.length / trades.length) * 100 : 0;
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  const filteredTrades = useMemo(() => {
+    if (!startDate && !endDate) return trades;
+    const from = startDate ? new Date(startDate).getTime() : -Infinity;
+    // End boundary covers the whole selected day (up to 23:59:59.999).
+    const to = endDate ? new Date(endDate).getTime() + 24 * 60 * 60 * 1000 - 1 : Infinity;
+    return trades.filter(t => {
+      const time = new Date(t.time).getTime();
+      return time >= from && time <= to;
+    });
+  }, [trades, startDate, endDate]);
+
+  const wins = filteredTrades.filter(t => t.pnl > 0);
+  const losses = filteredTrades.filter(t => t.pnl <= 0);
+  const netPnl = filteredTrades.reduce((sum, t) => sum + t.pnl, 0);
+  const winRate = filteredTrades.length > 0 ? (wins.length / filteredTrades.length) * 100 : 0;
 
   const grossProfit = wins.reduce((sum, t) => sum + t.pnl, 0);
   const grossLoss = losses.reduce((sum, t) => sum + Math.abs(t.pnl), 0);
@@ -24,11 +41,11 @@ export default function DashboardPage() {
   const avgLoss = losses.length > 0 ? grossLoss / losses.length : 0;
   const avgRr = avgLoss > 0 ? avgWin / avgLoss : avgWin > 0 ? Infinity : 0;
 
-  const chronTrades = [...trades].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
-  const startBal = chronTrades.length > 0 ? chronTrades[0].balanceBefore || 100000 : 100000;
+  const chronTrades = [...filteredTrades].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  const startBal = chronTrades.length > 0 ? chronTrades[0].balanceBefore || startingBalance : startingBalance;
   const growthPct = startBal > 0 ? (netPnl / startBal) * 100 : 0;
 
-  const tradesWithRisk = trades.filter(t => t.initialRiskAmount && t.initialRiskAmount > 0);
+  const tradesWithRisk = filteredTrades.filter(t => t.initialRiskAmount && t.initialRiskAmount > 0);
   const avgRMultiple = tradesWithRisk.length > 0
     ? tradesWithRisk.reduce((sum, t) => sum + t.pnl / (t.initialRiskAmount as number), 0) / tradesWithRisk.length
     : null;
@@ -36,6 +53,40 @@ export default function DashboardPage() {
   return (
     <div>
       <LossLimitBanner trades={trades} />
+
+      <Card className="glass mb-8 border-slate-800">
+        <CardContent className="flex flex-col md:flex-row gap-5 p-6 md:items-end">
+          <div className="flex-1 flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">From</label>
+            <DatePicker
+              value={startDate}
+              onChange={setStartDate}
+              maxDate={endDate || undefined}
+              placeholder="Any start date"
+            />
+          </div>
+
+          <div className="flex-1 flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">To</label>
+            <DatePicker
+              value={endDate}
+              onChange={setEndDate}
+              minDate={startDate || undefined}
+              placeholder="Any end date"
+            />
+          </div>
+
+          <button
+            className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
+            onClick={() => {
+              setStartDate("");
+              setEndDate("");
+            }}
+          >
+            Reset
+          </button>
+        </CardContent>
+      </Card>
 
       <KPICards
         netPnl={netPnl}
@@ -51,7 +102,7 @@ export default function DashboardPage() {
         rMultipleTradeCount={tradesWithRisk.length}
       />
 
-      <AnalyticsCharts trades={trades} />
+      <AnalyticsCharts trades={filteredTrades} startingBalance={startingBalance} />
 
       <StrategySummaryCard />
 
@@ -66,7 +117,7 @@ export default function DashboardPage() {
           </Link>
         </div>
         <TradesTable
-          filteredTrades={trades.slice(0, 5)}
+          filteredTrades={filteredTrades.slice(0, 5)}
           symbols={symbols}
           onEdit={(t) => openTradeForm(t)}
           onDelete={handleDeleteTrade}

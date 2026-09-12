@@ -40,6 +40,9 @@ interface DashboardContextValue {
   symbols: string[];
   loadTrades: () => Promise<void>;
 
+  startingBalance: number;
+  updateStartingBalance: (value: number) => Promise<boolean>;
+
   notifications: Notification[];
   addNotification: (message: string, type: "success" | "error") => void;
 
@@ -64,6 +67,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   const [trades, setTrades] = useState<Trade[]>([]);
   const [symbols, setSymbols] = useState<string[]>([]);
+  const [startingBalance, setStartingBalance] = useState(100000);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -75,6 +79,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (status === "authenticated") {
       loadTrades();
+      loadSettings();
     }
   }, [status]);
 
@@ -90,6 +95,39 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       }
     } catch (e: any) {
       addNotification("Failed to fetch trade entries: " + e.message, "error");
+    }
+  };
+
+  const loadSettings = async () => {
+    try {
+      const res = await fetch("/api/settings");
+      if (res.ok) {
+        const data = await res.json();
+        setStartingBalance(data.startingBalance);
+      }
+    } catch (e: any) {
+      addNotification("Failed to fetch settings: " + e.message, "error");
+    }
+  };
+
+  const updateStartingBalance = async (value: number) => {
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startingBalance: value }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStartingBalance(data.startingBalance);
+        addNotification("Starting balance updated!", "success");
+        return true;
+      }
+      addNotification("Failed to update starting balance.", "error");
+      return false;
+    } catch (e: any) {
+      addNotification("Error: " + e.message, "error");
+      return false;
     }
   };
 
@@ -181,6 +219,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         trades,
         symbols,
         loadTrades,
+        startingBalance,
+        updateStartingBalance,
         notifications,
         addNotification,
         isModalOpen,

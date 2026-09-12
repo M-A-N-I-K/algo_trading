@@ -22,6 +22,11 @@ model User {
   updatedAt    DateTime  @updatedAt
   trades       Trade[]
 
+  // Baseline balance the equity curve and account-growth % are measured
+  // from, for trades that don't carry their own balanceBefore. Editable
+  // from Settings.
+  startingBalance Float @default(100000)
+
   tradingAccounts TradingAccount[]
   riskProfiles    RiskProfile[]
   strategies      Strategy[]
@@ -92,14 +97,17 @@ model Trade {
   checklist          Json?    // [{ label: string, checked: boolean }]
 
   // Dedup key for trades synced from an exchange API (e.g. "coindcx:<entryFillId>:<exitFillId>").
-  // Null for manually-entered/CSV trades, which dedup on [userId, time, pnl] instead.
+  // Null for manually-entered/CSV trades — those dedup at the application
+  // layer (see /api/trades/import) instead of a DB constraint, because a
+  // single closing fill can legitimately FIFO-split into multiple trades
+  // that share the same exit time (and occasionally the same pnl), which a
+  // [userId, time, pnl] unique constraint would wrongly reject.
   externalId    String?
 
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId        String
   createdAt     DateTime @default(now())
 
-  @@unique([userId, time, pnl])
   @@unique([userId, exchange, externalId])
   @@map("trades")
 }
