@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { coindcxSignedPost } from "@/tools/coindcxSignedRequest";
+import { coindcxSignedPost, coindcxSignedGet } from "@/tools/coindcxSignedRequest";
 
 interface CoinDcxFill {
   id: string | number;
@@ -37,6 +37,7 @@ interface ClosedTrade {
   entryPrice: number;
   exitPrice: number;
   pnl: number;
+  fees: number;
   stopLoss?: number;
   initialRiskAmount?: number;
 }
@@ -132,6 +133,60 @@ async function fetchFuturesStopLossByOrderId(): Promise<Map<string, number>> {
   return stopLossByOrderId;
 }
 
+interface RawWalletTransaction {
+  derivatives_futures_wallet_id: string;
+  transaction_type: "credit" | "debit";
+  amount: number;
+  currency_short_name: string;
+  reason: string;
+  created_at: number;
+}
+
+async function fetchAllFuturesWalletTransactions(): Promise<RawWalletTransaction[]> {
+  const txns: RawWalletTransaction[] = [];
+  let page = 1;
+
+  while (true) {
+    const raw = await coindcxSignedGet<RawWalletTransaction[]>(
+      "/exchange/v1/derivatives/futures/wallets/transactions",
+      { page, size: FUTURES_PAGE_SIZE },
+    );
+    if (!raw.length) break;
+
+    txns.push(...raw);
+    if (raw.length < FUTURES_PAGE_SIZE) break;
+    page += 1;
+  }
+
+  return txns;
+}
+
+async function syncCoindcxWalletTransactions(userId: string) {
+  const txns = await fetchAllFuturesWalletTransactions();
+  if (txns.length === 0) return { fetchedCount: 0, importedCount: 0 };
+
+  // Ledger rows are immutable facts (unlike Trade, nothing here ever needs
+  // backfilling), so a single bulk insert with skipDuplicates is both
+  // correct and far faster than upserting row-by-row over the network.
+  const result = await prisma.coindcxWalletTransaction.createMany({
+    data: txns.map((t) => ({
+      userId,
+      // CoinDCX's ledger rows carry no id of their own, so the dedup key is
+      // synthesized from every field — two genuinely distinct rows colliding
+      // on all of these at once would be indistinguishable anyway.
+      externalId: `${t.derivatives_futures_wallet_id}:${t.created_at}:${t.transaction_type}:${t.reason}:${t.amount}`,
+      transactionType: t.transaction_type,
+      reason: t.reason,
+      amount: t.amount,
+      currency: t.currency_short_name,
+      occurredAt: new Date(t.created_at),
+    })),
+    skipDuplicates: true,
+  });
+
+  return { fetchedCount: txns.length, importedCount: result.count };
+}
+
 const QUOTE_ASSETS = ["USDT", "INR", "USDC", "BTC", "ETH"];
 
 function inferQuoteCurrency(symbol: string): string {
@@ -208,6 +263,7 @@ export function matchFillsFifo(
           entryPrice: lot.price,
           exitPrice: fill.price,
           pnl,
+          fees: matchedFee,
           ...(stopLoss != null && {
             stopLoss,
             initialRiskAmount: Math.abs(lot.price - stopLoss) * matchedQty,
@@ -251,15 +307,17 @@ function toTradeRecord(t: ClosedTrade, exchange: string, strategy: string, userI
     externalId: t.externalId,
     stopLoss: t.stopLoss ?? null,
     initialRiskAmount: t.initialRiskAmount ?? null,
+    fees: t.fees,
     userId,
   };
 }
 
 export async function syncCoindcxTrades(userId: string) {
-  const [spotFills, futuresFills, futuresStopLossByOrderId] = await Promise.all([
+  const [spotFills, futuresFills, futuresStopLossByOrderId, walletTxnResult] = await Promise.all([
     fetchAllSpotFills(),
     fetchAllFuturesFills(),
     fetchFuturesStopLossByOrderId(),
+    syncCoindcxWalletTransactions(userId),
   ]);
 
   const spotClosed = matchFillsFifo(spotFills, "coindcx");
@@ -272,7 +330,12 @@ export async function syncCoindcxTrades(userId: string) {
 
   const fetchedFillCount = spotFills.length + futuresFills.length;
   if (records.length === 0) {
-    return { fetchedFillCount, importedCount: 0 };
+    return {
+      fetchedFillCount,
+      importedCount: 0,
+      walletTransactionCount: walletTxnResult.fetchedCount,
+      importedWalletTransactionCount: walletTxnResult.importedCount,
+    };
   }
 
   const existing = await prisma.trade.findMany({
@@ -296,5 +359,10 @@ export async function syncCoindcxTrades(userId: string) {
     });
   }
 
-  return { fetchedFillCount, importedCount };
+  return {
+    fetchedFillCount,
+    importedCount,
+    walletTransactionCount: walletTxnResult.fetchedCount,
+    importedWalletTransactionCount: walletTxnResult.importedCount,
+  };
 }

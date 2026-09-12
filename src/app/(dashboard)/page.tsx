@@ -6,7 +6,8 @@ import KPICards from "@/components/trading-journal/KPICards";
 import AnalyticsCharts from "@/components/trading-journal/AnalyticsCharts";
 import TradesTable from "@/components/trading-journal/TradesTable";
 import LossLimitBanner from "@/components/trading-journal/LossLimitBanner";
-import StrategySummaryCard from "@/components/trading-journal/StrategySummaryCard";
+import PnlCalendar from "@/components/trading-journal/PnlCalendar";
+import SymbolPerformanceTable from "@/components/trading-journal/SymbolPerformanceTable";
 import { Card, CardContent } from "@/components/ui/card";
 import DatePicker from "@/components/ui/date-picker";
 import { useDashboard } from "@/components/trading-journal/DashboardContext";
@@ -49,6 +50,24 @@ export default function DashboardPage() {
   const avgRMultiple = tradesWithRisk.length > 0
     ? tradesWithRisk.reduce((sum, t) => sum + t.pnl / (t.initialRiskAmount as number), 0) / tradesWithRisk.length
     : null;
+
+  const pnlBySymbol = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of filteredTrades) {
+      map.set(t.symbol, (map.get(t.symbol) ?? 0) + t.pnl);
+    }
+    return Array.from(map, ([symbol, pnl]) => ({ symbol, pnl }));
+  }, [filteredTrades]);
+
+  const bestSymbol = pnlBySymbol.length > 0
+    ? pnlBySymbol.reduce((best, s) => (s.pnl > best.pnl ? s : best))
+    : null;
+  const worstSymbol = pnlBySymbol.length > 0
+    ? pnlBySymbol.reduce((worst, s) => (s.pnl < worst.pnl ? s : worst))
+    : null;
+
+  const tradesWithFees = filteredTrades.filter(t => t.fees != null);
+  const totalFees = tradesWithFees.reduce((sum, t) => sum + (t.fees as number), 0);
 
   return (
     <div>
@@ -100,11 +119,19 @@ export default function DashboardPage() {
         avgLoss={avgLoss}
         avgRMultiple={avgRMultiple}
         rMultipleTradeCount={tradesWithRisk.length}
+        bestSymbol={bestSymbol}
+        worstSymbol={worstSymbol}
+        totalFees={totalFees}
+        feesTradeCount={tradesWithFees.length}
       />
+
+      <PnlCalendar trades={trades} onInspect={(t) => openNotes(t)} />
 
       <AnalyticsCharts trades={filteredTrades} startingBalance={startingBalance} />
 
-      <StrategySummaryCard />
+      <div className="mb-8">
+        <SymbolPerformanceTable trades={filteredTrades} />
+      </div>
 
       <div className="glass border-slate-800 p-6 rounded-2xl mb-8">
         <div className="flex justify-between items-center mb-6">

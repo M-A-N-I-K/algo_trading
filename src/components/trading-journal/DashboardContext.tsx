@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from "react";
 import { useSession } from "next-auth/react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export interface ChecklistItem {
   label: string;
@@ -25,6 +26,7 @@ export interface Trade {
   notes: string;
   stopLoss?: number | null;
   initialRiskAmount?: number | null;
+  fees?: number | null;
   tags?: string[];
   checklist?: ChecklistItem[] | null;
 }
@@ -62,12 +64,19 @@ interface DashboardContextValue {
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
 
+const TRADES_QUERY_KEY = ["trades"];
+const SETTINGS_QUERY_KEY = ["settings"];
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Request to ${url} failed (${res.status})`);
+  return res.json();
+}
+
 export function DashboardProvider({ children }: { children: ReactNode }) {
   const { status } = useSession();
+  const queryClient = useQueryClient();
 
-  const [trades, setTrades] = useState<Trade[]>([]);
-  const [symbols, setSymbols] = useState<string[]>([]);
-  const [startingBalance, setStartingBalance] = useState(100000);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -76,67 +85,74 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [notesTrade, setNotesTrade] = useState<Trade | null>(null);
 
-  useEffect(() => {
-    if (status === "authenticated") {
-      loadTrades();
-      loadSettings();
-    }
-  }, [status]);
-
-  const loadTrades = async () => {
-    try {
-      const res = await fetch("/api/trades");
-      if (res.ok) {
-        const data = await res.json();
-        setTrades(data);
-
-        const syms = Array.from(new Set(data.map((t: Trade) => t.symbol))) as string[];
-        setSymbols(syms);
-      }
-    } catch (e: any) {
-      addNotification("Failed to fetch trade entries: " + e.message, "error");
-    }
-  };
-
-  const loadSettings = async () => {
-    try {
-      const res = await fetch("/api/settings");
-      if (res.ok) {
-        const data = await res.json();
-        setStartingBalance(data.startingBalance);
-      }
-    } catch (e: any) {
-      addNotification("Failed to fetch settings: " + e.message, "error");
-    }
-  };
-
-  const updateStartingBalance = async (value: number) => {
-    try {
-      const res = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ startingBalance: value }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setStartingBalance(data.startingBalance);
-        addNotification("Starting balance updated!", "success");
-        return true;
-      }
-      addNotification("Failed to update starting balance.", "error");
-      return false;
-    } catch (e: any) {
-      addNotification("Error: " + e.message, "error");
-      return false;
-    }
-  };
-
   const addNotification = (message: string, type: "success" | "error") => {
     const id = Date.now().toString();
     setNotifications(prev => [...prev, { id, message, type }]);
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, 4000);
+  };
+
+  // React Query caches these in memory for the life of the tab (staleTime
+  // set in QueryProvider) — navigating between dashboard pages, or
+  // remounting a component that also reads these keys, reuses the cache
+  // instead of re-fetching, and mutations below invalidate it explicitly.
+  const tradesQuery = useQuery({
+    queryKey: TRADES_QUERY_KEY,
+    queryFn: () => fetchJson<Trade[]>("/api/trades"),
+    enabled: status === "authenticated",
+  });
+
+  const settingsQuery = useQuery({
+    queryKey: SETTINGS_QUERY_KEY,
+    queryFn: () => fetchJson<{ startingBalance: number }>("/api/settings"),
+    enabled: status === "authenticated",
+  });
+
+  useEffect(() => {
+    if (tradesQuery.isError) {
+      addNotification("Failed to fetch trade entries: " + (tradesQuery.error as Error).message, "error");
+    }
+  }, [tradesQuery.isError]);
+
+  useEffect(() => {
+    if (settingsQuery.isError) {
+      addNotification("Failed to fetch settings: " + (settingsQuery.error as Error).message, "error");
+    }
+  }, [settingsQuery.isError]);
+
+  const trades = tradesQuery.data ?? [];
+  const startingBalance = settingsQuery.data?.startingBalance ?? 100000;
+  const symbols = useMemo(() => Array.from(new Set(trades.map(t => t.symbol))), [trades]);
+
+  const loadTrades = async () => {
+    await queryClient.invalidateQueries({ queryKey: TRADES_QUERY_KEY });
+  };
+
+  const updateSettingsMutation = useMutation({
+    mutationFn: (value: number) =>
+      fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startingBalance: value }),
+      }).then(res => {
+        if (!res.ok) throw new Error("Failed to update starting balance.");
+        return res.json() as Promise<{ startingBalance: number }>;
+      }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(SETTINGS_QUERY_KEY, data);
+      addNotification("Starting balance updated!", "success");
+    },
+    onError: (e: Error) => addNotification(e.message, "error"),
+  });
+
+  const updateStartingBalance = async (value: number) => {
+    try {
+      await updateSettingsMutation.mutateAsync(value);
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   const openTradeForm = (trade: Trade | null = null) => {
@@ -149,37 +165,50 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     setFormTrade(null);
   };
 
-  const handleSaveTrade = async (body: any) => {
-    try {
-      const res = await fetch("/api/trades", {
+  const saveTradeMutation = useMutation({
+    mutationFn: (body: any) =>
+      fetch("/api/trades", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
-      if (res.ok) {
-        addNotification(body.id ? "Trade updated!" : "Trade successfully logged!", "success");
-        closeTradeForm();
-        loadTrades();
-      } else {
-        addNotification("Failed to save trade entry.", "error");
-      }
-    } catch (e: any) {
-      addNotification("Error: " + e.message, "error");
+        body: JSON.stringify(body),
+      }).then(res => {
+        if (!res.ok) throw new Error("Failed to save trade entry.");
+        return res.json();
+      }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: TRADES_QUERY_KEY });
+      addNotification(variables.id ? "Trade updated!" : "Trade successfully logged!", "success");
+      closeTradeForm();
+    },
+    onError: (e: Error) => addNotification(e.message, "error"),
+  });
+
+  const handleSaveTrade = async (body: any) => {
+    try {
+      await saveTradeMutation.mutateAsync(body);
+    } catch {
+      // notified via onError
     }
   };
+
+  const deleteTradeMutation = useMutation({
+    mutationFn: (tradeId: string) =>
+      fetch(`/api/trades/${tradeId}`, { method: "DELETE" }).then(res => {
+        if (!res.ok) throw new Error("Failed to delete record.");
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: TRADES_QUERY_KEY });
+      addNotification("Trade record deleted.", "success");
+    },
+    onError: (e: Error) => addNotification(e.message, "error"),
+  });
 
   const handleDeleteTrade = async (tradeId: string) => {
     if (!confirm("Are you sure you want to delete this trade record?")) return;
     try {
-      const res = await fetch(`/api/trades/${tradeId}`, { method: "DELETE" });
-      if (res.ok) {
-        addNotification("Trade record deleted.", "success");
-        loadTrades();
-      } else {
-        addNotification("Failed to delete record.", "error");
-      }
-    } catch (e: any) {
-      addNotification("Error: " + e.message, "error");
+      await deleteTradeMutation.mutateAsync(tradeId);
+    } catch {
+      // notified via onError
     }
   };
 
@@ -193,23 +222,29 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     setNotesTrade(null);
   };
 
+  const saveNotesMutation = useMutation({
+    mutationFn: (vars: { tradeId: string; details: { notes: string; tags: string[]; checklist: ChecklistItem[] } }) =>
+      fetch(`/api/trades/${vars.tradeId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(vars.details),
+      }).then(res => {
+        if (!res.ok) throw new Error("Failed to update notes.");
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: TRADES_QUERY_KEY });
+      addNotification("Strategy notes saved successfully!", "success");
+      closeNotes();
+    },
+    onError: (e: Error) => addNotification(e.message, "error"),
+  });
+
   const handleSaveNotes = async (details: { notes: string; tags: string[]; checklist: ChecklistItem[] }) => {
     if (!notesTrade) return;
     try {
-      const res = await fetch(`/api/trades/${notesTrade.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(details)
-      });
-      if (res.ok) {
-        addNotification("Strategy notes saved successfully!", "success");
-        closeNotes();
-        loadTrades();
-      } else {
-        addNotification("Failed to update notes.", "error");
-      }
-    } catch (e: any) {
-      addNotification("Error updating notes: " + e.message, "error");
+      await saveNotesMutation.mutateAsync({ tradeId: notesTrade.id, details });
+    } catch {
+      // notified via onError
     }
   };
 

@@ -32,6 +32,7 @@ model User {
   strategies      Strategy[]
   backtests       Backtest[]
   backtestRuns    BacktestRun[]
+  walletTransactions CoindcxWalletTransaction[]
 
   @@map("users")
 }
@@ -93,6 +94,7 @@ model Trade {
 
   stopLoss           Float?
   initialRiskAmount  Float?   // $ amount risked at entry (|entryPrice - stopLoss| * quantity); R-multiple = pnl / initialRiskAmount
+  fees               Float?   // exchange trading fee charged to open+close this trade; already netted into pnl, stored separately for fee reporting
   tags               String[] @default([])
   checklist          Json?    // [{ label: string, checked: boolean }]
 
@@ -110,6 +112,33 @@ model Trade {
 
   @@unique([userId, exchange, externalId])
   @@map("trades")
+}
+
+// Non-trade wallet ledger entries synced from CoinDCX's futures wallet
+// (funding fee settlements, order-related margin/PnL debits+credits, wallet
+// transfers) — kept separate from Trade so trade P&L/R stats never mix with
+// these. `reason` is CoinDCX's raw ledger reason string (e.g.
+// "by_futures_order", "by_universal_wallet"); we don't force it into a fixed
+// enum since CoinDCX's own funding-fee reason string hasn't been observed
+// yet on this account (no position has crossed a funding interval).
+model CoindcxWalletTransaction {
+  id              String   @id @default(uuid())
+  transactionType String   // "credit" or "debit"
+  reason          String
+  amount          Float
+  currency        String
+  occurredAt      DateTime
+
+  // Synthetic dedup key — CoinDCX's ledger rows have no id of their own.
+  externalId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, externalId])
+  @@map("coindcx_wallet_transactions")
 }
 
 // ---------------------------------------------------------------------------

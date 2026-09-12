@@ -42,10 +42,16 @@ interface TradesTableProps {
   setFilterOutcome?: (o: string) => void;
   filterTag?: string;
   setFilterTag?: (t: string) => void;
-  onEdit: (t: Trade) => void;
-  onDelete: (id: string) => void;
+  onEdit?: (t: Trade) => void;
+  onDelete?: (id: string) => void;
   onInspect: (t: Trade) => void;
   isFullLog?: boolean;
+  hideActions?: boolean;
+  timeOnly?: boolean;
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 export default function TradesTable({
@@ -63,6 +69,8 @@ export default function TradesTable({
   onDelete,
   onInspect,
   isFullLog = false,
+  hideActions = false,
+  timeOnly = false,
 }: TradesTableProps) {
 
   const handleResetFilters = () => {
@@ -157,7 +165,9 @@ export default function TradesTable({
                 <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Realized PnL</TableHead>
                 <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">R</TableHead>
                 <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Strategy / Tags</TableHead>
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4 text-right">Actions</TableHead>
+                {!hideActions && (
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4 text-right">Actions</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -167,7 +177,7 @@ export default function TradesTable({
                   className="hover:bg-slate-800/10 cursor-pointer border-slate-800/40 transition-colors"
                   onClick={() => onInspect(t)}
                 >
-                  <TableCell className="text-slate-300 font-medium py-4 text-xs">{t.time}</TableCell>
+                  <TableCell className="text-slate-300 font-medium py-4 text-xs">{timeOnly ? formatTime(t.time) : t.time}</TableCell>
                   <TableCell className="text-white font-bold py-4 text-sm">{t.symbol}</TableCell>
                   <TableCell className="py-4">
                     <span className={`inline-flex px-2 py-1 rounded text-[10px] font-bold border ${t.side === 'LONG' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
@@ -205,27 +215,29 @@ export default function TradesTable({
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="py-4 text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex gap-2 justify-end">
-                      <button 
-                        onClick={() => onEdit(t)} 
-                        className="bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 p-2 rounded-xl transition-all"
-                      >
-                        <Edit3 size={14} />
-                      </button>
-                      <button 
-                        onClick={() => onDelete(t.id)} 
-                        className="bg-slate-900 border border-slate-800 hover:bg-slate-800 text-rose-500 p-2 rounded-xl transition-all"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </TableCell>
+                  {!hideActions && (
+                    <TableCell className="py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          onClick={() => onEdit?.(t)}
+                          className="bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 p-2 rounded-xl transition-all"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        <button
+                          onClick={() => onDelete?.(t.id)}
+                          className="bg-slate-900 border border-slate-800 hover:bg-slate-800 text-rose-500 p-2 rounded-xl transition-all"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
               {filteredTrades.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center text-slate-500 font-medium py-12">
+                  <TableCell colSpan={hideActions ? 9 : 10} className="text-center text-slate-500 font-medium py-12">
                     No matching trade records.
                   </TableCell>
                 </TableRow>
