@@ -14,4 +14,5 @@ export * from "./ichimokuCloudLongOnlySwingStrategy";
 export * from "./goldLondonLiquiditySweepStrategy";
 export * from "./sessionLondonOpenBosStrategy";
 export * from "./trendRsiEngulfingScalpStrategy";
+export * from "./mtfChochFvgStrategy";
 

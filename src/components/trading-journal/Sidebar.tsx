@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sparkles, LineChart, ListTodo, Import, FlaskConical, ShieldHalf, CandlestickChart, Layers, Settings, X } from "lucide-react";
+import { Sparkles, LineChart, ListTodo, Import, FlaskConical, ShieldHalf, CandlestickChart, Layers, Settings, X, Lightbulb } from "lucide-react";
 
 interface SidebarProps {
   user: { name?: string | null; email?: string | null; image?: string | null } | null;
@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { href: "/strategies", label: "Strategies", icon: Layers },
   { href: "/risk", label: "Risk Calculator", icon: ShieldHalf },
   { href: "/backtest", label: "Backtests", icon: FlaskConical },
+  { href: "/insights", label: "Insights", icon: Lightbulb },
   { href: "/trades", label: "Trade Journal", icon: ListTodo },
   { href: "/import", label: "Bulk Import", icon: Import },
   { href: "/settings", label: "Settings", icon: Settings },

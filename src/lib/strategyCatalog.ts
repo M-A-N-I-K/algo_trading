@@ -26,6 +26,7 @@ export const STRATEGY_CATALOG: StrategyCatalogEntry[] = [
   { value: "gold-london-sweep", label: "Gold London Liquidity Sweep" },
   { value: "session-london-bos", label: "Session-Based London Open BOS" },
   { value: "trend-rsi-engulfing-scalp", label: "Trend + RSI + Engulfing Scalp" },
+  { value: "mtf-choch-fvg", label: "MTF CHoCH + FVG Entry Model" },
 ];
 
 export function strategyLabel(value: string): string {

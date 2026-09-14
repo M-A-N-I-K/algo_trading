@@ -16,6 +16,7 @@ import {
   createGoldLondonLiquiditySweepStrategy,
   createSessionLondonOpenBosStrategy,
   createTrendRsiEngulfingScalpStrategy,
+  createMtfChochFvgStrategy,
 } from "../strategies";
 import { Strategy } from "../types";
 import { runBacktest } from "./engine";
@@ -39,6 +40,15 @@ const STRATEGIES: Record<string, (opts?: any) => Strategy> = {
   "gold-london-sweep": createGoldLondonLiquiditySweepStrategy,
   "session-london-bos": createSessionLondonOpenBosStrategy,
   "trend-rsi-engulfing-scalp": createTrendRsiEngulfingScalpStrategy,
+  "mtf-choch-fvg": createMtfChochFvgStrategy,
+};
+
+// Strategies that trade an execution timeframe but need a real higher-
+// timeframe series (fetched separately from Binance) for their bias.
+const HTF_INTERVAL: Record<string, string> = {
+  "order-block": "1h",
+  "session-london-bos": "4h",
+  "mtf-choch-fvg": "15m",
 };
 
 async function main() {
@@ -86,21 +96,14 @@ async function main() {
 
   for (const symbol of symbols) {
     let htfCandles = undefined;
-    if (strategyKey === "order-block") {
-      // Order blocks are drawn on 1h structure; `interval` is the
-      // lower-timeframe trigger (e.g. 1m/5m) used only for entries.
-      const candlesPerHtfBar = intervalToMs("1h") / intervalToMs(interval);
+    const htfInterval = HTF_INTERVAL[strategyKey];
+    if (htfInterval) {
+      // `interval` is the lower execution timeframe the strategy triggers
+      // entries on; `htfInterval` is the real higher-timeframe series its
+      // bias is computed from.
+      const candlesPerHtfBar = intervalToMs(htfInterval) / intervalToMs(interval);
       const htfLimit = Math.ceil(limit / candlesPerHtfBar) + 50;
-      const rawHtf = await fetchCandlestickHistory(symbol, "1h", htfLimit);
-      if (rawHtf && rawHtf.length > 0) {
-        htfCandles = parseCandlesticks(rawHtf);
-      }
-    } else if (strategyKey === "session-london-bos") {
-      // Bias comes from a 4h EMA; `interval` is the execution timeframe
-      // the break-of-structure entry is triggered on.
-      const candlesPerHtfBar = intervalToMs("4h") / intervalToMs(interval);
-      const htfLimit = Math.ceil(limit / candlesPerHtfBar) + 50;
-      const rawHtf = await fetchCandlestickHistory(symbol, "4h", htfLimit);
+      const rawHtf = await fetchCandlestickHistory(symbol, htfInterval, htfLimit);
       if (rawHtf && rawHtf.length > 0) {
         htfCandles = parseCandlesticks(rawHtf);
       }
@@ -113,10 +116,7 @@ async function main() {
     }
 
     const ohlc = parseCandlesticks(candles);
-    const strategy =
-      strategyKey === "order-block" || strategyKey === "session-london-bos"
-        ? createStrategy({ htfCandles })
-        : createStrategy();
+    const strategy = htfInterval ? createStrategy({ htfCandles }) : createStrategy();
     const result = runBacktest(ohlc, strategy, {
       initialBalance,
       positionSizePercent,

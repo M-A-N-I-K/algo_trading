@@ -32,6 +32,10 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
     title: "Backtests",
     subtitle: "Run simulations to test technical models against historical market candle datasets.",
   },
+  "/insights": {
+    title: "Strategy Insights",
+    subtitle: "Compare every backtest you've run, with the exact parameters and results side by side.",
+  },
   "/trades": {
     title: "Trade Journal",
     subtitle: "Audit and inspect your complete historical execution logs.",
