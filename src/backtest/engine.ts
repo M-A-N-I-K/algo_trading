@@ -223,7 +223,13 @@ export function backtest(
             let passRrCheck = true;
             if (options.minRiskRewardRatio !== undefined && risk > 0) {
               const rr = reward / risk;
-              if (rr < options.minRiskRewardRatio) {
+              // A strategy that constructs its stop/target from the same
+              // ratio it's being checked against (e.g. takeProfit = entry +
+              // risk * 1.5, filtered at minRiskRewardRatio = 1.5) can land
+              // a hair under the threshold from floating-point rounding
+              // alone — a relative epsilon keeps that from being a
+              // coin-flip rejection of an otherwise-valid setup.
+              if (rr < options.minRiskRewardRatio * (1 - 1e-9)) {
                 passRrCheck = false;
               }
             }

@@ -17,6 +17,7 @@ import {
   createSessionLondonOpenBosStrategy,
   createTrendRsiEngulfingScalpStrategy,
   createMtfChochFvgStrategy,
+  createXrpScalpingStrategy,
 } from "../strategies";
 import { Strategy } from "../types";
 import { runBacktest } from "./engine";
@@ -41,6 +42,7 @@ const STRATEGIES: Record<string, (opts?: any) => Strategy> = {
   "session-london-bos": createSessionLondonOpenBosStrategy,
   "trend-rsi-engulfing-scalp": createTrendRsiEngulfingScalpStrategy,
   "mtf-choch-fvg": createMtfChochFvgStrategy,
+  "xrp-scalping": createXrpScalpingStrategy,
 };
 
 // Strategies that trade an execution timeframe but need a real higher-

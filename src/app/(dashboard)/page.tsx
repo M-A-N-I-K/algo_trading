@@ -6,6 +6,7 @@ import KPICards from "@/components/trading-journal/KPICards";
 import AnalyticsCharts from "@/components/trading-journal/AnalyticsCharts";
 import TradesTable from "@/components/trading-journal/TradesTable";
 import LossLimitBanner from "@/components/trading-journal/LossLimitBanner";
+import MarketInsightCard from "@/components/trading-journal/MarketInsightCard";
 import PnlCalendar from "@/components/trading-journal/PnlCalendar";
 import SymbolPerformanceTable from "@/components/trading-journal/SymbolPerformanceTable";
 import { Card, CardContent } from "@/components/ui/card";
@@ -72,6 +73,8 @@ export default function DashboardPage() {
   return (
     <div>
       <LossLimitBanner trades={trades} />
+
+      <MarketInsightCard />
 
       <Card className="glass mb-8 border-slate-800">
         <CardContent className="flex flex-col md:flex-row gap-5 p-6 md:items-end">

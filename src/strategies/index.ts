@@ -15,4 +15,5 @@ export * from "./goldLondonLiquiditySweepStrategy";
 export * from "./sessionLondonOpenBosStrategy";
 export * from "./trendRsiEngulfingScalpStrategy";
 export * from "./mtfChochFvgStrategy";
+export * from "./xrpScalpingStrategy";
 

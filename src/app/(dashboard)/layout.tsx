@@ -16,10 +16,6 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
     title: "Analytics Dashboard",
     subtitle: "Real-time performance metrics and trade distributions.",
   },
-  "/market": {
-    title: "Market Data",
-    subtitle: "Browse historical and demo candlestick data across instruments and timeframes.",
-  },
   "/strategies": {
     title: "Strategies",
     subtitle: "Build and version systematic trading strategies.",
