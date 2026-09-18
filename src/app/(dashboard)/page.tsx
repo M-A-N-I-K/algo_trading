@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import KPICards from "@/components/trading-journal/KPICards";
 import AnalyticsCharts from "@/components/trading-journal/AnalyticsCharts";
@@ -70,6 +71,15 @@ export default function DashboardPage() {
   const tradesWithFees = filteredTrades.filter(t => t.fees != null);
   const totalFees = tradesWithFees.reduce((sum, t) => sum + (t.fees as number), 0);
 
+  const fundingStatsQuery = useQuery({
+    queryKey: ["coindcx-funding-stats"],
+    queryFn: async (): Promise<{ netFunding: number; eventCount: number }> => {
+      const res = await fetch("/api/coindcx/funding-stats");
+      if (!res.ok) throw new Error("Failed to load funding stats");
+      return res.json();
+    },
+  });
+
   return (
     <div>
       <LossLimitBanner trades={trades} />
@@ -126,6 +136,8 @@ export default function DashboardPage() {
         worstSymbol={worstSymbol}
         totalFees={totalFees}
         feesTradeCount={tradesWithFees.length}
+        netFunding={fundingStatsQuery.data?.netFunding ?? null}
+        fundingEventCount={fundingStatsQuery.data?.eventCount ?? 0}
       />
 
       <PnlCalendar trades={trades} onInspect={(t) => openNotes(t)} />

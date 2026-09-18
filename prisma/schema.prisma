@@ -114,22 +114,26 @@ model Trade {
   @@map("trades")
 }
 
-// Non-trade wallet ledger entries synced from CoinDCX's futures wallet
-// (funding fee settlements, order-related margin/PnL debits+credits, wallet
-// transfers) — kept separate from Trade so trade P&L/R stats never mix with
-// these. `reason` is CoinDCX's raw ledger reason string (e.g.
-// "by_futures_order", "by_universal_wallet"); we don't force it into a fixed
-// enum since CoinDCX's own funding-fee reason string hasn't been observed
-// yet on this account (no position has crossed a funding interval).
+// Non-trade position ledger entries synced from CoinDCX's
+// /derivatives/futures/positions/transactions endpoint — funding fee
+// settlements and per-fill platform fees. Kept separate from Trade so trade
+// P&L/R stats never mix with these. `stage` is CoinDCX's raw event type:
+// "funding" (parentType "Derivatives::Futures::FundingSnapshot") is a
+// funding payment (amount can be +credit/-debit, feeAmount always 0);
+// "default" / "tpsl_exit" / "exit" (parentType "Derivatives::Futures::Order")
+// are order fill events carrying the platform fee charged for that fill.
 model CoindcxWalletTransaction {
-  id              String   @id @default(uuid())
-  transactionType String   // "credit" or "debit"
-  reason          String
-  amount          Float
-  currency        String
-  occurredAt      DateTime
+  id         String   @id @default(uuid())
+  stage      String
+  parentType String
+  symbol     String
+  amount     Float
+  feeAmount  Float
+  currency   String
+  occurredAt DateTime
 
-  // Synthetic dedup key — CoinDCX's ledger rows have no id of their own.
+  // CoinDCX's own fill_id for this ledger row — a real unique id, unlike
+  // the /wallets/transactions endpoint this replaced.
   externalId String
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)

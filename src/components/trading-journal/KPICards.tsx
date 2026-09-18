@@ -1,4 +1,4 @@
-import { Wallet, CheckCircle, Scale, TrendingUp, Target, Award, Receipt } from "lucide-react";
+import { Wallet, CheckCircle, Scale, TrendingUp, Target, Award, Receipt, Repeat } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface SymbolPnl {
@@ -22,6 +22,8 @@ interface KPICardsProps {
   worstSymbol?: SymbolPnl | null;
   totalFees?: number;
   feesTradeCount?: number;
+  netFunding?: number | null;
+  fundingEventCount?: number;
 }
 
 export default function KPICards({
@@ -40,6 +42,8 @@ export default function KPICards({
   worstSymbol,
   totalFees = 0,
   feesTradeCount = 0,
+  netFunding = null,
+  fundingEventCount = 0,
 }: KPICardsProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
@@ -167,6 +171,24 @@ export default function KPICards({
           </div>
           <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-orange-500/10 text-orange-400">
             <Receipt size={20} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Net Funding Card (CoinDCX futures funding rate settlements, all-time) */}
+      <Card className="glass hover:translate-y-[-5px] hover:border-violet-500/25 transition-all duration-300">
+        <CardContent className="flex justify-between items-center p-6">
+          <div>
+            <span className="text-[13px] font-semibold text-slate-400 uppercase tracking-wider">Net Funding</span>
+            <h3 className={`font-Outfit text-3xl font-bold mt-1.5 mb-1 ${netFunding == null ? "text-slate-500" : netFunding >= 0 ? "text-emerald-400" : "text-rose-500"}`}>
+              {netFunding == null ? "—" : `${netFunding >= 0 ? "+" : ""}$${netFunding.toFixed(2)}`}
+            </h3>
+            <span className="text-xs text-slate-400">
+              {fundingEventCount > 0 ? `Across ${fundingEventCount} funding events · all-time` : "No funding events yet"}
+            </span>
+          </div>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-sky-500/10 text-sky-400">
+            <Repeat size={20} />
           </div>
         </CardContent>
       </Card>

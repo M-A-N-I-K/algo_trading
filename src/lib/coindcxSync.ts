@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { coindcxSignedPost, coindcxSignedGet } from "@/tools/coindcxSignedRequest";
+import { coindcxSignedPost } from "@/tools/coindcxSignedRequest";
 
 interface CoinDcxFill {
   id: string | number;
@@ -10,6 +10,10 @@ interface CoinDcxFill {
   symbol: string;
   timestamp: number;
   fee_amount?: number;
+  // Futures only — INR-margined and USDT-margined positions in the same
+  // symbol are separate books on CoinDCX's side (different position_id)
+  // and must never be FIFO-matched against each other.
+  marginCurrency?: string;
 }
 
 interface RawFuturesFill {
@@ -21,6 +25,7 @@ interface RawFuturesFill {
   pair: string; // e.g. "B-ETH_USDT"
   timestamp: number;
   fee_amount?: number;
+  margin_currency_short_name?: string;
 }
 
 interface RawFuturesOrder {
@@ -94,6 +99,7 @@ async function fetchAllFuturesFills(): Promise<CoinDcxFill[]> {
         symbol: normalizeFuturesPair(f.pair),
         timestamp: f.timestamp,
         fee_amount: f.fee_amount,
+        marginCurrency: f.margin_currency_short_name,
       })),
     );
 
@@ -133,23 +139,44 @@ async function fetchFuturesStopLossByOrderId(): Promise<Map<string, number>> {
   return stopLossByOrderId;
 }
 
-interface RawWalletTransaction {
-  derivatives_futures_wallet_id: string;
-  transaction_type: "credit" | "debit";
+interface RawPositionTransaction {
+  pair: string; // e.g. "B-ETH_USDT"
+  stage: string; // "funding" | "default" | "tpsl_exit" | "exit" | "liquidation"
+  parent_type: string; // "Derivatives::Futures::FundingSnapshot" | "Derivatives::Futures::Order"
   amount: number;
-  currency_short_name: string;
-  reason: string;
+  fee_amount: number;
+  // Per CoinDCX's docs, `amount`/`fee_amount` are expressed in the position's
+  // own margin currency (INR or USDT) — NOT a fixed unit. `price_in_usdt` is
+  // that row's USDT conversion rate at the time (≈1 for USDT-margined rows),
+  // and is what lets us normalize every row to one currency before summing.
+  price_in_usdt: number;
+  margin_currency_short_name: string;
+  fill_id: string;
   created_at: number;
 }
 
-async function fetchAllFuturesWalletTransactions(): Promise<RawWalletTransaction[]> {
-  const txns: RawWalletTransaction[] = [];
+// /positions/transactions is the real ledger behind both funding payments
+// and per-fill platform fees — each row's `stage`/`parent_type` says which:
+// "funding" rows (parent_type FundingSnapshot) are periodic funding
+// settlements (amount can be +credit/-debit, fee_amount always 0); every
+// other stage (parent_type Order) is an order-fill event carrying the
+// platform fee charged for it. Unlike the older /wallets/transactions
+// endpoint this replaced, rows here carry a real unique `fill_id`.
+async function fetchAllFuturesPositionTransactions(): Promise<RawPositionTransaction[]> {
+  const txns: RawPositionTransaction[] = [];
   let page = 1;
 
   while (true) {
-    const raw = await coindcxSignedGet<RawWalletTransaction[]>(
-      "/exchange/v1/derivatives/futures/wallets/transactions",
-      { page, size: FUTURES_PAGE_SIZE },
+    const raw = await coindcxSignedPost<RawPositionTransaction[]>(
+      "/exchange/v1/derivatives/futures/positions/transactions",
+      {
+        page: String(page),
+        size: String(FUTURES_PAGE_SIZE),
+        stage: "all",
+        // Defaults to ["USDT"] only if omitted — pass both explicitly so
+        // any INR-margined futures activity isn't silently dropped.
+        margin_currency_short_name: ["INR", "USDT"],
+      },
     );
     if (!raw.length) break;
 
@@ -162,23 +189,28 @@ async function fetchAllFuturesWalletTransactions(): Promise<RawWalletTransaction
 }
 
 async function syncCoindcxWalletTransactions(userId: string) {
-  const txns = await fetchAllFuturesWalletTransactions();
+  const txns = await fetchAllFuturesPositionTransactions();
   if (txns.length === 0) return { fetchedCount: 0, importedCount: 0 };
 
   // Ledger rows are immutable facts (unlike Trade, nothing here ever needs
   // backfilling), so a single bulk insert with skipDuplicates is both
   // correct and far faster than upserting row-by-row over the network.
+  //
+  // amount/fee_amount are normalized to USDT here (via that row's own
+  // price_in_usdt) so a mix of INR- and USDT-margined rows can be summed
+  // directly downstream — storing them in mixed native currencies and
+  // summing naively was the bug that made dashboard totals not match
+  // CoinDCX's own numbers (INR figures being added as if they were USDT).
   const result = await prisma.coindcxWalletTransaction.createMany({
     data: txns.map((t) => ({
       userId,
-      // CoinDCX's ledger rows carry no id of their own, so the dedup key is
-      // synthesized from every field — two genuinely distinct rows colliding
-      // on all of these at once would be indistinguishable anyway.
-      externalId: `${t.derivatives_futures_wallet_id}:${t.created_at}:${t.transaction_type}:${t.reason}:${t.amount}`,
-      transactionType: t.transaction_type,
-      reason: t.reason,
-      amount: t.amount,
-      currency: t.currency_short_name,
+      externalId: t.fill_id,
+      stage: t.stage,
+      parentType: t.parent_type,
+      symbol: normalizeFuturesPair(t.pair),
+      amount: t.amount * t.price_in_usdt,
+      feeAmount: t.fee_amount * t.price_in_usdt,
+      currency: "USDT",
       occurredAt: new Date(t.created_at),
     })),
     skipDuplicates: true,
@@ -197,14 +229,25 @@ function inferQuoteCurrency(symbol: string): string {
 // execution), not closed round-trip trades. We rebuild round-trip trades by
 // running a FIFO inventory match per symbol: each fill either extends the
 // open position (pushed as a new lot) or closes against the oldest opposing
-// lot(s) first. This mirrors standard FIFO trade accounting and is what lets
-// a sell fill split across several earlier buy lots produce multiple
-// correctly-priced closed trades instead of one averaged one.
+// lot(s) first.
+//
+// A single exit fill can close against several earlier entry lots bought at
+// different prices/times (e.g. a position built from multiple partial
+// entries, or resting limit orders that filled separately) — all of those
+// matches are consolidated into ONE closed trade per exit fill, with a
+// quantity-weighted average entry price, rather than one row per lot. From
+// the trader's perspective one exit action is one trade, regardless of how
+// many historical entry lots FIFO accounting happened to draw it from.
 //
 // `idPrefix` namespaces the externalId per fill source (spot vs futures)
 // so the two never collide, even though callers must run this separately
 // per source — spot and futures positions are independent books and must
 // not be netted against each other in one FIFO pass.
+//
+// Fills are grouped by symbol + margin currency, not symbol alone: CoinDCX
+// tracks an INR-margined and a USDT-margined position in the same symbol
+// as two entirely separate books (distinct position_id), so an entry in
+// one must never be matched against an exit in the other.
 //
 // `stopLossByOrderId` (futures only) carries the stop-loss price attached
 // to the order that opened a lot, so a closed trade can report a real
@@ -214,16 +257,18 @@ export function matchFillsFifo(
   idPrefix: string,
   stopLossByOrderId?: Map<string, number>,
 ): ClosedTrade[] {
-  const bySymbol = new Map<string, CoinDcxFill[]>();
+  const byBook = new Map<string, CoinDcxFill[]>();
   for (const fill of fills) {
-    const arr = bySymbol.get(fill.symbol) ?? [];
+    const bookKey = `${fill.symbol}:${fill.marginCurrency ?? ""}`;
+    const arr = byBook.get(bookKey) ?? [];
     arr.push(fill);
-    bySymbol.set(fill.symbol, arr);
+    byBook.set(bookKey, arr);
   }
 
   const closedTrades: ClosedTrade[] = [];
 
-  for (const [symbol, symbolFills] of bySymbol) {
+  for (const symbolFills of byBook.values()) {
+    const symbol = symbolFills[0].symbol;
     symbolFills.sort(
       (a, b) => a.timestamp - b.timestamp || String(a.id).localeCompare(String(b.id)),
     );
@@ -241,6 +286,13 @@ export function matchFillsFifo(
       let remainingFillQty = fill.quantity;
       const fillFeePerUnit = (fill.fee_amount ?? 0) / fill.quantity;
 
+      let matchedQtyTotal = 0;
+      let weightedEntryCost = 0;
+      let totalPnl = 0;
+      let totalFee = 0;
+      let totalInitialRisk = 0;
+      let firstStopLoss: number | undefined;
+
       while (remainingFillQty > 1e-12 && lots.length > 0 && lots[0].side !== fill.side) {
         const lot = lots[0];
         const matchedQty = Math.min(lot.remaining, remainingFillQty);
@@ -252,27 +304,39 @@ export function matchFillsFifo(
             ? (fill.price - lot.price) * matchedQty - matchedFee
             : (lot.price - fill.price) * matchedQty - matchedFee;
 
-        const stopLoss = stopLossByOrderId?.get(lot.orderId);
+        matchedQtyTotal += matchedQty;
+        weightedEntryCost += lot.price * matchedQty;
+        totalPnl += pnl;
+        totalFee += matchedFee;
 
-        closedTrades.push({
-          externalId: `${idPrefix}:${lot.id}:${fill.id}`,
-          time: new Date(fill.timestamp),
-          symbol,
-          side,
-          quantity: matchedQty,
-          entryPrice: lot.price,
-          exitPrice: fill.price,
-          pnl,
-          fees: matchedFee,
-          ...(stopLoss != null && {
-            stopLoss,
-            initialRiskAmount: Math.abs(lot.price - stopLoss) * matchedQty,
-          }),
-        });
+        const stopLoss = stopLossByOrderId?.get(lot.orderId);
+        if (stopLoss != null) {
+          totalInitialRisk += Math.abs(lot.price - stopLoss) * matchedQty;
+          if (firstStopLoss === undefined) firstStopLoss = stopLoss;
+        }
 
         lot.remaining -= matchedQty;
         remainingFillQty -= matchedQty;
         if (lot.remaining <= 1e-12) lots.shift();
+      }
+
+      if (matchedQtyTotal > 1e-12) {
+        const side: "LONG" | "SHORT" = fill.side === "sell" ? "LONG" : "SHORT";
+        closedTrades.push({
+          externalId: `${idPrefix}:${fill.id}`,
+          time: new Date(fill.timestamp),
+          symbol,
+          side,
+          quantity: matchedQtyTotal,
+          entryPrice: weightedEntryCost / matchedQtyTotal,
+          exitPrice: fill.price,
+          pnl: totalPnl,
+          fees: totalFee,
+          ...(firstStopLoss !== undefined && {
+            stopLoss: firstStopLoss,
+            initialRiskAmount: totalInitialRisk,
+          }),
+        });
       }
 
       if (remainingFillQty > 1e-12) {
