@@ -7,6 +7,7 @@ import {
   DialogTitle
 } from "@/components/ui/dialog";
 import { STRATEGY_CATALOG } from "@/lib/strategyCatalog";
+import { useDashboard } from "@/components/trading-journal/DashboardContext";
 
 interface Trade {
   id: string;
@@ -41,10 +42,11 @@ export default function TradeFormModal({
   activeTrade,
   onSave,
 }: TradeFormModalProps) {
+  const { defaultStrategy } = useDashboard();
   const [time, setTime] = useState("");
   const [symbol, setSymbol] = useState("");
   const [side, setSide] = useState<"LONG" | "SHORT">("LONG");
-  const [strategy, setStrategy] = useState("macd-200ema-sr");
+  const [strategy, setStrategy] = useState(defaultStrategy);
   const [qty, setQty] = useState("");
   const [entry, setEntry] = useState("");
   const [exit, setExit] = useState("");
@@ -91,7 +93,7 @@ export default function TradeFormModal({
       setTime(localISOTime);
       setSymbol("");
       setSide("LONG");
-      setStrategy("macd-200ema-sr");
+      setStrategy(defaultStrategy);
       setQty("");
       setEntry("");
       setExit("");

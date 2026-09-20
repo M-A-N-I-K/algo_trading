@@ -27,6 +27,21 @@ model User {
   // from Settings.
   startingBalance Float @default(100000)
 
+  // Daily/weekly max-loss thresholds shown on the dashboard's loss-limit
+  // banner. Null means "not set yet" — the banner falls back to 4%/8% of
+  // the most recent known balance until the user picks explicit values.
+  dailyLossLimit  Float?
+  weeklyLossLimit Float?
+
+  // Strategy key (see src/lib/strategyCatalog.ts) pre-filled for new
+  // manual trade entries and CSV imports, instead of a hardcoded strategy
+  // that may have nothing to do with what the user actually trades.
+  defaultStrategy String @default("macd-200ema-sr")
+
+  // Card keys (see KPI_CARD_KEYS in KPICards.tsx) the user has hidden from
+  // the dashboard's KPI row. Empty = show everything.
+  hiddenKpiCards String[] @default([])
+
   tradingAccounts TradingAccount[]
   riskProfiles    RiskProfile[]
   strategies      Strategy[]

@@ -6,6 +6,19 @@ interface SymbolPnl {
   pnl: number;
 }
 
+// Stable identifiers for each card, used by Settings to let the user hide
+// any subset of them from the dashboard (User.hiddenKpiCards).
+export const KPI_CARD_KEYS = [
+  { key: "netProfit", label: "Net Profit" },
+  { key: "winRate", label: "Win Rate" },
+  { key: "profitFactor", label: "Profit Factor" },
+  { key: "avgRr", label: "Average R:R" },
+  { key: "avgRMultiple", label: "Avg R-Multiple" },
+  { key: "bestSymbol", label: "Best Symbol" },
+  { key: "fees", label: "Fees Paid" },
+  { key: "funding", label: "Net Funding" },
+] as const;
+
 interface KPICardsProps {
   netPnl: number;
   growthPct: number;
@@ -24,6 +37,7 @@ interface KPICardsProps {
   feesTradeCount?: number;
   netFunding?: number | null;
   fundingEventCount?: number;
+  hiddenCards?: string[];
 }
 
 export default function KPICards({
@@ -44,11 +58,15 @@ export default function KPICards({
   feesTradeCount = 0,
   netFunding = null,
   fundingEventCount = 0,
+  hiddenCards = [],
 }: KPICardsProps) {
+  const hidden = new Set(hiddenCards);
+  if (hidden.size === KPI_CARD_KEYS.length) return null;
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-      
-      {/* Net Profit Card */}
+
+      {!hidden.has("netProfit") && (
       <Card className="glass hover:translate-y-[-5px] hover:border-violet-500/25 transition-all duration-300">
         <CardContent className="flex justify-between items-center p-6">
           <div>
@@ -63,8 +81,9 @@ export default function KPICards({
           </div>
         </CardContent>
       </Card>
+      )}
 
-      {/* Win Rate Card */}
+      {!hidden.has("winRate") && (
       <Card className="glass hover:translate-y-[-5px] hover:border-violet-500/25 transition-all duration-300">
         <CardContent className="flex justify-between items-center p-6">
           <div>
@@ -79,8 +98,9 @@ export default function KPICards({
           </div>
         </CardContent>
       </Card>
+      )}
 
-      {/* Profit Factor Card */}
+      {!hidden.has("profitFactor") && (
       <Card className="glass hover:translate-y-[-5px] hover:border-violet-500/25 transition-all duration-300">
         <CardContent className="flex justify-between items-center p-6">
           <div>
@@ -95,8 +115,9 @@ export default function KPICards({
           </div>
         </CardContent>
       </Card>
+      )}
 
-      {/* Average R:R Card */}
+      {!hidden.has("avgRr") && (
       <Card className="glass hover:translate-y-[-5px] hover:border-violet-500/25 transition-all duration-300">
         <CardContent className="flex justify-between items-center p-6">
           <div>
@@ -111,8 +132,9 @@ export default function KPICards({
           </div>
         </CardContent>
       </Card>
+      )}
 
-      {/* Avg R-Multiple Card (from journaled stop-loss / risk data) */}
+      {!hidden.has("avgRMultiple") && (
       <Card className="glass hover:translate-y-[-5px] hover:border-violet-500/25 transition-all duration-300">
         <CardContent className="flex justify-between items-center p-6">
           <div>
@@ -129,8 +151,9 @@ export default function KPICards({
           </div>
         </CardContent>
       </Card>
+      )}
 
-      {/* Best/Worst Symbol Card */}
+      {!hidden.has("bestSymbol") && (
       <Card className="glass hover:translate-y-[-5px] hover:border-violet-500/25 transition-all duration-300">
         <CardContent className="flex justify-between items-center p-6">
           <div>
@@ -156,8 +179,9 @@ export default function KPICards({
           </div>
         </CardContent>
       </Card>
+      )}
 
-      {/* Total Fees Paid Card (exchange trading fees, already netted into pnl) */}
+      {!hidden.has("fees") && (
       <Card className="glass hover:translate-y-[-5px] hover:border-violet-500/25 transition-all duration-300">
         <CardContent className="flex justify-between items-center p-6">
           <div>
@@ -174,8 +198,9 @@ export default function KPICards({
           </div>
         </CardContent>
       </Card>
+      )}
 
-      {/* Net Funding Card (CoinDCX futures funding rate settlements, all-time) */}
+      {!hidden.has("funding") && (
       <Card className="glass hover:translate-y-[-5px] hover:border-violet-500/25 transition-all duration-300">
         <CardContent className="flex justify-between items-center p-6">
           <div>
@@ -192,6 +217,7 @@ export default function KPICards({
           </div>
         </CardContent>
       </Card>
+      )}
 
     </div>
   );

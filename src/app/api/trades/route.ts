@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
         quantity: parseFloat(data.quantity),
         entryPrice: parseFloat(data.entryPrice),
         exitPrice: parseFloat(data.exitPrice),
-        strategy: data.strategy || "macd-200ema-sr",
+        strategy: data.strategy || user.defaultStrategy,
         notes: data.notes || "",
         stopLoss: data.stopLoss !== undefined && data.stopLoss !== null ? parseFloat(data.stopLoss) : null,
         initialRiskAmount: data.initialRiskAmount !== undefined && data.initialRiskAmount !== null ? parseFloat(data.initialRiskAmount) : null,

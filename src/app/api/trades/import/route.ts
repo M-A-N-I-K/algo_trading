@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
         quantity: details.quantity,
         entryPrice: details.entryPrice,
         exitPrice: details.exitPrice,
-        strategy: "macd-200ema-sr", // default
+        strategy: user.defaultStrategy,
         notes: `Imported trade. Action Details: ${action}`,
         userId: user.id
       });

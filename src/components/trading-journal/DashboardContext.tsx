@@ -37,6 +37,14 @@ export interface Notification {
   type: "success" | "error";
 }
 
+export interface DashboardSettings {
+  startingBalance: number;
+  dailyLossLimit: number | null;
+  weeklyLossLimit: number | null;
+  defaultStrategy: string;
+  hiddenKpiCards: string[];
+}
+
 interface DashboardContextValue {
   trades: Trade[];
   symbols: string[];
@@ -44,6 +52,16 @@ interface DashboardContextValue {
 
   startingBalance: number;
   updateStartingBalance: (value: number) => Promise<boolean>;
+
+  dailyLossLimit: number | null;
+  weeklyLossLimit: number | null;
+  updateLossLimits: (dailyLossLimit: number, weeklyLossLimit: number) => Promise<boolean>;
+
+  defaultStrategy: string;
+  updateDefaultStrategy: (value: string) => Promise<boolean>;
+
+  hiddenKpiCards: string[];
+  updateHiddenKpiCards: (value: string[]) => Promise<boolean>;
 
   notifications: Notification[];
   addNotification: (message: string, type: "success" | "error") => void;
@@ -105,7 +123,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   const settingsQuery = useQuery({
     queryKey: SETTINGS_QUERY_KEY,
-    queryFn: () => fetchJson<{ startingBalance: number }>("/api/settings"),
+    queryFn: () => fetchJson<DashboardSettings>("/api/settings"),
     enabled: status === "authenticated",
   });
 
@@ -123,6 +141,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   const trades = tradesQuery.data ?? [];
   const startingBalance = settingsQuery.data?.startingBalance ?? 100000;
+  const dailyLossLimit = settingsQuery.data?.dailyLossLimit ?? null;
+  const weeklyLossLimit = settingsQuery.data?.weeklyLossLimit ?? null;
+  const defaultStrategy = settingsQuery.data?.defaultStrategy ?? "macd-200ema-sr";
+  const hiddenKpiCards = settingsQuery.data?.hiddenKpiCards ?? [];
   const symbols = useMemo(() => Array.from(new Set(trades.map(t => t.symbol))), [trades]);
 
   const loadTrades = async () => {
@@ -130,30 +152,36 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   };
 
   const updateSettingsMutation = useMutation({
-    mutationFn: (value: number) =>
+    mutationFn: (partial: Partial<DashboardSettings>) =>
       fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ startingBalance: value }),
+        body: JSON.stringify(partial),
       }).then(res => {
-        if (!res.ok) throw new Error("Failed to update starting balance.");
-        return res.json() as Promise<{ startingBalance: number }>;
+        if (!res.ok) return res.json().then((body) => { throw new Error(body.error || "Failed to update settings."); });
+        return res.json() as Promise<DashboardSettings>;
       }),
     onSuccess: (data) => {
       queryClient.setQueryData(SETTINGS_QUERY_KEY, data);
-      addNotification("Starting balance updated!", "success");
     },
     onError: (e: Error) => addNotification(e.message, "error"),
   });
 
-  const updateStartingBalance = async (value: number) => {
+  const saveSetting = async (partial: Partial<DashboardSettings>, successMessage: string) => {
     try {
-      await updateSettingsMutation.mutateAsync(value);
+      await updateSettingsMutation.mutateAsync(partial);
+      addNotification(successMessage, "success");
       return true;
     } catch {
       return false;
     }
   };
+
+  const updateStartingBalance = (value: number) => saveSetting({ startingBalance: value }, "Starting balance updated!");
+  const updateLossLimits = (daily: number, weekly: number) =>
+    saveSetting({ dailyLossLimit: daily, weeklyLossLimit: weekly }, "Loss limits updated!");
+  const updateDefaultStrategy = (value: string) => saveSetting({ defaultStrategy: value }, "Default strategy updated!");
+  const updateHiddenKpiCards = (value: string[]) => saveSetting({ hiddenKpiCards: value }, "Dashboard cards updated!");
 
   const openTradeForm = (trade: Trade | null = null) => {
     setFormTrade(trade);
@@ -256,6 +284,13 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         loadTrades,
         startingBalance,
         updateStartingBalance,
+        dailyLossLimit,
+        weeklyLossLimit,
+        updateLossLimits,
+        defaultStrategy,
+        updateDefaultStrategy,
+        hiddenKpiCards,
+        updateHiddenKpiCards,
         notifications,
         addNotification,
         isModalOpen,

@@ -1,46 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AlertTriangle, ShieldCheck, Settings2 } from "lucide-react";
 import type { Trade } from "./DashboardContext";
+import { useDashboard } from "./DashboardContext";
 
 interface LossLimitBannerProps {
   trades: Trade[];
 }
-
-const DAILY_KEY = "aurajournal.dailyLossLimit";
-const WEEKLY_KEY = "aurajournal.weeklyLossLimit";
 
 function isSameLocalDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
 export default function LossLimitBanner({ trades }: LossLimitBannerProps) {
-  const [dailyLimit, setDailyLimit] = useState<number | null>(null);
-  const [weeklyLimit, setWeeklyLimit] = useState<number | null>(null);
+  const { dailyLossLimit, weeklyLossLimit, updateLossLimits } = useDashboard();
   const [showSettings, setShowSettings] = useState(false);
+  const [dailyInput, setDailyInput] = useState("");
+  const [weeklyInput, setWeeklyInput] = useState("");
 
-  // Seed limits from localStorage, defaulting to 4% / 8% of the most
-  // recent known account balance on first use.
-  useEffect(() => {
-    const storedDaily = localStorage.getItem(DAILY_KEY);
-    const storedWeekly = localStorage.getItem(WEEKLY_KEY);
-
-    if (storedDaily && storedWeekly) {
-      setDailyLimit(parseFloat(storedDaily));
-      setWeeklyLimit(parseFloat(storedWeekly));
-      return;
-    }
-
-    const chronTrades = [...trades].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
-    const latestBalance = chronTrades[0]?.balanceAfter || chronTrades[0]?.balanceBefore || 10000;
-    const defaultDaily = storedDaily ? parseFloat(storedDaily) : Math.round(latestBalance * 0.04);
-    const defaultWeekly = storedWeekly ? parseFloat(storedWeekly) : Math.round(latestBalance * 0.08);
-    setDailyLimit(defaultDaily);
-    setWeeklyLimit(defaultWeekly);
-  }, [trades.length]);
-
-  if (dailyLimit === null || weeklyLimit === null) return null;
+  // Falls back to 4%/8% of the most recent known balance until the user
+  // sets explicit values from Settings (DB-backed, so they persist across
+  // devices — this used to live in localStorage only).
+  const chronTrades = [...trades].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+  const latestBalance = chronTrades[0]?.balanceAfter || chronTrades[0]?.balanceBefore || 10000;
+  const dailyLimit = dailyLossLimit ?? Math.round(latestBalance * 0.04);
+  const weeklyLimit = weeklyLossLimit ?? Math.round(latestBalance * 0.08);
 
   const now = new Date();
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -61,8 +46,17 @@ export default function LossLimitBanner({ trades }: LossLimitBannerProps) {
   const breached = dailyBreached || weeklyBreached;
   const warning = !breached && (dailyWarn || weeklyWarn);
 
-  const persist = (key: string, value: number) => {
-    localStorage.setItem(key, value.toString());
+  const openSettings = () => {
+    setDailyInput(dailyLimit.toString());
+    setWeeklyInput(weeklyLimit.toString());
+    setShowSettings((v) => !v);
+  };
+
+  const handleSaveLimits = () => {
+    const daily = parseFloat(dailyInput);
+    const weekly = parseFloat(weeklyInput);
+    if (isNaN(daily) || isNaN(weekly) || daily < 0 || weekly < 0) return;
+    updateLossLimits(daily, weekly);
   };
 
   return (
@@ -103,7 +97,7 @@ export default function LossLimitBanner({ trades }: LossLimitBannerProps) {
         </div>
         <button
           type="button"
-          onClick={() => setShowSettings((v) => !v)}
+          onClick={openSettings}
           className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors"
         >
           <Settings2 size={14} /> Limits
@@ -111,18 +105,14 @@ export default function LossLimitBanner({ trades }: LossLimitBannerProps) {
       </div>
 
       {showSettings && (
-        <div className="flex flex-wrap gap-4 pt-3 border-t border-slate-800/60">
+        <div className="flex flex-wrap items-end gap-4 pt-3 border-t border-slate-800/60">
           <div className="flex flex-col gap-1.5">
             <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Daily Loss Limit ($)</label>
             <input
               type="number"
               step="any"
-              value={dailyLimit}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value) || 0;
-                setDailyLimit(val);
-                persist(DAILY_KEY, val);
-              }}
+              value={dailyInput}
+              onChange={(e) => setDailyInput(e.target.value)}
               className="bg-slate-900 border border-slate-800 text-slate-200 px-3 py-2 rounded-lg outline-none text-sm w-40 focus:border-violet-500"
             />
           </div>
@@ -131,15 +121,18 @@ export default function LossLimitBanner({ trades }: LossLimitBannerProps) {
             <input
               type="number"
               step="any"
-              value={weeklyLimit}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value) || 0;
-                setWeeklyLimit(val);
-                persist(WEEKLY_KEY, val);
-              }}
+              value={weeklyInput}
+              onChange={(e) => setWeeklyInput(e.target.value)}
               className="bg-slate-900 border border-slate-800 text-slate-200 px-3 py-2 rounded-lg outline-none text-sm w-40 focus:border-violet-500"
             />
           </div>
+          <button
+            type="button"
+            onClick={handleSaveLimits}
+            className="bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-lg text-xs font-semibold transition-all"
+          >
+            Save
+          </button>
         </div>
       )}
     </div>

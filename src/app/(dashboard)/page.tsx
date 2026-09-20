@@ -15,7 +15,7 @@ import DatePicker from "@/components/ui/date-picker";
 import { useDashboard } from "@/components/trading-journal/DashboardContext";
 
 export default function DashboardPage() {
-  const { trades, symbols, startingBalance, openTradeForm, handleDeleteTrade, openNotes } = useDashboard();
+  const { trades, symbols, startingBalance, hiddenKpiCards, openTradeForm, handleDeleteTrade, openNotes } = useDashboard();
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -138,6 +138,7 @@ export default function DashboardPage() {
         feesTradeCount={tradesWithFees.length}
         netFunding={fundingStatsQuery.data?.netFunding ?? null}
         fundingEventCount={fundingStatsQuery.data?.eventCount ?? 0}
+        hiddenCards={hiddenKpiCards}
       />
 
       <PnlCalendar trades={trades} onInspect={(t) => openNotes(t)} />
