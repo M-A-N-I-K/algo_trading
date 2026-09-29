@@ -18,7 +18,7 @@ const NAV_ITEMS = [
   { href: "/backtest", label: "Backtests", icon: FlaskConical },
   { href: "/insights", label: "Insights", icon: Lightbulb },
   { href: "/trades", label: "Trade Journal", icon: ListTodo },
-  { href: "/import", label: "Bulk Import", icon: Import },
+  { href: "/import", label: "Sync", icon: Import },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

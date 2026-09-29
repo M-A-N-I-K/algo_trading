@@ -37,8 +37,8 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
     subtitle: "Audit and inspect your complete historical execution logs.",
   },
   "/import": {
-    title: "Bulk Import",
-    subtitle: "Bulk upload your CSV execution lists to merge setups.",
+    title: "Sync",
+    subtitle: "Pull your trade history directly from CoinDCX.",
   },
   "/settings": {
     title: "Settings",
