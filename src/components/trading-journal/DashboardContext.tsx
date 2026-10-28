@@ -43,6 +43,8 @@ export interface DashboardSettings {
   weeklyLossLimit: number | null;
   defaultStrategy: string;
   hiddenKpiCards: string[];
+  coindcxBalance: number | null;
+  coindcxBalanceSyncedAt: string | null;
 }
 
 interface DashboardContextValue {
@@ -62,6 +64,11 @@ interface DashboardContextValue {
 
   hiddenKpiCards: string[];
   updateHiddenKpiCards: (value: string[]) => Promise<boolean>;
+
+  coindcxBalance: number | null;
+  coindcxBalanceSyncedAt: string | null;
+  isSyncingBalance: boolean;
+  syncCoindcxBalance: () => Promise<boolean>;
 
   notifications: Notification[];
   addNotification: (message: string, type: "success" | "error") => void;
@@ -145,6 +152,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const weeklyLossLimit = settingsQuery.data?.weeklyLossLimit ?? null;
   const defaultStrategy = settingsQuery.data?.defaultStrategy ?? "macd-200ema-sr";
   const hiddenKpiCards = settingsQuery.data?.hiddenKpiCards ?? [];
+  const coindcxBalance = settingsQuery.data?.coindcxBalance ?? null;
+  const coindcxBalanceSyncedAt = settingsQuery.data?.coindcxBalanceSyncedAt ?? null;
   const symbols = useMemo(() => Array.from(new Set(trades.map(t => t.symbol))), [trades]);
 
   const loadTrades = async () => {
@@ -182,6 +191,30 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     saveSetting({ dailyLossLimit: daily, weeklyLossLimit: weekly }, "Loss limits updated!");
   const updateDefaultStrategy = (value: string) => saveSetting({ defaultStrategy: value }, "Default strategy updated!");
   const updateHiddenKpiCards = (value: string[]) => saveSetting({ hiddenKpiCards: value }, "Dashboard cards updated!");
+
+  const syncBalanceMutation = useMutation({
+    mutationFn: () =>
+      fetch("/api/coindcx/sync-balance", { method: "POST" }).then(res => {
+        if (!res.ok) return res.json().then((body) => { throw new Error(body.error || "Failed to sync balance."); });
+        return res.json() as Promise<{ coindcxBalance: number; coindcxBalanceSyncedAt: string }>;
+      }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(SETTINGS_QUERY_KEY, (prev: DashboardSettings | undefined) =>
+        prev ? { ...prev, ...data } : prev,
+      );
+      addNotification(`Balance synced: $${data.coindcxBalance.toFixed(2)}`, "success");
+    },
+    onError: (e: Error) => addNotification(e.message, "error"),
+  });
+
+  const syncCoindcxBalance = async () => {
+    try {
+      await syncBalanceMutation.mutateAsync();
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
   const openTradeForm = (trade: Trade | null = null) => {
     setFormTrade(trade);
@@ -291,6 +324,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         updateDefaultStrategy,
         hiddenKpiCards,
         updateHiddenKpiCards,
+        coindcxBalance,
+        coindcxBalanceSyncedAt,
+        isSyncingBalance: syncBalanceMutation.isPending,
+        syncCoindcxBalance,
         notifications,
         addNotification,
         isModalOpen,

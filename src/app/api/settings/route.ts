@@ -9,6 +9,8 @@ function toSettingsPayload(user: {
   weeklyLossLimit: number | null;
   defaultStrategy: string;
   hiddenKpiCards: string[];
+  coindcxBalance: number | null;
+  coindcxBalanceSyncedAt: Date | null;
 }) {
   return {
     startingBalance: user.startingBalance,
@@ -16,6 +18,9 @@ function toSettingsPayload(user: {
     weeklyLossLimit: user.weeklyLossLimit,
     defaultStrategy: user.defaultStrategy,
     hiddenKpiCards: user.hiddenKpiCards,
+    // Read-only here — set via POST /api/coindcx/sync-balance, not PATCH.
+    coindcxBalance: user.coindcxBalance,
+    coindcxBalanceSyncedAt: user.coindcxBalanceSyncedAt ? user.coindcxBalanceSyncedAt.toISOString() : null,
   };
 }
 

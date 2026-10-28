@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { coindcxSignedPost } from "@/tools/coindcxSignedRequest";
+import { coindcxSignedPost, coindcxSignedGet } from "@/tools/coindcxSignedRequest";
 
 interface CoinDcxFill {
   id: string | number;
@@ -429,4 +429,21 @@ export async function syncCoindcxTrades(userId: string) {
     walletTransactionCount: walletTxnResult.fetchedCount,
     importedWalletTransactionCount: walletTxnResult.importedCount,
   };
+}
+
+interface RawFuturesWallet {
+  currency_short_name: string;
+  balance: string;
+  locked_balance: string;
+}
+
+// Live account size for the loss-limit banner's 4%/8% auto-calculated
+// defaults — free + locked (margin currently backing open positions), since
+// a trader's real daily/weekly risk tolerance scales with total equity, not
+// just the uncommitted portion.
+export async function fetchCoindcxFuturesBalance(): Promise<number> {
+  const wallets = await coindcxSignedGet<RawFuturesWallet[]>("/exchange/v1/derivatives/futures/wallets");
+  const usdtWallet = wallets.find((w) => w.currency_short_name === "USDT");
+  if (!usdtWallet) return 0;
+  return parseFloat(usdtWallet.balance) + parseFloat(usdtWallet.locked_balance);
 }

@@ -42,6 +42,14 @@ model User {
   // the dashboard's KPI row. Empty = show everything.
   hiddenKpiCards String[] @default([])
 
+  // Live CoinDCX futures wallet balance (USDT, free + locked), pulled on
+  // demand from Settings — the loss-limit banner's 4%/8% auto-calculated
+  // defaults use this (when synced at least once) instead of inferring a
+  // balance from trade history, so daily/weekly risk tracks the real
+  // account size rather than a guess.
+  coindcxBalance         Float?
+  coindcxBalanceSyncedAt DateTime?
+
   tradingAccounts TradingAccount[]
   riskProfiles    RiskProfile[]
   strategies      Strategy[]

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Settings, Wallet, ShieldAlert, Tag, LayoutGrid } from "lucide-react";
+import { Settings, Wallet, ShieldAlert, Tag, LayoutGrid, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import PlaceholderPage from "@/components/layout/PlaceholderPage";
 import { KPI_CARD_KEYS } from "@/components/trading-journal/KPICards";
@@ -75,6 +75,39 @@ function StartingBalanceSection() {
           className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
         >
           {isSaving ? "Saving..." : "Save"}
+        </button>
+      </div>
+    </SettingsSection>
+  );
+}
+
+function CoindcxBalanceSection() {
+  const { coindcxBalance, coindcxBalanceSyncedAt, isSyncingBalance, syncCoindcxBalance } = useDashboard();
+
+  return (
+    <SettingsSection
+      icon={Wallet}
+      title="CoinDCX Account Balance"
+      description="Pulls your live USDT futures wallet balance (free + locked margin) from CoinDCX. Daily/weekly loss limits below auto-calculate from this balance whenever you haven't set an explicit value — sync any time to keep that calculation current."
+    >
+      <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
+        <div className="flex-1">
+          <div className="text-2xl font-bold text-white">
+            {coindcxBalance != null ? `$${coindcxBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {coindcxBalanceSyncedAt
+              ? `Last synced ${new Date(coindcxBalanceSyncedAt).toLocaleString()}`
+              : "Never synced yet"}
+          </p>
+        </div>
+        <button
+          onClick={() => syncCoindcxBalance()}
+          disabled={isSyncingBalance}
+          className="flex items-center justify-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
+        >
+          <RefreshCw size={14} className={isSyncingBalance ? "animate-spin" : ""} />
+          {isSyncingBalance ? "Syncing..." : "Sync Now"}
         </button>
       </div>
     </SettingsSection>
@@ -258,6 +291,7 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <StartingBalanceSection />
+      <CoindcxBalanceSection />
       <RiskLimitsSection />
       <DefaultStrategySection />
       <DashboardCardsSection />

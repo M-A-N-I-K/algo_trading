@@ -14,18 +14,23 @@ function isSameLocalDay(a: Date, b: Date): boolean {
 }
 
 export default function LossLimitBanner({ trades }: LossLimitBannerProps) {
-  const { dailyLossLimit, weeklyLossLimit, updateLossLimits } = useDashboard();
+  const { dailyLossLimit, weeklyLossLimit, updateLossLimits, coindcxBalance } = useDashboard();
   const [showSettings, setShowSettings] = useState(false);
   const [dailyInput, setDailyInput] = useState("");
   const [weeklyInput, setWeeklyInput] = useState("");
 
-  // Falls back to 4%/8% of the most recent known balance until the user
-  // sets explicit values from Settings (DB-backed, so they persist across
-  // devices — this used to live in localStorage only).
+  // Falls back to 4%/8% of a reference balance until the user sets explicit
+  // values from Settings (DB-backed, so they persist across devices — this
+  // used to live in localStorage only). The reference balance prefers the
+  // last-synced real CoinDCX account balance over inferring one from trade
+  // history, so the auto-calculated limits track actual account size.
   const chronTrades = [...trades].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
-  const latestBalance = chronTrades[0]?.balanceAfter || chronTrades[0]?.balanceBefore || 10000;
-  const dailyLimit = dailyLossLimit ?? Math.round(latestBalance * 0.04);
-  const weeklyLimit = weeklyLossLimit ?? Math.round(latestBalance * 0.08);
+  const tradeDerivedBalance = chronTrades[0]?.balanceAfter || chronTrades[0]?.balanceBefore || 10000;
+  const usingSyncedBalance = coindcxBalance != null;
+  const referenceBalance = coindcxBalance ?? tradeDerivedBalance;
+  const dailyLimit = dailyLossLimit ?? Math.round(referenceBalance * 0.04);
+  const weeklyLimit = weeklyLossLimit ?? Math.round(referenceBalance * 0.08);
+  const usingAutoLimits = dailyLossLimit == null || weeklyLossLimit == null;
 
   const now = new Date();
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -93,6 +98,12 @@ export default function LossLimitBanner({ trades }: LossLimitBannerProps) {
               Last 7d: <span className={weekPnl < 0 ? "text-rose-400" : "text-emerald-400"}>{weekPnl >= 0 ? "+" : ""}${weekPnl.toFixed(2)}</span>
               {" "}/ -${weeklyLimit.toFixed(0)} limit
             </div>
+            {usingAutoLimits && (
+              <div className="text-[11px] text-slate-500 mt-1">
+                Auto-calculated (4%/8%) from {usingSyncedBalance ? "your synced CoinDCX balance" : "trade history"} — $
+                {referenceBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              </div>
+            )}
           </div>
         </div>
         <button
