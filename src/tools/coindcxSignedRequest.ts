@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import https from "https";
 import axios from "axios";
 
 export const COINDCX_BASE_API =
@@ -26,24 +27,32 @@ export function signBody(params: Record<string, unknown>) {
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
+// The API key is IP-whitelisted, and the whitelist only holds an IPv4
+// address. api.coindcx.com also resolves over IPv6, so on a dual-stack
+// network Node would randomly connect over IPv6 and get a 401 "Invalid
+// credentials". Pin every signed request to IPv4.
+const ipv4Agent = new https.Agent({ family: 4, keepAlive: true });
+
 export async function coindcxSignedPost<T>(
   path: string,
   params: Record<string, unknown> = {},
 ): Promise<T> {
   const { body, headers } = signBody(params);
-  const res = await fetch(`${COINDCX_BASE_API}${path}`, {
+  const res = await axios({
     method: "POST",
+    url: `${COINDCX_BASE_API}${path}`,
     headers,
-    body,
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    data: body,
+    httpsAgent: ipv4Agent,
+    validateStatus: () => true,
+    timeout: REQUEST_TIMEOUT_MS,
   });
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`CoinDCX request to ${path} failed (${res.status}): ${text}`);
+  if (res.status < 200 || res.status >= 300) {
+    throw new Error(`CoinDCX request to ${path} failed (${res.status}): ${JSON.stringify(res.data)}`);
   }
 
-  return res.json() as Promise<T>;
+  return res.data as T;
 }
 
 // A handful of CoinDCX endpoints (e.g. futures wallet transactions) are GET
@@ -59,6 +68,7 @@ export async function coindcxSignedGet<T>(
     url: `${COINDCX_BASE_API}${path}`,
     headers,
     data: body,
+    httpsAgent: ipv4Agent,
     validateStatus: () => true,
     timeout: REQUEST_TIMEOUT_MS,
   });
