@@ -12,9 +12,9 @@ interface StrategyMetadataFormProps {
 }
 
 const STRATEGY_TYPE_LABELS: Record<StrategyType, string> = {
-  TREND_FOLLOWING: "Trend Following",
+  TREND_FOLLOWING: "Trend following",
   MOMENTUM: "Momentum",
-  MEAN_REVERSION: "Mean Reversion",
+  MEAN_REVERSION: "Mean reversion",
   BREAKOUT: "Breakout",
   REVERSAL: "Reversal",
   CUSTOM: "Custom",

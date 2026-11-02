@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { Panel, money, toneClass } from "@/components/kit";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import TradesTable from "@/components/trading-journal/TradesTable";
 import { cn } from "@/lib/utils";
@@ -19,7 +19,7 @@ function dayKey(date: Date): string {
 
 function formatCompact(n: number): string {
   const abs = Math.abs(n);
-  const sign = n < 0 ? "-" : "+";
+  const sign = n < 0 ? "\u2212" : "+";
   if (abs >= 1000) return `${sign}$${(abs / 1000).toFixed(1)}k`;
   return `${sign}$${abs.toFixed(2)}`;
 }
@@ -94,63 +94,60 @@ export default function PnlCalendar({ trades, onInspect }: PnlCalendarProps) {
 
   const selectedDayPnl = selectedDayTrades.reduce((sum, t) => sum + t.pnl, 0);
 
-  return (
-    <Card className="glass border-slate-800 p-4 sm:p-6 mb-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-        <div>
-          <h3 className="font-Outfit text-lg font-semibold text-white">Monthly P&amp;L Calendar</h3>
-          <p className="text-xs text-slate-400 mt-1">
-            {monthTotal.tradingDays > 0 ? (
-              <>
-                <span className={monthTotal.pnl >= 0 ? "text-emerald-400" : "text-rose-500"}>
-                  {monthTotal.pnl >= 0 ? "+" : ""}${monthTotal.pnl.toFixed(2)}
-                </span>{" "}
-                this month &middot; {monthTotal.greenDays}/{monthTotal.tradingDays} green days
-              </>
-            ) : (
-              "No trades this month"
-            )}
-          </p>
-        </div>
+  const maxAbs = Math.max(1e-9, ...[...dailyPnl.values()].map((e) => Math.abs(e.pnl)));
 
-        <div className="flex items-center gap-1 self-start sm:self-auto">
+  return (
+    <Panel
+      title="Calendar"
+      note={
+        monthTotal.tradingDays > 0 ? (
+          <>
+            <span className={toneClass(monthTotal.pnl)}>{money(monthTotal.pnl)}</span> in {MONTH_LABEL.format(viewMonth)}, with{" "}
+            {monthTotal.greenDays} of {monthTotal.tradingDays} trading days positive.
+          </>
+        ) : (
+          `No trades in ${MONTH_LABEL.format(viewMonth)}.`
+        )
+      }
+      aside={
+        <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => setViewMonth(new Date(year, month - 1, 1))}
-            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="rounded-md p-2 text-fog transition-colors hover:bg-deck-2 hover:text-paper"
             aria-label="Previous month"
           >
             <ChevronLeft size={16} />
           </button>
-          <span className="text-sm font-semibold text-white w-32 text-center">{MONTH_LABEL.format(viewMonth)}</span>
+          <span className="w-28 text-center text-sm text-paper">{MONTH_LABEL.format(viewMonth)}</span>
           <button
             type="button"
             onClick={() => setViewMonth(new Date(year, month + 1, 1))}
-            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="rounded-md p-2 text-fog transition-colors hover:bg-deck-2 hover:text-paper"
             aria-label="Next month"
           >
             <ChevronRight size={16} />
           </button>
         </div>
-      </div>
-
-      <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-1 sm:mb-2">
+      }
+    >
+      <div className="mb-1.5 grid grid-cols-7 gap-1 sm:gap-1.5">
         {WEEKDAYS.map((w) => (
-          <div key={w} className="text-center text-[9px] sm:text-[10px] font-semibold text-slate-500 uppercase py-1 truncate">
+          <div key={w} className="truncate py-1 text-center text-xs text-mist">
             <span className="sm:hidden">{w[0]}</span>
             <span className="hidden sm:inline">{w}</span>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-1 sm:gap-2">
+      <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
         {cells.map((date, i) => {
-          if (!date) return <div key={`blank-${i}`} className="aspect-square" />;
+          if (!date) return <div key={`blank-${i}`} className="h-14 sm:h-20" />;
 
           const entry = dailyPnl.get(dayKey(date));
           const isToday = date.toDateString() === today.toDateString();
-          const isProfit = entry && entry.pnl > 0;
-          const isLoss = entry && entry.pnl < 0;
+          const strength = entry ? Math.sqrt(Math.min(1, Math.abs(entry.pnl) / maxAbs)) : 0;
+          const pole = entry && entry.pnl >= 0 ? "var(--gain)" : "var(--loss)";
 
           return (
             <button
@@ -158,26 +155,29 @@ export default function PnlCalendar({ trades, onInspect }: PnlCalendarProps) {
               key={date.toISOString()}
               disabled={!entry}
               onClick={() => setSelectedDay(date)}
+              aria-label={
+                entry
+                  ? `${DAY_TITLE_FORMAT.format(date)}: ${money(entry.pnl)} across ${entry.count} trade${entry.count === 1 ? "" : "s"}`
+                  : `${DAY_TITLE_FORMAT.format(date)}: no trades`
+              }
               className={cn(
-                "aspect-square rounded-lg sm:rounded-xl border p-1 sm:p-2 flex flex-col justify-between transition-colors text-left overflow-hidden",
-                isProfit && "bg-emerald-500/10 border-emerald-500/25 hover:bg-emerald-500/20 cursor-pointer",
-                isLoss && "bg-rose-500/10 border-rose-500/25 hover:bg-rose-500/20 cursor-pointer",
-                !entry && "bg-slate-900/40 border-slate-800 cursor-default",
-                isToday && "ring-1 ring-violet-500/60",
+                "flex h-14 sm:h-20 flex-col justify-between overflow-hidden rounded-md p-1.5 text-left transition-[filter] sm:p-2",
+                entry ? "cursor-pointer hover:brightness-125" : "cursor-default bg-ink/50",
+                isToday && "outline outline-1 outline-signal",
               )}
+              style={entry ? { background: `color-mix(in oklab, ${pole} ${Math.round(16 + strength * 54)}%, var(--deck-2))` } : undefined}
             >
-              <span className={cn("text-[9px] sm:text-[11px] font-semibold", entry ? "text-slate-300" : "text-slate-600")}>
-                {date.getDate()}
-              </span>
+              <span className={cn("text-[11px]", entry ? "text-paper/80" : "text-mist")}>{date.getDate()}</span>
               {entry && (
-                <div className="flex flex-col min-w-0">
-                  <span className={cn("text-[9px] sm:text-xs font-bold truncate", isProfit ? "text-emerald-400" : "text-rose-500")}>
-                    {formatCompact(entry.pnl)}
+                <span className="min-w-0">
+                  <span className="block truncate text-[11px] font-medium text-paper sm:hidden">
+                    {entry.pnl < 0 ? "\u2212" : "+"}{Math.round(Math.abs(entry.pnl))}
                   </span>
-                  <span className="hidden sm:block text-[10px] text-slate-500 truncate">
+                  <span className="hidden truncate text-sm font-medium text-paper sm:block">{formatCompact(entry.pnl)}</span>
+                  <span className="hidden truncate text-[11px] text-paper/70 sm:block">
                     {entry.count} trade{entry.count !== 1 ? "s" : ""}
                   </span>
-                </div>
+                </span>
               )}
             </button>
           );
@@ -185,33 +185,24 @@ export default function PnlCalendar({ trades, onInspect }: PnlCalendarProps) {
       </div>
 
       <Dialog open={selectedDay !== null} onOpenChange={(open) => !open && setSelectedDay(null)}>
-        <DialogContent className="max-w-[95vw] sm:max-w-6xl bg-slate-950 border border-slate-800 text-slate-200 p-4 sm:p-6 md:p-8 rounded-2xl overflow-y-auto overflow-x-hidden max-h-[90vh]">
-          <DialogHeader className="mb-4 pr-8">
-            <DialogTitle className="font-Outfit text-lg sm:text-xl font-bold text-white tracking-tight">
+        <DialogContent className="max-h-[90vh] max-w-[95vw] overflow-y-auto overflow-x-hidden rounded-[12px] border border-rule bg-deck p-5 text-paper sm:max-w-6xl sm:p-7">
+          <DialogHeader className="mb-3 pr-8">
+            <DialogTitle className="font-display text-xl font-bold tracking-[-0.02em] text-paper">
               {selectedDay ? DAY_TITLE_FORMAT.format(selectedDay) : ""}
             </DialogTitle>
             {selectedDay && (
-              <p className="text-xs sm:text-sm text-slate-400">
-                {selectedDayTrades.length} trade{selectedDayTrades.length !== 1 ? "s" : ""} &middot; Net{" "}
-                <span className={selectedDayPnl >= 0 ? "text-emerald-400 font-semibold" : "text-rose-500 font-semibold"}>
-                  {selectedDayPnl >= 0 ? "+" : ""}${selectedDayPnl.toFixed(2)}
-                </span>
+              <p className="text-sm text-fog">
+                {selectedDayTrades.length} trade{selectedDayTrades.length !== 1 ? "s" : ""}, net{" "}
+                <span className={toneClass(selectedDayPnl)}>{money(selectedDayPnl)}</span>
               </p>
             )}
           </DialogHeader>
 
           <div className="min-w-0">
-            <TradesTable
-              filteredTrades={selectedDayTrades}
-              symbols={[]}
-              onInspect={onInspect}
-              isFullLog={false}
-              hideActions
-              timeOnly
-            />
+            <TradesTable filteredTrades={selectedDayTrades} onInspect={onInspect} isFullLog hideActions timeOnly />
           </div>
         </DialogContent>
       </Dialog>
-    </Card>
+    </Panel>
   );
 }

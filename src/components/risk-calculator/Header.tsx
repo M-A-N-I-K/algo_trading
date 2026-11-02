@@ -13,24 +13,24 @@ export default function RiskCalcHeader({ currency, onCurrencyChange, onReset }: 
   return (
     <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
-        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/25 shrink-0">
-          <ShieldHalf className="text-white" size={22} />
+        <div className="w-11 h-11 rounded-[10px] bg-deck-2 flex items-center justify-center shrink-0">
+          <ShieldHalf className="text-paper" size={22} />
         </div>
         <div>
-          <h1 className="font-Outfit text-xl sm:text-2xl font-extrabold tracking-tight">Trading Risk Calculator</h1>
+          <h1 className="font-display text-xl sm:text-2xl font-extrabold tracking-tight">Trading risk calculator</h1>
           <p className="text-xs text-muted-foreground mt-0.5">Turn your trading rules into a clear, practical risk-management system.</p>
         </div>
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex items-center rounded-xl border border-border bg-muted/40 p-1 text-xs font-semibold">
+        <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1 text-xs font-semibold">
           {(["INR", "USDT"] as Currency[]).map((c) => (
             <button
               key={c}
               type="button"
               onClick={() => onCurrencyChange(c)}
               className={`px-3 py-1.5 rounded-lg transition-all ${
-                currency === c ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                currency === c ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {c === "INR" ? "₹ INR" : "₮ USDT"}
@@ -43,7 +43,7 @@ export default function RiskCalcHeader({ currency, onCurrencyChange, onReset }: 
           onClick={() => {
             if (confirm("Reset all settings to defaults? This clears your saved configuration.")) onReset();
           }}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-muted/40 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-muted/40 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
         >
           <RotateCcw size={13} /> Reset
         </button>

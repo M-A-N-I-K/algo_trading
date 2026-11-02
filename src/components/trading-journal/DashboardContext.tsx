@@ -27,6 +27,12 @@ export interface Trade {
   stopLoss?: number | null;
   initialRiskAmount?: number | null;
   fees?: number | null;
+  // Exchange-synced breakdown: pnl = grossPnl - fees + funding (USDT).
+  grossPnl?: number | null;
+  funding?: number | null;
+  openedAt?: string | null;
+  marginCurrency?: string | null;
+  exitType?: "manual" | "tpsl" | "liquidation" | null;
   tags?: string[];
   checklist?: ChecklistItem[] | null;
 }

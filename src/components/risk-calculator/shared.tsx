@@ -31,9 +31,9 @@ export function SectionCard({
   className?: string;
 }) {
   return (
-    <Card className={`glass border-border ${className}`}>
+    <Card className={`bg-deck border-border ${className}`}>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base font-Outfit font-bold">
+        <CardTitle className="flex items-center gap-2 text-base font-display font-bold">
           {icon}
           {title}
           {tooltip && <InfoTooltip text={tooltip} />}
@@ -94,7 +94,7 @@ export function NumberField({
             onChange(raw === "" ? null : Number(raw));
           }}
           placeholder={placeholder}
-          className={`w-full bg-input/40 border rounded-xl px-4 py-2.5 text-sm outline-none transition-all focus:border-primary text-foreground placeholder:text-muted-foreground/50 ${
+          className={`w-full bg-input/40 border rounded-lg px-4 py-2.5 text-sm outline-none transition-all focus:border-primary text-foreground placeholder:text-muted-foreground/50 ${
             prefix ? "pl-8" : ""
           } ${suffix ? "pr-14" : ""} ${error ? "border-destructive" : "border-border"}`}
         />
@@ -131,38 +131,31 @@ export function StatBlock({
 
   return (
     <div>
-      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+      <span className="flex items-center gap-1.5 text-xs text-mist">
         {label}
         {tooltip && <InfoTooltip text={tooltip} />}
       </span>
-      <div className={`text-xl font-Outfit font-bold mt-1 ${toneClass}`}>{value}</div>
+      <div className={`text-xl font-display font-bold mt-1 ${toneClass}`}>{value}</div>
       {sub && <span className="text-[11px] text-muted-foreground">{sub}</span>}
     </div>
   );
 }
 
 export function RiskBadge({ level }: { level: RiskLevel }) {
-  const config: Record<RiskLevel, { emoji: string; label: string; className: string }> = {
-    conservative: {
-      emoji: "🟢",
-      label: "Conservative",
-      className: "bg-emerald-500/10 text-emerald-500 border-emerald-500/30",
-    },
-    moderate: {
-      emoji: "🟡",
-      label: "Moderate",
-      className: "bg-amber-500/10 text-amber-500 border-amber-500/30",
-    },
-    aggressive: {
-      emoji: "🔴",
-      label: "Aggressive",
-      className: "bg-rose-500/10 text-rose-500 border-rose-500/30",
-    },
+  const config: Record<RiskLevel, { label: string; tone: string; bars: number }> = {
+    conservative: { label: "Conservative risk", tone: "var(--gain)", bars: 1 },
+    moderate: { label: "Moderate risk", tone: "var(--fees)", bars: 2 },
+    aggressive: { label: "Aggressive risk", tone: "var(--loss)", bars: 3 },
   };
   const c = config[level];
+  // Three steps, filled up to the level, so the level reads without colour too.
   return (
-    <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-bold ${c.className}`}>
-      <span>{c.emoji}</span>
+    <span className="inline-flex items-center gap-2 rounded-md border border-rule px-2.5 py-1 text-sm text-paper">
+      <span className="flex items-end gap-0.5" aria-hidden="true">
+        {[1, 2, 3].map((i) => (
+          <span key={i} className="w-1 rounded-sm" style={{ height: 4 + i * 3, background: i <= c.bars ? c.tone : "var(--rule)" }} />
+        ))}
+      </span>
       {c.label}
     </span>
   );
@@ -170,8 +163,8 @@ export function RiskBadge({ level }: { level: RiskLevel }) {
 
 export function SourceBadge({ source }: { source: "amount" | "percent" }) {
   return (
-    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground uppercase tracking-wide">
-      {source === "amount" ? "Amount is source of truth" : "% is source of truth"}
+    <span className="px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground text-xs text-mist">
+      {source === "amount" ? "Set by amount" : "Set by percentage"}
     </span>
   );
 }

@@ -118,15 +118,21 @@ model Trade {
   stopLoss           Float?
   initialRiskAmount  Float?   // $ amount risked at entry (|entryPrice - stopLoss| * quantity); R-multiple = pnl / initialRiskAmount
   fees               Float?   // exchange trading fee charged to open+close this trade; already netted into pnl, stored separately for fee reporting
+
+  // Exchange-synced P&L breakdown (all USDT): pnl = grossPnl - fees + funding.
+  // grossPnl is the exchange's own realized P&L; funding is the signed sum of
+  // funding settlements while the round trip was open. Null for manual trades.
+  openedAt           DateTime? // when the round trip opened (time = when it closed)
+  grossPnl           Float?
+  funding            Float?
+  marginCurrency     String?  // "USDT" | "INR" — the position's margin currency
+  netPnlNative       Float?   // net P&L in marginCurrency, for checking against CoinDCX
+  exitType           String?  // "manual" | "tpsl" | "liquidation"
   tags               String[] @default([])
   checklist          Json?    // [{ label: string, checked: boolean }]
 
-  // Dedup key for trades synced from an exchange API (e.g. "coindcx:<entryFillId>:<exitFillId>").
-  // Null for manually-entered/CSV trades — those dedup at the application
-  // layer (see /api/trades/import) instead of a DB constraint, because a
-  // single closing fill can legitimately FIFO-split into multiple trades
-  // that share the same exit time (and occasionally the same pnl), which a
-  // [userId, time, pnl] unique constraint would wrongly reject.
+  // Dedup key for trades synced from an exchange API. CoinDCX futures round
+  // trips use "rt:<positionId>:<firstFillId>". Null for manually-entered trades.
   externalId    String?
 
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -137,14 +143,13 @@ model Trade {
   @@map("trades")
 }
 
-// Non-trade position ledger entries synced from CoinDCX's
-// /derivatives/futures/positions/transactions endpoint — funding fee
-// settlements and per-fill platform fees. Kept separate from Trade so trade
-// P&L/R stats never mix with these. `stage` is CoinDCX's raw event type:
-// "funding" (parentType "Derivatives::Futures::FundingSnapshot") is a
-// funding payment (amount can be +credit/-debit, feeAmount always 0);
-// "default" / "tpsl_exit" / "exit" (parentType "Derivatives::Futures::Order")
-// are order fill events carrying the platform fee charged for that fill.
+// CoinDCX's futures position ledger (/derivatives/futures/positions/transactions),
+// replaced wholesale on every sync. It is the source of truth that Trade
+// round trips are reconciled from (see src/lib/coindcx/reconcile.ts).
+// `stage` is CoinDCX's raw event type: "funding" (parentType
+// "...::FundingSnapshot") is a signed funding settlement; order stages
+// ("default" / "exit" / "tpsl_exit" / "liquidate", parentType "...::Order")
+// carry the exchange's realized P&L (`amount`) and fee for one fill.
 model CoindcxWalletTransaction {
   id         String   @id @default(uuid())
   stage      String
@@ -154,6 +159,15 @@ model CoindcxWalletTransaction {
   feeAmount  Float
   currency   String
   occurredAt DateTime
+
+  positionId       String  @default("")
+  marginCurrency   String  @default("USDT")
+  nativeAmount     Float   @default(0) // amount in marginCurrency (amount/feeAmount are USDT)
+  nativeFeeAmount  Float   @default(0)
+  // Where reconciliation put this row: "trade" (tradeExternalId set),
+  // "open" (position still open) or "unattributed" (no matching round trip).
+  attribution      String  @default("unattributed")
+  tradeExternalId  String?
 
   // CoinDCX's own fill_id for this ledger row — a real unique id, unlike
   // the /wallets/transactions endpoint this replaced.

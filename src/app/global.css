@@ -4,54 +4,78 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Theme: petrol ink. One dark theme, defined once.
+ *
+ * Money colors carry fixed meaning everywhere (validated as a set on the
+ * deck surface with the dataviz palette validator, CVD-safe on adjacent
+ * pairs): gain, loss, fees, funding. Use the *-ink variants for text.
+ */
 :root {
-  --background: oklch(0.05 0 0); /* Sleek pitch black base */
-  --foreground: oklch(0.95 0 0);
-  --card: oklch(0.08 0.01 255 / 45%);
-  --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.08 0 0);
-  --popover-foreground: oklch(0.95 0 0);
-  --primary: oklch(0.6 0.25 270); /* Neon violet accent color */
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.15 0.02 255);
-  --secondary-foreground: oklch(0.95 0 0);
-  --muted: oklch(0.15 0.01 255);
-  --muted-foreground: oklch(0.65 0.01 255);
-  --accent: oklch(0.2 0.02 255);
-  --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.6 0.2 25);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 10%);
-  --ring: oklch(0.6 0.25 270 / 50%);
-  --radius: 1rem;
-}
+  --ink: #0e1018; /* page */
+  --deck: #171a26; /* raised surface */
+  --deck-2: #202436; /* hover / nested surface */
+  --rule: #2c3146; /* hairlines */
+  --paper: #eceef6; /* primary text */
+  --fog: #a3a8bf; /* secondary text */
+  --mist: #7f84a0; /* tertiary text, axes */
+  --signal: #9db4ff; /* interactive accent: focus, active nav, links */
 
-.dark {
-  --background: oklch(0.05 0 0);
-  --foreground: oklch(0.95 0 0);
-  --card: oklch(0.08 0.01 255 / 45%);
-  --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.08 0 0);
-  --popover-foreground: oklch(0.95 0 0);
-  --primary: oklch(0.6 0.25 270);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.15 0.02 255);
-  --secondary-foreground: oklch(0.95 0 0);
-  --muted: oklch(0.15 0.01 255);
-  --muted-foreground: oklch(0.65 0.01 255);
-  --accent: oklch(0.2 0.02 255);
-  --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.6 0.2 25);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 10%);
-  --ring: oklch(0.6 0.25 270 / 50%);
+  --gain: #2fa97f;
+  --gain-ink: #5fd6a6;
+  --loss: #e8646a;
+  --loss-ink: #ff8d91;
+  --fees: #c97f2c;
+  --fees-ink: #f0b261;
+  --funding: #8f82f0;
+  --funding-ink: #b8aeff;
+
+  /* shadcn roles mapped onto the theme */
+  --background: var(--ink);
+  --foreground: var(--paper);
+  --card: var(--deck);
+  --card-foreground: var(--paper);
+  --popover: var(--deck);
+  --popover-foreground: var(--paper);
+  --primary: var(--paper);
+  --primary-foreground: var(--ink);
+  --secondary: var(--deck-2);
+  --secondary-foreground: var(--paper);
+  --muted: var(--deck-2);
+  --muted-foreground: var(--fog);
+  --accent: var(--deck-2);
+  --accent-foreground: var(--paper);
+  --destructive: var(--loss);
+  --border: var(--rule);
+  --input: var(--rule);
+  --ring: var(--signal);
+  --radius: 0.625rem;
 }
 
 @theme {
-  --font-Outfit: "Outfit", sans-serif;
-  --font-PlusJakartaSans: "Plus Jakarta Sans", sans-serif;
-  
-  /* Map shadcn theme variables for Tailwind v4 compiler */
+  --font-sans: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-bricolage), var(--font-schibsted), ui-sans-serif, sans-serif;
+  /* legacy family names used across older pages */
+  --font-Outfit: var(--font-bricolage), var(--font-schibsted), ui-sans-serif, sans-serif;
+  --font-PlusJakartaSans: var(--font-schibsted), ui-sans-serif, sans-serif;
+
+  --color-ink: var(--ink);
+  --color-deck: var(--deck);
+  --color-deck-2: var(--deck-2);
+  --color-rule: var(--rule);
+  --color-paper: var(--paper);
+  --color-fog: var(--fog);
+  --color-mist: var(--mist);
+  --color-signal: var(--signal);
+  --color-gain: var(--gain);
+  --color-gain-ink: var(--gain-ink);
+  --color-loss: var(--loss);
+  --color-loss-ink: var(--loss-ink);
+  --color-fees: var(--fees);
+  --color-fees-ink: var(--fees-ink);
+  --color-funding: var(--funding);
+  --color-funding-ink: var(--funding-ink);
+
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -70,29 +94,130 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+
+  /*
+   * Legacy palette remap. Older pages hardcode slate / violet / emerald /
+   * rose / amber utility classes; these overrides route them onto the theme
+   * so every page reads as one product without rewriting each file.
+   * New code should use the semantic names above instead.
+   */
+  --color-slate-50: #f4f5fb;
+  --color-slate-100: #eceef6;
+  --color-slate-200: #d2d5e4;
+  --color-slate-300: #b9bdd2;
+  --color-slate-400: #a3a8bf;
+  --color-slate-500: #7f84a0;
+  --color-slate-600: #5b6079;
+  --color-slate-700: #383d55;
+  --color-slate-800: #2c3146;
+  --color-slate-900: #171a26;
+  --color-slate-950: #0e1018;
+
+  --color-violet-300: #c3d0ff;
+  --color-violet-400: #9db4ff;
+  --color-violet-500: #6f86e8;
+  --color-violet-600: #5268c8;
+  --color-violet-700: #3e509c;
+  --color-violet-900: #20284a;
+  --color-violet-950: #161b33;
+  --color-indigo-400: #9db4ff;
+  --color-indigo-500: #6f86e8;
+  --color-indigo-600: #5268c8;
+  --color-sky-400: #9db4ff;
+  --color-sky-500: #6f86e8;
+  --color-cyan-400: #9db4ff;
+  --color-cyan-500: #6f86e8;
+  --color-blue-400: #9db4ff;
+  --color-blue-500: #6f86e8;
+  --color-blue-600: #5268c8;
+
+  --color-emerald-300: #93e6c3;
+  --color-emerald-400: #5fd6a6;
+  --color-emerald-500: #2fa97f;
+  --color-emerald-600: #238a68;
+  --color-emerald-900: #123a2f;
+  --color-emerald-950: #0d271f;
+  --color-green-400: #5fd6a6;
+  --color-green-500: #2fa97f;
+
+  --color-rose-300: #ffb3b6;
+  --color-rose-400: #ff8d91;
+  --color-rose-500: #e8646a;
+  --color-rose-600: #c4505a;
+  --color-rose-900: #4a2026;
+  --color-rose-950: #2b1519;
+  --color-red-400: #ff8d91;
+  --color-red-500: #e8646a;
+  --color-red-600: #c4505a;
+
+  --color-amber-300: #f6cc8e;
+  --color-amber-400: #f0b261;
+  --color-amber-500: #c97f2c;
+  --color-amber-600: #a86721;
+  --color-amber-950: #2a1d10;
+  --color-orange-400: #f0b261;
+  --color-orange-500: #c97f2c;
+  --color-yellow-400: #f0b261;
+  --color-yellow-500: #c97f2c;
+
+  --color-fuchsia-400: #b8aeff;
+  --color-fuchsia-500: #8f82f0;
+  --color-purple-400: #b8aeff;
+  --color-purple-500: #8f82f0;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground min-h-screen font-sans;
-    background-image: 
-      radial-gradient(circle at 10% 20%, rgba(124, 77, 255, 0.06) 0%, transparent 40%),
-      radial-gradient(circle at 80% 80%, rgba(0, 230, 118, 0.03) 0%, transparent 40%),
-      radial-gradient(circle at 50% 50%, rgba(255, 23, 68, 0.01) 0%, transparent 50%);
-    background-attachment: fixed;
-  }
   html {
     @apply font-sans;
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground min-h-screen font-sans antialiased;
+  }
+  /*
+   * No tabular figures: in Schibsted Grotesk "tnum" also widens periods and
+   * commas, making numbers read like a typewriter face. Columns of numbers
+   * are right-aligned instead.
+   */
+  :focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--signal) 35%, transparent);
   }
 }
 
-/* Glassmorphism custom helper utilities */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Legacy helper kept for older pages: now a flat raised surface, no blur. */
 .glass {
-  background-color: rgba(15, 15, 25, 0.45);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background-color: var(--deck);
+  border: 1px solid var(--rule);
+}
+
+/* The dashboard's single orchestrated moment: the P&L bridge settles in. */
+@keyframes bridge-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.bridge-bar {
+  transform-origin: left center;
+  animation: bridge-grow 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }

@@ -141,7 +141,7 @@ export default function RiskCalculatorPage() {
   return (
     <div className="flex flex-col gap-6">
       {/* Results summary — always visible, updates instantly */}
-      <Card className="glass border-slate-800">
+      <Card className="bg-deck border-slate-800">
         <CardContent className="p-6">
           {errors.length > 0 ? (
             <div className="flex flex-col gap-2">
@@ -153,12 +153,12 @@ export default function RiskCalculatorPage() {
             </div>
           ) : result ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-5">
-              <StatBlock label="Position Size" value={`${result.position.quantity} units`} tone="accent" sub={`${result.position.lots} lot(s)`} />
+              <StatBlock label="Position size" value={`${result.position.quantity} units`} tone="accent" sub={`${result.position.lots} lot(s)`} />
               <StatBlock label="Risk" value={fmt(result.riskAmount)} tone="negative" />
-              <StatBlock label="Max Loss" value={fmt(result.maxLoss)} tone="negative" sub="incl. costs" />
-              <StatBlock label="Target Profit" value={result.potentialProfit !== null ? fmt(result.potentialProfit) : "—"} tone="positive" sub="incl. costs" />
+              <StatBlock label="Max loss" value={fmt(result.maxLoss)} tone="negative" sub="incl. costs" />
+              <StatBlock label="Target profit" value={result.potentialProfit !== null ? fmt(result.potentialProfit) : "—"} tone="positive" sub="incl. costs" />
               <StatBlock label="Risk / Reward" value={result.riskRewardRatio !== null ? `1 : ${result.riskRewardRatio.toFixed(2)}` : "—"} />
-              <StatBlock label="Capital Required" value={fmt(result.capitalRequired)} />
+              <StatBlock label="Capital required" value={fmt(result.capitalRequired)} />
             </div>
           ) : null}
         </CardContent>
@@ -168,7 +168,7 @@ export default function RiskCalculatorPage() {
       {result && result.warnings.length > 0 && (
         <div className="flex flex-col gap-2">
           {result.warnings.map((w) => (
-            <div key={w.code} className="flex items-center gap-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-500">
+            <div key={w.code} className="flex items-center gap-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-500">
               <AlertTriangle size={16} className="shrink-0" /> {w.message}
             </div>
           ))}
@@ -178,10 +178,10 @@ export default function RiskCalculatorPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SectionCard title="Account" icon={<Wallet size={16} className="text-primary" />}>
           <div className="grid grid-cols-2 gap-4">
-            <NumberField label="Account Size" value={form.accountSize} onChange={(v) => patch({ accountSize: v })} prefix="₹" step={1000} />
-            <NumberField label="Risk Per Trade" value={form.riskPerTradePercent} onChange={(v) => patch({ riskPerTradePercent: v })} suffix="%" step={0.1} />
-            <NumberField label="Max Daily Loss" value={form.maxDailyLossPercent} onChange={(v) => patch({ maxDailyLossPercent: v })} suffix="%" step={0.5} optional />
-            <NumberField label="Max Portfolio Risk" value={form.maxPortfolioRiskPercent} onChange={(v) => patch({ maxPortfolioRiskPercent: v })} suffix="%" step={0.5} optional />
+            <NumberField label="Account size" value={form.accountSize} onChange={(v) => patch({ accountSize: v })} prefix="₹" step={1000} />
+            <NumberField label="Risk per trade" value={form.riskPerTradePercent} onChange={(v) => patch({ riskPerTradePercent: v })} suffix="%" step={0.1} />
+            <NumberField label="Max daily loss" value={form.maxDailyLossPercent} onChange={(v) => patch({ maxDailyLossPercent: v })} suffix="%" step={0.5} optional />
+            <NumberField label="Max portfolio risk" value={form.maxPortfolioRiskPercent} onChange={(v) => patch({ maxPortfolioRiskPercent: v })} suffix="%" step={0.5} optional />
           </div>
         </SectionCard>
 
@@ -192,19 +192,19 @@ export default function RiskCalculatorPage() {
               <select
                 value={form.instrumentId ?? ""}
                 onChange={(e) => applyInstrument(e.target.value)}
-                className="bg-input/40 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-primary text-foreground"
+                className="bg-input/40 border border-border rounded-lg px-4 py-2.5 text-sm outline-none focus:border-primary text-foreground"
               >
                 <option value="">Custom / manual</option>
                 {instruments.map((i) => (
                   <option key={i.id} value={i.id}>
-                    {i.symbol} · {i.exchange}
+                    {i.symbol} on {i.exchange}
                   </option>
                 ))}
               </select>
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-muted-foreground">Direction</label>
-              <div className="flex items-center rounded-xl border border-border bg-input/40 p-1 text-xs font-semibold h-[42px]">
+              <div className="flex items-center rounded-lg border border-border bg-input/40 p-1 text-xs font-semibold h-[42px]">
                 {(["LONG", "SHORT"] as Direction[]).map((d) => (
                   <button
                     key={d}
@@ -230,27 +230,27 @@ export default function RiskCalculatorPage() {
                 value={form.symbol}
                 onChange={(e) => patch({ symbol: e.target.value, instrumentId: null })}
                 placeholder="e.g. NIFTY"
-                className="bg-input/40 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-primary text-foreground placeholder:text-muted-foreground/50"
+                className="bg-input/40 border border-border rounded-lg px-4 py-2.5 text-sm outline-none focus:border-primary text-foreground placeholder:text-muted-foreground/50"
               />
             </div>
-            <NumberField label="Entry Price" value={form.entryPrice} onChange={(v) => patch({ entryPrice: v })} step={0.05} />
-            <NumberField label="Stop Loss" value={form.stopLoss} onChange={(v) => patch({ stopLoss: v })} step={0.05} />
-            <NumberField label="Take Profit" value={form.takeProfit} onChange={(v) => patch({ takeProfit: v })} step={0.05} optional />
+            <NumberField label="Entry price" value={form.entryPrice} onChange={(v) => patch({ entryPrice: v })} step={0.05} />
+            <NumberField label="Stop loss" value={form.stopLoss} onChange={(v) => patch({ stopLoss: v })} step={0.05} />
+            <NumberField label="Take profit" value={form.takeProfit} onChange={(v) => patch({ takeProfit: v })} step={0.05} optional />
           </div>
         </SectionCard>
 
-        <SectionCard title="Instrument Specification" icon={<Package size={16} className="text-primary" />}>
+        <SectionCard title="Instrument specification" icon={<Package size={16} className="text-primary" />}>
           <div className="grid grid-cols-3 gap-4">
-            <NumberField label="Tick Size" value={form.tickSize} onChange={(v) => patch({ tickSize: v })} step={0.01} tooltip="Smallest price increment for this instrument." />
-            <NumberField label="Lot Size" value={form.lotSize} onChange={(v) => patch({ lotSize: v })} step={1} tooltip="Position size must be a whole multiple of this." />
-            <NumberField label="Contract Multiplier" value={form.contractMultiplier} onChange={(v) => patch({ contractMultiplier: v })} step={1} tooltip="Value per unit of price movement — 1 for stocks/indices, higher for some derivatives." />
+            <NumberField label="Tick size" value={form.tickSize} onChange={(v) => patch({ tickSize: v })} step={0.01} tooltip="Smallest price increment for this instrument." />
+            <NumberField label="Lot size" value={form.lotSize} onChange={(v) => patch({ lotSize: v })} step={1} tooltip="Position size must be a whole multiple of this." />
+            <NumberField label="Contract multiplier" value={form.contractMultiplier} onChange={(v) => patch({ contractMultiplier: v })} step={1} tooltip="Value per unit of price movement — 1 for stocks/indices, higher for some derivatives." />
           </div>
         </SectionCard>
 
         <SectionCard title="Costs" icon={<Receipt size={16} className="text-primary" />}>
           <div className="flex flex-col gap-2">
-            <label className="text-xs font-semibold text-muted-foreground">Commission Type</label>
-            <div className="flex items-center rounded-xl border border-border bg-input/40 p-1 text-xs font-semibold w-fit">
+            <label className="text-xs font-semibold text-muted-foreground">Commission type</label>
+            <div className="flex items-center rounded-lg border border-border bg-input/40 p-1 text-xs font-semibold w-fit">
               {(["FLAT", "PERCENT"] as const).map((t) => (
                 <button
                   key={t}
@@ -277,17 +277,17 @@ export default function RiskCalculatorPage() {
       </div>
 
       {result && (
-        <SectionCard title="Risk Breakdown" icon={<ShieldAlert size={16} className="text-primary" />}>
+        <SectionCard title="Risk breakdown" icon={<ShieldAlert size={16} className="text-primary" />}>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <StatBlock label="Risk / Unit" value={result.riskPerUnit.toString()} />
             <StatBlock label="Reward / Unit" value={result.rewardPerUnit !== null ? result.rewardPerUnit.toString() : "—"} />
             <StatBlock label="Break-Even Win Rate" value={result.breakEvenWinRatePercent !== null ? `${result.breakEvenWinRatePercent.toFixed(2)}%` : "—"} />
-            <StatBlock label="Position Exposure" value={`${result.positionExposurePercent.toFixed(2)}%`} tooltip="Capital required as a % of account size." />
+            <StatBlock label="Position exposure" value={`${result.positionExposurePercent.toFixed(2)}%`} tooltip="Capital required as a % of account size." />
             <StatBlock label="Commission" value={fmt(result.commissionCost)} />
-            <StatBlock label="Slippage Cost" value={fmt(result.slippageCost)} />
-            <StatBlock label="Portfolio Risk" value={`${result.portfolioRiskPercent.toFixed(2)}%`} tooltip="This trade's risk plus any existing open risk you entered, as a % of account size." />
+            <StatBlock label="Slippage cost" value={fmt(result.slippageCost)} />
+            <StatBlock label="Portfolio risk" value={`${result.portfolioRiskPercent.toFixed(2)}%`} tooltip="This trade's risk plus any existing open risk you entered, as a % of account size." />
             <StatBlock
-              label="Daily Risk Utilization"
+              label="Daily risk utilization"
               value={result.dailyRiskUtilizationPercent !== null ? `${result.dailyRiskUtilizationPercent.toFixed(2)}%` : "—"}
               tooltip="Today's realized loss plus this trade's risk, as a % of your max daily loss."
             />
@@ -297,33 +297,33 @@ export default function RiskCalculatorPage() {
       )}
 
       {/* Save / saved profiles */}
-      <SectionCard title="Save Risk Profile" icon={<Save size={16} className="text-primary" />}>
+      <SectionCard title="Save risk profile" icon={<Save size={16} className="text-primary" />}>
         <div className="flex flex-col sm:flex-row gap-3">
           <input
             type="text"
             value={profileName}
             onChange={(e) => setProfileName(e.target.value)}
             placeholder={`e.g. ${form.symbol} ${form.direction} breakout`}
-            className="flex-1 bg-input/40 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-primary text-foreground placeholder:text-muted-foreground/50"
+            className="flex-1 bg-input/40 border border-border rounded-lg px-4 py-2.5 text-sm outline-none focus:border-primary text-foreground placeholder:text-muted-foreground/50"
           />
           <button
             type="button"
             disabled={!result || saveMutation.isPending}
             onClick={() => saveMutation.mutate()}
-            className="flex items-center justify-center gap-2 bg-primary text-primary-foreground disabled:opacity-40 disabled:cursor-not-allowed px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
+            className="flex items-center justify-center gap-2 bg-primary text-primary-foreground disabled:opacity-40 disabled:cursor-not-allowed px-5 py-2.5 rounded-lg text-sm font-semibold transition-all"
           >
-            <Save size={15} /> {saveMutation.isPending ? "Saving…" : "Save Profile"}
+            <Save size={15} /> {saveMutation.isPending ? "Saving…" : "Save profile"}
           </button>
         </div>
 
         {profilesQuery.data?.profiles && profilesQuery.data.profiles.length > 0 && (
           <div className="flex flex-col gap-2 mt-2">
             {profilesQuery.data.profiles.map((p) => (
-              <div key={p.id} className="flex items-center justify-between rounded-xl border border-border bg-muted/20 px-4 py-2.5">
+              <div key={p.id} className="flex items-center justify-between rounded-lg border border-border bg-muted/20 px-4 py-2.5">
                 <div>
                   <span className="text-sm font-semibold text-foreground">{p.name}</span>
                   <span className="text-xs text-muted-foreground ml-2">
-                    {p.symbol} · {p.direction} · {new Date(p.createdAt).toLocaleDateString()}
+                    {p.symbol} {p.direction.toLowerCase()}, {new Date(p.createdAt).toLocaleDateString()}
                   </span>
                 </div>
                 <button

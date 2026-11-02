@@ -25,12 +25,12 @@ export default function ExpectancyCalculator({ currency, defaultRiskAmount }: { 
   });
 
   return (
-    <SectionCard title="Strategy Expectancy Calculator" icon={<Calculator size={16} className="text-primary" />}>
+    <SectionCard title="Strategy expectancy calculator" icon={<Calculator size={16} className="text-primary" />}>
       <div className="grid grid-cols-2 gap-4">
-        <NumberField label="Win Rate" value={winRate} onChange={setWinRate} step={1} suffix="%" />
+        <NumberField label="Win rate" value={winRate} onChange={setWinRate} step={1} suffix="%" />
         <NumberField label="Number of Trades" value={numTrades} onChange={setNumTrades} step={1} />
-        <NumberField label="Average Win" value={avgWinR} onChange={setAvgWinR} step={0.1} suffix="R" />
-        <NumberField label="Average Loss" value={avgLossR} onChange={setAvgLossR} step={0.1} suffix="R" />
+        <NumberField label="Average win" value={avgWinR} onChange={setAvgWinR} step={0.1} suffix="R" />
+        <NumberField label="Average loss" value={avgLossR} onChange={setAvgLossR} step={0.1} suffix="R" />
         <NumberField
           label="Risk Amount (for $ conversion)"
           value={riskAmount}
@@ -42,7 +42,7 @@ export default function ExpectancyCalculator({ currency, defaultRiskAmount }: { 
       </div>
 
       {result.error && (
-        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-xs font-semibold text-destructive">
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-xs font-semibold text-destructive">
           ⚠️ {result.error}
         </div>
       )}

@@ -6,17 +6,17 @@ import { ExpandableFormula, SectionCard, StatBlock } from "./shared";
 
 export default function DailyRiskBudgetCard({ currency, budget }: { currency: Currency; budget: DailyRiskBudget }) {
   return (
-    <SectionCard title="Daily Risk Budget" icon={<Wallet2 size={16} className="text-primary" />}>
+    <SectionCard title="Daily risk budget" icon={<Wallet2 size={16} className="text-primary" />}>
       <div className="grid grid-cols-2 gap-4">
-        <StatBlock label="Max Daily Loss" value={formatCurrency(budget.maxDailyLoss.value, currency)} tone="negative" />
+        <StatBlock label="Max daily loss" value={formatCurrency(budget.maxDailyLoss.value, currency)} tone="negative" />
         <StatBlock label="Risk / Trade" value={formatCurrency(budget.riskPerTrade, currency)} />
         <StatBlock label="Loss-Based Max Trades" value={String(budget.lossBasedTrades)} tooltip="How many full-risk losses in a row would hit your daily loss limit." />
-        <StatBlock label="Configured Max Trades" value={String(budget.configuredMaxTrades)} />
-        <StatBlock label="Final Max Trades Allowed" value={String(budget.finalMaxTrades)} tone="accent" />
-        <StatBlock label="Remaining Daily Risk" value={formatCurrency(budget.remainingDailyRisk, currency)} tone={budget.remainingDailyRisk > 0 ? "positive" : "negative"} />
+        <StatBlock label="Configured max trades" value={String(budget.configuredMaxTrades)} />
+        <StatBlock label="Final max trades allowed" value={String(budget.finalMaxTrades)} tone="accent" />
+        <StatBlock label="Remaining daily risk" value={formatCurrency(budget.remainingDailyRisk, currency)} tone={budget.remainingDailyRisk > 0 ? "positive" : "negative"} />
       </div>
 
-      <div className="rounded-xl border border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
+      <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
         <span className="font-semibold text-foreground">Why {budget.finalMaxTrades}: </span>
         {budget.reason}
       </div>
@@ -24,7 +24,7 @@ export default function DailyRiskBudgetCard({ currency, budget }: { currency: Cu
       <StatBlock label="Remaining Full-Risk Trades Today" value={String(budget.remainingFullRiskTrades)} />
 
       {budget.isLocked && (
-        <div className="flex items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-bold text-destructive">
+        <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-bold text-destructive">
           <AlertOctagon size={16} /> Trading locked for today — daily loss limit reached.
         </div>
       )}

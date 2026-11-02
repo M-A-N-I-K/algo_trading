@@ -61,25 +61,25 @@ export default function CandlestickChart({ candles, overlays, showVolume = true,
     const chart = createChart(containerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#94a3b8",
+        textColor: "#a3a8bf",
         fontSize: 11,
       },
       grid: {
-        vertLines: { color: "rgba(148, 163, 184, 0.08)" },
-        horzLines: { color: "rgba(148, 163, 184, 0.08)" },
+        vertLines: { color: "rgba(143, 164, 163, 0.08)" },
+        horzLines: { color: "rgba(143, 164, 163, 0.08)" },
       },
       crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderColor: "rgba(148, 163, 184, 0.15)" },
-      timeScale: { borderColor: "rgba(148, 163, 184, 0.15)", timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: "rgba(143, 164, 163, 0.15)" },
+      timeScale: { borderColor: "rgba(143, 164, 163, 0.15)", timeVisible: true, secondsVisible: false },
       autoSize: true,
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#10b981",
-      downColor: "#f43f5e",
+      upColor: "#2fa97f",
+      downColor: "#e8646a",
       borderVisible: false,
-      wickUpColor: "#10b981",
-      wickDownColor: "#f43f5e",
+      wickUpColor: "#2fa97f",
+      wickDownColor: "#e8646a",
     });
 
     chartRef.current = chart;
@@ -144,7 +144,7 @@ export default function CandlestickChart({ candles, overlays, showVolume = true,
       const volumeData: HistogramData<Time>[] = candles.map((c) => ({
         time: toUnixSeconds(c.timestamp),
         value: c.volume,
-        color: c.close >= c.open ? "rgba(16, 185, 129, 0.5)" : "rgba(244, 63, 94, 0.5)",
+        color: c.close >= c.open ? "rgba(47, 169, 127, 0.5)" : "rgba(232, 100, 106, 0.5)",
       }));
       volumeSeriesRef.current.setData(volumeData);
     }

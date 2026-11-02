@@ -1,70 +1,39 @@
-import { Trash2, Edit3, Filter } from "lucide-react";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card";
+"use client";
+
+import { Pencil, Trash2 } from "lucide-react";
+import type { Trade } from "@/components/trading-journal/DashboardContext";
+import { holdMinutesOf, rMultipleOf } from "@/lib/journal/metrics";
+import { duration, money, signedNumber, toneClass } from "@/components/viz/shared";
+import { Tag } from "@/components/kit";
 import { STRATEGY_CATALOG } from "@/lib/strategyCatalog";
 
-interface Trade {
-  id: string;
-  time: string;
-  balanceBefore: number;
-  balanceAfter: number;
-  pnl: number;
-  currency: string;
-  symbol: string;
-  exchange: string;
-  side: "LONG" | "SHORT";
-  quantity: number;
-  entryPrice: number;
-  exitPrice: number;
-  strategy: string;
-  notes: string;
-  stopLoss?: number | null;
-  initialRiskAmount?: number | null;
-  tags?: string[];
-  checklist?: { label: string; checked: boolean }[] | null;
-}
+const STRATEGY_LABEL = new Map<string, string>(STRATEGY_CATALOG.map((s) => [s.value, s.label]));
 
 interface TradesTableProps {
   filteredTrades: Trade[];
-  symbols: string[];
-  filterSymbol?: string;
-  setFilterSymbol?: (s: string) => void;
-  filterStrategy?: string;
-  setFilterStrategy?: (s: string) => void;
-  filterOutcome?: string;
-  setFilterOutcome?: (o: string) => void;
-  filterTag?: string;
-  setFilterTag?: (t: string) => void;
   onEdit?: (t: Trade) => void;
   onDelete?: (id: string) => void;
   onInspect: (t: Trade) => void;
+  /** Full journal view: taller scroll area and every column. */
   isFullLog?: boolean;
   hideActions?: boolean;
   timeOnly?: boolean;
+  /** Kept for call-site compatibility; filters now live on the journal page. */
+  symbols?: string[];
 }
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const dateFmt = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "2-digit" });
+const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+
+const EXIT_LABEL: Record<string, string> = { tpsl: "TP/SL", manual: "Manual", liquidation: "Liquidated" };
+
+function price(v: number) {
+  const digits = v >= 1000 ? 2 : v >= 1 ? 4 : 6;
+  return v.toLocaleString(undefined, { maximumFractionDigits: digits });
 }
 
 export default function TradesTable({
   filteredTrades,
-  symbols,
-  filterSymbol = "ALL",
-  setFilterSymbol,
-  filterStrategy = "ALL",
-  setFilterStrategy,
-  filterOutcome = "ALL",
-  setFilterOutcome,
-  filterTag = "",
-  setFilterTag,
   onEdit,
   onDelete,
   onInspect,
@@ -72,180 +41,137 @@ export default function TradesTable({
   hideActions = false,
   timeOnly = false,
 }: TradesTableProps) {
-
-  const handleResetFilters = () => {
-    if (setFilterSymbol) setFilterSymbol("ALL");
-    if (setFilterStrategy) setFilterStrategy("ALL");
-    if (setFilterOutcome) setFilterOutcome("ALL");
-    if (setFilterTag) setFilterTag("");
-  };
+  const th = "sticky top-0 z-[1] bg-deck py-2.5 pr-4 text-left text-xs font-normal text-mist";
+  const thNum = `${th} text-right`;
 
   return (
-    <div>
-      {/* Optional Filters Bar */}
-      {isFullLog && setFilterSymbol && setFilterStrategy && setFilterOutcome && (
-        <Card className="glass mb-6 border-slate-800">
-          <CardContent className="flex flex-col md:flex-row gap-5 p-6">
-            <div className="flex-1 flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Symbol</label>
-              <select 
-                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500"
-                value={filterSymbol} 
-                onChange={(e) => setFilterSymbol(e.target.value)}
-              >
-                <option value="ALL">All Symbols</option>
-                {symbols.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            
-            <div className="flex-1 flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Strategy</label>
-              <select 
-                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500"
-                value={filterStrategy} 
-                onChange={(e) => setFilterStrategy(e.target.value)}
-              >
-                <option value="ALL">All Strategies</option>
-                {STRATEGY_CATALOG.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex-1 flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Outcome</label>
-              <select 
-                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500"
-                value={filterOutcome} 
-                onChange={(e) => setFilterOutcome(e.target.value)}
-              >
-                <option value="ALL">All Outcomes</option>
-                <option value="WIN">Winning Trades</option>
-                <option value="LOSS">Losing Trades</option>
-              </select>
-            </div>
-
-            {setFilterTag && (
-              <div className="flex-1 flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tag</label>
-                <input
-                  type="text"
-                  className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
-                  value={filterTag}
-                  onChange={(e) => setFilterTag(e.target.value)}
-                  placeholder="e.g. fomo-entry"
-                />
-              </div>
+    <div className={`relative w-full overflow-x-auto ${isFullLog ? "max-h-[70vh] overflow-y-auto" : ""}`}>
+      <table className="w-full min-w-[56rem] border-collapse whitespace-nowrap text-sm">
+        <thead>
+          <tr>
+            <th scope="col" className={`${th} pl-1`}>Closed</th>
+            <th scope="col" className={th}>Market</th>
+            <th scope="col" className={thNum}>Size</th>
+            <th scope="col" className={thNum}>Entry → exit</th>
+            {isFullLog && <th scope="col" className={thNum}>Price P&amp;L</th>}
+            {isFullLog && <th scope="col" className={thNum}>Fees</th>}
+            {isFullLog && <th scope="col" className={thNum}>Funding</th>}
+            <th scope="col" className={thNum}>Net</th>
+            <th scope="col" className={thNum}>R</th>
+            {isFullLog && <th scope="col" className={thNum}>Held</th>}
+            <th scope="col" className={th}>Strategy and tags</th>
+            {!hideActions && (
+              <th scope="col" className={`${th} text-right`}>
+                <span className="sr-only">Actions</span>
+              </th>
             )}
-
-            <button
-              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all self-end"
-              onClick={handleResetFilters}
-            >
-              Reset Filters
-            </button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Table Data */}
-      <Card className="glass border-slate-800 overflow-hidden">
-        <div className={`overflow-x-auto w-full ${isFullLog ? "max-h-[600px] overflow-y-auto" : ""}`}>
-          <Table className="w-full">
-            <TableHeader className="bg-slate-900/50">
-              <TableRow className="hover:bg-transparent border-slate-800">
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Time</TableHead>
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Symbol</TableHead>
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Side</TableHead>
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Quantity</TableHead>
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Entry Price</TableHead>
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Exit Price</TableHead>
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Realized PnL</TableHead>
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">R</TableHead>
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Strategy / Tags</TableHead>
-                {!hideActions && (
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4 text-right">Actions</TableHead>
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredTrades.map(t => (
-                <TableRow 
-                  key={t.id} 
-                  className="hover:bg-slate-800/10 cursor-pointer border-slate-800/40 transition-colors"
-                  onClick={() => onInspect(t)}
-                >
-                  <TableCell className="text-slate-300 font-medium py-4 text-xs">{timeOnly ? formatTime(t.time) : t.time}</TableCell>
-                  <TableCell className="text-white font-bold py-4 text-sm">{t.symbol}</TableCell>
-                  <TableCell className="py-4">
-                    <span className={`inline-flex px-2 py-1 rounded text-[10px] font-bold border ${t.side === 'LONG' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
-                      {t.side}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-slate-300 py-4 font-medium text-sm">{t.quantity}</TableCell>
-                  <TableCell className="text-slate-300 py-4 font-medium text-sm">${t.entryPrice.toFixed(2)}</TableCell>
-                  <TableCell className="text-slate-300 py-4 font-medium text-sm">${t.exitPrice.toFixed(2)}</TableCell>
-                  <TableCell className={`py-4 font-bold text-sm ${t.pnl >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
-                    {t.pnl >= 0 ? '+' : ''}${t.pnl.toFixed(2)}
-                  </TableCell>
-                  <TableCell className="py-4">
-                    {t.initialRiskAmount ? (
-                      <span className={`font-bold text-sm ${t.pnl >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
-                        {t.pnl >= 0 ? '+' : ''}{(t.pnl / t.initialRiskAmount).toFixed(2)}R
-                      </span>
-                    ) : (
-                      <span className="text-slate-600 text-xs">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="py-4">
-                    <div className="flex flex-col gap-1.5 items-start">
-                      <span className="text-[11px] bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-md text-slate-400">
-                        {t.strategy}
-                      </span>
-                      {t.tags && t.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {t.tags.map((tag) => (
-                            <span key={tag} className="text-[10px] bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded-md text-violet-300">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  {!hideActions && (
-                    <TableCell className="py-4 text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex gap-2 justify-end">
-                        <button
-                          onClick={() => onEdit?.(t)}
-                          className="bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 p-2 rounded-xl transition-all"
-                        >
-                          <Edit3 size={14} />
-                        </button>
-                        <button
-                          onClick={() => onDelete?.(t.id)}
-                          className="bg-slate-900 border border-slate-800 hover:bg-slate-800 text-rose-500 p-2 rounded-xl transition-all"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </TableCell>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredTrades.map((t) => {
+            const r = rMultipleOf(t);
+            const held = holdMinutesOf(t);
+            const closed = new Date(t.time);
+            return (
+              <tr
+                key={t.id}
+                className="group cursor-pointer border-t border-rule transition-colors hover:bg-deck-2/60"
+                onClick={() => onInspect(t)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onInspect(t);
+                }}
+                tabIndex={0}
+                aria-label={`${t.symbol} ${t.side.toLowerCase()}, net ${money(t.pnl)}. Open notes.`}
+              >
+                <td className="py-2.5 pl-1 pr-4 text-fog">
+                  {timeOnly ? timeFmt.format(closed) : (
+                    <>
+                      <span className="text-paper">{dateFmt.format(closed)}</span>{" "}
+                      <span className="text-mist">{timeFmt.format(closed)}</span>
+                    </>
                   )}
-                </TableRow>
-              ))}
-              {filteredTrades.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={hideActions ? 9 : 10} className="text-center text-slate-500 font-medium py-12">
-                    No matching trade records.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </Card>
+                </td>
+                <td className="py-2.5 pr-4">
+                  <span className="font-medium text-paper">{t.symbol}</span>{" "}
+                  <Tag tone={t.side === "LONG" ? "gain" : "loss"}>{t.side === "LONG" ? "Long" : "Short"}</Tag>
+                  {t.exitType && t.exitType !== "tpsl" && (
+                    <>
+                      {" "}
+                      <Tag tone={t.exitType === "liquidation" ? "loss" : "neutral"}>{EXIT_LABEL[t.exitType] ?? t.exitType}</Tag>
+                    </>
+                  )}
+                  {t.marginCurrency === "INR" && (
+                    <>
+                      {" "}
+                      <Tag>INR</Tag>
+                    </>
+                  )}
+                </td>
+                <td className="py-2.5 pr-4 text-right text-fog">{t.quantity.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
+                <td className="py-2.5 pr-4 text-right text-fog">
+                  {price(t.entryPrice)} <span className="text-mist">→</span> {price(t.exitPrice)}
+                </td>
+                {isFullLog && (
+                  <td className={`py-2.5 pr-4 text-right ${t.grossPnl == null ? "text-mist" : toneClass(t.grossPnl)}`}>
+                    {t.grossPnl == null ? "—" : money(t.grossPnl)}
+                  </td>
+                )}
+                {isFullLog && (
+                  <td className="py-2.5 pr-4 text-right text-fees-ink">{t.fees == null ? <span className="text-mist">—</span> : money(-t.fees)}</td>
+                )}
+                {isFullLog && (
+                  <td className="py-2.5 pr-4 text-right text-funding-ink">
+                    {t.funding == null || Math.abs(t.funding) < 0.005 ? <span className="text-mist">—</span> : money(t.funding)}
+                  </td>
+                )}
+                <td className={`py-2.5 pr-4 text-right font-medium ${toneClass(t.pnl)}`}>{money(t.pnl)}</td>
+                <td className={`py-2.5 pr-4 text-right ${r == null ? "text-mist" : toneClass(r)}`}>{r == null ? "—" : signedNumber(r, 2, "R")}</td>
+                {isFullLog && <td className="py-2.5 pr-4 text-right text-fog">{held == null ? "—" : duration(held)}</td>}
+                <td className="max-w-[16rem] py-2.5 pr-4">
+                  <span className="text-fog">{STRATEGY_LABEL.get(t.strategy) ?? t.strategy}</span>
+                  {t.tags && t.tags.length > 0 && (
+                    <span className="ml-2 inline-flex flex-wrap gap-1 align-middle">
+                      {t.tags.slice(0, 3).map((tag) => (
+                        <Tag key={tag} tone="signal">{tag}</Tag>
+                      ))}
+                      {t.tags.length > 3 && <Tag>+{t.tags.length - 3}</Tag>}
+                    </span>
+                  )}
+                </td>
+                {!hideActions && (
+                  <td className="py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                      <button
+                        type="button"
+                        onClick={() => onEdit?.(t)}
+                        className="rounded-md p-2 text-fog hover:bg-deck-2 hover:text-paper"
+                        aria-label={`Edit ${t.symbol} trade`}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDelete?.(t.id)}
+                        className="rounded-md p-2 text-fog hover:bg-loss/10 hover:text-loss-ink"
+                        aria-label={`Delete ${t.symbol} trade`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            );
+          })}
+          {filteredTrades.length === 0 && (
+            <tr>
+              <td colSpan={14} className="py-12 text-center text-sm text-fog">
+                No trades match these filters.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }

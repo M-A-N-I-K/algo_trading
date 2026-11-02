@@ -15,7 +15,7 @@ export default function StrategyPreview({ definition }: StrategyPreviewProps) {
   const text = useMemo(() => renderStrategyPreviewText(definition), [definition]);
 
   return (
-    <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-slate-300 bg-slate-950 border border-slate-800 rounded-xl p-4 overflow-x-auto">
+    <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-slate-300 bg-slate-950 border border-slate-800 rounded-lg p-4 overflow-x-auto">
       {text}
     </pre>
   );

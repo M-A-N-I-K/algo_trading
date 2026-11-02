@@ -1,38 +1,10 @@
 import { useEffect, useState } from "react";
-import { Feather, CheckSquare, Square, Tag as TagIcon } from "lucide-react";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle
-} from "@/components/ui/sheet";
-import { Card, CardContent } from "@/components/ui/card";
-
-interface ChecklistItem {
-  label: string;
-  checked: boolean;
-}
-
-interface Trade {
-  id: string;
-  time: string;
-  balanceBefore: number;
-  balanceAfter: number;
-  pnl: number;
-  currency: string;
-  symbol: string;
-  exchange: string;
-  side: "LONG" | "SHORT";
-  quantity: number;
-  entryPrice: number;
-  exitPrice: number;
-  strategy: string;
-  notes: string;
-  stopLoss?: number | null;
-  initialRiskAmount?: number | null;
-  tags?: string[];
-  checklist?: ChecklistItem[] | null;
-}
+import { Check } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import type { ChecklistItem, Trade } from "@/components/trading-journal/DashboardContext";
+import { grossOf, holdMinutesOf, rMultipleOf } from "@/lib/journal/metrics";
+import { duration, money, signedNumber, toneClass } from "@/components/viz/shared";
+import { Button, Field, Tag, TextArea, TextInput } from "@/components/kit";
 
 interface TradeNotesDrawerProps {
   isOpen: boolean;
@@ -141,155 +113,130 @@ export default function TradeNotesDrawer({
     await onSaveNotes({ notes, tags, checklist });
   };
 
-  const rMultiple =
-    selectedTrade?.initialRiskAmount && selectedTrade.initialRiskAmount > 0
-      ? selectedTrade.pnl / selectedTrade.initialRiskAmount
-      : null;
+  const t = selectedTrade;
+  const r = t ? rMultipleOf(t) : null;
+  const held = t ? holdMinutesOf(t) : null;
+  const followed = checklist.filter((c) => c.checked).length;
+  const closedAt = t ? new Date(t.time) : null;
+
+  const facts: { label: string; value: string }[] = t
+    ? [
+        { label: "Entry", value: t.entryPrice.toLocaleString(undefined, { maximumFractionDigits: 6 }) },
+        { label: "Exit", value: t.exitPrice.toLocaleString(undefined, { maximumFractionDigits: 6 }) },
+        { label: "Stop", value: t.stopLoss != null ? t.stopLoss.toLocaleString(undefined, { maximumFractionDigits: 6 }) : "Not set" },
+        { label: "Size", value: t.quantity.toLocaleString(undefined, { maximumFractionDigits: 6 }) },
+        { label: "R-multiple", value: r == null ? "Needs a stop" : signedNumber(r, 2, "R") },
+        { label: "Held", value: held == null ? "Unknown" : duration(held) },
+        {
+          label: "Closed by",
+          value: t.exitType === "tpsl" ? "Take-profit or stop" : t.exitType === "liquidation" ? "Liquidation" : t.exitType === "manual" ? "Hand" : "Not recorded",
+        },
+        { label: "Strategy", value: t.strategy },
+      ]
+    : [];
+
+  const parts = t
+    ? [
+        { label: "Price P&L", value: grossOf(t), tone: toneClass(grossOf(t)) },
+        { label: "Fees", value: -(t.fees ?? 0), tone: "text-fees-ink" },
+        { label: "Funding", value: t.funding ?? 0, tone: "text-funding-ink" },
+      ]
+    : [];
 
   return (
     <Sheet open={isOpen} onOpenChange={(val) => !val && onClose()}>
-      <SheetContent className="!w-[580px] !max-w-[92vw] bg-slate-950 border-l border-slate-800 text-slate-200 p-5 sm:p-8 flex flex-col h-full">
-        <SheetHeader className="mb-6">
-          <SheetTitle className="font-Outfit text-xl font-bold text-white">
-            Trade Details & Strategy Thinking
-          </SheetTitle>
-        </SheetHeader>
+      <SheetContent className="flex h-full !w-[560px] !max-w-[94vw] flex-col border-l border-rule bg-deck p-0 text-paper">
+        {t && closedAt && (
+          <>
+            <SheetHeader className="border-b border-rule px-6 pb-5 pt-6">
+              <SheetTitle className="flex flex-wrap items-center gap-2 font-display text-2xl font-bold tracking-[-0.02em] text-paper">
+                {t.symbol}
+                <Tag tone={t.side === "LONG" ? "gain" : "loss"}>{t.side === "LONG" ? "Long" : "Short"}</Tag>
+                {t.marginCurrency === "INR" && <Tag>INR margin</Tag>}
+              </SheetTitle>
+              <p className="text-sm text-fog">
+                Closed {closedAt.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+              </p>
+            </SheetHeader>
 
-        {selectedTrade && (
-          <div className="flex flex-col gap-6 flex-grow overflow-y-auto pr-1">
+            <div className="flex-1 space-y-7 overflow-y-auto px-6 py-6">
+              <section aria-label="Result">
+                <p className={`font-display text-[40px] font-bold leading-none tracking-[-0.04em] ${toneClass(t.pnl)}`}>{money(t.pnl)}</p>
+                <p className="mt-1 text-sm text-fog">Net, after fees and funding</p>
+                <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-rule pt-4">
+                  {parts.map((p) => (
+                    <div key={p.label}>
+                      <dt className="text-xs text-fog">{p.label}</dt>
+                      <dd className={`mt-0.5 text-[15px] ${p.tone}`}>{money(p.value)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
 
-            {/* Stats Grid Card */}
-            <Card className="glass border-slate-800">
-              <CardContent className="grid grid-cols-2 gap-x-3 gap-y-4 px-4 sm:px-5">
-                <div className="min-w-0">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Symbol</span>
-                  <span className="text-sm font-bold text-white mt-0.5 block truncate">{selectedTrade.symbol}</span>
-                </div>
-                <div className="min-w-0">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Side</span>
-                  <span className="mt-0.5 block">
-                    <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold border ${selectedTrade.side === 'LONG' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
-                      {selectedTrade.side}
-                    </span>
-                  </span>
-                </div>
-                <div className="min-w-0">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Realized PnL</span>
-                  <span className={`text-sm font-bold mt-0.5 block truncate ${selectedTrade.pnl >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
-                    {selectedTrade.pnl >= 0 ? '+' : ''}${selectedTrade.pnl.toFixed(2)}
-                  </span>
-                </div>
-                <div className="min-w-0">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Quantity</span>
-                  <span className="text-sm font-bold text-white mt-0.5 block truncate">{selectedTrade.quantity}</span>
-                </div>
-                <div className="min-w-0">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Entry Price</span>
-                  <span className="text-sm font-bold text-white mt-0.5 block truncate">${selectedTrade.entryPrice.toFixed(4)}</span>
-                </div>
-                <div className="min-w-0">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Exit Price</span>
-                  <span className="text-sm font-bold text-white mt-0.5 block truncate">${selectedTrade.exitPrice.toFixed(4)}</span>
-                </div>
-                <div className="col-span-2 min-w-0">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Date & Time</span>
-                  <span className="text-sm font-bold text-white mt-0.5 block break-words">{selectedTrade.time}</span>
-                </div>
-                <div className="col-span-2 min-w-0">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Strategy Setup</span>
-                  <span className="text-sm font-bold text-white mt-0.5 block break-words">{selectedTrade.strategy}</span>
-                </div>
-                {selectedTrade.stopLoss != null && (
-                  <div className="min-w-0">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Stop Loss</span>
-                    <span className="text-sm font-bold text-white mt-0.5 block truncate">${selectedTrade.stopLoss.toFixed(4)}</span>
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+                {facts.map((f) => (
+                  <div key={f.label} className="min-w-0">
+                    <dt className="text-xs text-fog">{f.label}</dt>
+                    <dd className="mt-0.5 truncate text-sm text-paper" title={f.value}>{f.value}</dd>
                   </div>
-                )}
-                {rMultiple !== null && (
-                  <div className="min-w-0">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">R-Multiple</span>
-                    <span className={`text-sm font-bold mt-0.5 block truncate ${rMultiple >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
-                      {rMultiple >= 0 ? '+' : ''}{rMultiple.toFixed(2)}R
-                    </span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Tags */}
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-slate-300 flex items-center gap-2 mb-1">
-                <TagIcon className="text-violet-500" size={16} />
-                Tags
-              </label>
-              <input
-                type="text"
-                value={tagsInput}
-                onChange={(e) => setTagsInput(e.target.value)}
-                placeholder="clean-setup, fomo-entry, moved-stop, high-conviction"
-                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
-              />
-            </div>
-
-            {/* Rule-adherence checklist */}
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-slate-300 flex items-center gap-2 mb-1">
-                <CheckSquare className="text-violet-500" size={16} />
-                Rule Checklist
-              </label>
-              <div className="flex flex-col gap-2">
-                {checklist.map((item, i) => (
-                  <button
-                    type="button"
-                    key={i}
-                    onClick={() => toggleChecklistItem(i)}
-                    className="flex items-center gap-3 text-left bg-slate-900 border border-slate-800 hover:border-slate-700 px-4 py-2.5 rounded-xl text-sm transition-all"
-                  >
-                    {item.checked ? (
-                      <CheckSquare className="text-emerald-400 shrink-0" size={16} />
-                    ) : (
-                      <Square className="text-slate-500 shrink-0" size={16} />
-                    )}
-                    <span className={item.checked ? "text-slate-200" : "text-slate-400"}>{item.label}</span>
-                  </button>
                 ))}
-              </div>
+              </dl>
+
+              <section aria-labelledby="checklist-title">
+                <div className="mb-2 flex items-baseline justify-between">
+                  <h3 id="checklist-title" className="font-display text-[15px] font-semibold">Did you follow your rules?</h3>
+                  <span className="text-xs text-fog">
+                    {followed} of {checklist.length}
+                  </span>
+                </div>
+                <ul className="flex flex-col gap-1.5">
+                  {checklist.map((item, i) => (
+                    <li key={i}>
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={item.checked}
+                        onClick={() => toggleChecklistItem(i)}
+                        className="flex w-full items-start gap-3 rounded-md border border-rule bg-ink/50 px-3 py-2.5 text-left text-sm transition-colors hover:border-mist/60"
+                      >
+                        <span
+                          className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border ${
+                            item.checked ? "border-gain bg-gain text-ink" : "border-mist"
+                          }`}
+                        >
+                          {item.checked && <Check size={12} strokeWidth={3} />}
+                        </span>
+                        <span className={item.checked ? "text-paper" : "text-fog"}>{item.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              <Field label="Tags" htmlFor="nd-tags" hint="Separate with commas. Use them to find patterns in the journal.">
+                <TextInput id="nd-tags" value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="clean-setup, moved-stop" />
+              </Field>
+
+              <Field label="Review" htmlFor="nd-notes">
+                <TextArea
+                  id="nd-notes"
+                  rows={10}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="What did you see, what did you do, and what would you change?"
+                />
+              </Field>
             </div>
 
-            {/* Note Editor Area */}
-            <div className="flex flex-col gap-2 flex-grow">
-              <label className="text-sm font-semibold text-slate-300 flex items-center gap-2 mb-1">
-                <Feather className="text-violet-500" size={16} />
-                My Thinking & Review
-              </label>
-              <textarea
-                rows={12}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Write your review of this trade setup here..."
-                className="w-full flex-grow bg-slate-900 border border-slate-800 text-slate-200 p-4 rounded-2xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600 resize-none font-medium leading-relaxed"
-              ></textarea>
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex justify-end gap-3 mt-auto">
-              <button
-                type="button"
-                className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
-                onClick={onClose}
-              >
+            <div className="flex justify-end gap-2 border-t border-rule px-6 py-4">
+              <Button variant="ghost" onClick={onClose}>
                 Close
-              </button>
-              <button
-                type="button"
-                className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-violet-500/20 transition-all"
-                onClick={handleSave}
-              >
-                Save Changes
-              </button>
+              </Button>
+              <Button variant="primary" onClick={handleSave}>
+                Save review
+              </Button>
             </div>
-
-          </div>
+          </>
         )}
       </SheetContent>
     </Sheet>

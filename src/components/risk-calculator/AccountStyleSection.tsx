@@ -15,10 +15,10 @@ const STYLES: TradingStyle[] = ["scalping", "day", "swing", "custom"];
 
 export default function AccountStyleSection({ account, tradingStyle, onAccountChange, onApplyPreset }: AccountStyleSectionProps) {
   return (
-    <SectionCard title="Account & Trading Style" icon={<Wallet size={16} className="text-primary" />}>
+    <SectionCard title="Account and trading style" icon={<Wallet size={16} className="text-primary" />}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <NumberField
-          label="Starting / Current Capital"
+          label="Capital"
           value={account.capital}
           onChange={(v) => onAccountChange({ capital: v ?? 0 })}
           prefix={account.currency === "INR" ? "₹" : undefined}
@@ -29,7 +29,7 @@ export default function AccountStyleSection({ account, tradingStyle, onAccountCh
           tooltip="The capital your risk % and daily loss limits are calculated against."
         />
         <NumberField
-          label="Current Account Balance / Equity"
+          label="Current equity"
           value={account.currentEquity}
           onChange={(v) => onAccountChange({ currentEquity: v ?? 0 })}
           prefix={account.currency === "INR" ? "₹" : undefined}
@@ -42,7 +42,7 @@ export default function AccountStyleSection({ account, tradingStyle, onAccountCh
       </div>
 
       <NumberField
-        label="Maximum Drawdown Allowed"
+        label="Maximum drawdown allowed"
         value={account.maxDrawdownPct}
         onChange={(v) => onAccountChange({ maxDrawdownPct: v })}
         suffix="%"
@@ -54,14 +54,14 @@ export default function AccountStyleSection({ account, tradingStyle, onAccountCh
       />
 
       <div className="flex flex-col gap-2">
-        <span className="text-xs font-semibold text-muted-foreground">Trading Style</span>
+        <span className="text-xs font-semibold text-muted-foreground">Trading style</span>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {STYLES.map((style) => (
             <button
               key={style}
               type="button"
               onClick={() => onApplyPreset(style)}
-              className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-all ${
+              className={`px-3 py-2.5 rounded-lg text-xs font-bold border transition-all ${
                 tradingStyle === style
                   ? "bg-primary/15 border-primary/40 text-primary"
                   : "bg-muted/30 border-border text-muted-foreground hover:text-foreground"

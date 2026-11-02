@@ -27,7 +27,7 @@ interface StrategyChartProps {
   height?: number;
 }
 
-const LINE_COLORS = ["#38bdf8", "#a78bfa", "#22d3ee", "#f472b6", "#fbbf24", "#34d399"];
+const LINE_COLORS = ["#38bdf8", "#a78bfa", "#22d3ee", "#f472b6", "#fbbf24", "#2fa97f"];
 
 // Walks every condition tree in the definition and collects indicator
 // expressions that make sense to plot on the price chart (overlay pane,
@@ -100,18 +100,18 @@ export default function StrategyChart({ definition, manualIndicators = [], heigh
     for (let t = 0; t < ohlc.length; t++) {
       const signal = interpreter.evaluateEntry(definition, ctx, t);
       const time = Math.floor(new Date(candles[t].timestamp).getTime() / 1000);
-      if (signal.long) markers.push({ time, position: "belowBar", color: "#34d399", shape: "arrowUp", text: "LONG" });
-      if (signal.short) markers.push({ time, position: "aboveBar", color: "#f87171", shape: "arrowDown", text: "SHORT" });
+      if (signal.long) markers.push({ time, position: "belowBar", color: "#2fa97f", shape: "arrowUp", text: "LONG" });
+      if (signal.short) markers.push({ time, position: "aboveBar", color: "#e8646a", shape: "arrowDown", text: "SHORT" });
     }
 
     return { lines, markers };
   }, [candles, definition, manualIndicators]);
 
   if (!instrumentId) {
-    return <div className="flex items-center justify-center h-[480px] text-sm text-slate-500 border border-slate-800 rounded-xl">Select an instrument to preview the chart.</div>;
+    return <div className="flex items-center justify-center h-[480px] text-sm text-slate-500 border border-slate-800 rounded-lg">Select an instrument to preview the chart.</div>;
   }
   if (candlesQuery.isLoading) {
-    return <div className="flex items-center justify-center h-[480px] text-sm text-slate-500 border border-slate-800 rounded-xl">Loading chart…</div>;
+    return <div className="flex items-center justify-center h-[480px] text-sm text-slate-500 border border-slate-800 rounded-lg">Loading chart…</div>;
   }
 
   return <CandlestickChart candles={candles} overlays={overlays} showVolume height={height} />;

@@ -59,8 +59,8 @@ export function getPresetForStyle(style: TradingStyle): Omit<RiskSettings, "trad
 
 export const STYLE_LABELS: Record<TradingStyle, string> = {
   scalping: "Scalping",
-  day: "Day Trading",
-  swing: "Swing Trading",
+  day: "Day trading",
+  swing: "Swing trading",
   custom: "Custom",
 };
 

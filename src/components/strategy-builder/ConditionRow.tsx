@@ -16,7 +16,7 @@ export default function ConditionRow({ condition, onChange, onDelete, onDuplicat
   const opDef = getOperatorDefinition(condition.operator);
 
   return (
-    <div className="flex flex-wrap items-center gap-2 bg-slate-900/40 border border-slate-800 rounded-xl px-3 py-2.5">
+    <div className="flex flex-wrap items-center gap-2 bg-slate-900/40 border border-slate-800 rounded-lg px-3 py-2.5">
       <button
         type="button"
         onClick={() => onChange({ ...condition, negate: !condition.negate })}

@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { STRATEGY_CATALOG } from "@/lib/strategyCatalog";
 import { useDashboard } from "@/components/trading-journal/DashboardContext";
+import { Button, Field, Segmented, SelectInput, TextArea, TextInput, toneClass } from "@/components/kit";
 
 interface Trade {
   id: string;
@@ -160,219 +161,124 @@ export default function TradeFormModal({
     await onSave(body);
   };
 
+  const net = parseFloat(pnl);
+
   return (
     <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>
-      <DialogContent className="max-w-[95vw] sm:max-w-xl md:max-w-2xl lg:max-w-3xl bg-slate-950 border border-slate-800 text-slate-200 p-6 md:p-8 rounded-2xl overflow-y-auto max-h-[90vh]">
-        <DialogHeader className="mb-6">
-          <DialogTitle className="font-Outfit text-2xl font-bold text-white tracking-tight">
-            {activeTrade ? "Edit Trade Setup" : "New Trade Entry"}
+      <DialogContent className="max-h-[90vh] max-w-[95vw] overflow-y-auto rounded-[12px] border border-rule bg-deck p-6 text-paper sm:max-w-xl md:max-w-2xl md:p-8">
+        <DialogHeader className="mb-2">
+          <DialogTitle className="font-display text-2xl font-bold tracking-[-0.02em] text-paper">
+            {activeTrade ? "Edit trade" : "Log a trade"}
           </DialogTitle>
+          <p className="text-sm text-fog">
+            Synced CoinDCX trades fill these in for you. Use this for trades on other venues.
+          </p>
         </DialogHeader>
-        
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-400">Date & Time</label>
-              <input 
-                type="datetime-local" 
-                value={time} 
-                onChange={(e) => setTime(e.target.value)} 
-                required 
-                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-400">Symbol</label>
-              <input 
-                type="text" 
-                value={symbol} 
-                onChange={(e) => setSymbol(e.target.value)} 
-                placeholder="BTCUSDT" 
-                required 
-                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
-              />
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-400">Side</label>
-              <select 
-                value={side} 
-                onChange={(e: any) => setSide(e.target.value)} 
-                required
-                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500"
-              >
-                <option value="LONG">LONG</option>
-                <option value="SHORT">SHORT</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-400">Strategy</label>
-              <select 
-                value={strategy} 
-                onChange={(e) => setStrategy(e.target.value)} 
-                required
-                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500"
-              >
+        <form onSubmit={handleSubmit} className="flex flex-col gap-7">
+          <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <legend className="mb-3 font-display text-[15px] font-semibold text-paper">The trade</legend>
+            <Field label="Closed at" htmlFor="tf-time">
+              <TextInput id="tf-time" type="datetime-local" value={time} onChange={(e) => setTime(e.target.value)} required />
+            </Field>
+            <Field label="Symbol" htmlFor="tf-symbol">
+              <TextInput id="tf-symbol" value={symbol} onChange={(e) => setSymbol(e.target.value)} placeholder="ETHUSDT" required />
+            </Field>
+            <Field label="Direction">
+              <Segmented
+                label="Direction"
+                value={side}
+                onChange={setSide}
+                options={[
+                  { value: "LONG", label: "Long" },
+                  { value: "SHORT", label: "Short" },
+                ]}
+              />
+            </Field>
+            <Field label="Strategy" htmlFor="tf-strategy">
+              <SelectInput id="tf-strategy" value={strategy} onChange={(e) => setStrategy(e.target.value)} required>
                 {STRATEGY_CATALOG.map((s) => (
                   <option key={s.value} value={s.value}>
                     {s.label}
                   </option>
                 ))}
-              </select>
-            </div>
-          </div>
+              </SelectInput>
+            </Field>
+          </fieldset>
 
-          {/* Position-size calculator: entry + stop-loss + account balance + risk % -> suggested quantity */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end bg-slate-900/40 border border-slate-800 rounded-xl p-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-400">Entry Price</label>
-              <input
-                type="number"
-                step="any"
-                value={entry}
-                onChange={(e) => setEntry(e.target.value)}
-                placeholder="68500.00"
-                required
-                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
-              />
+          <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <legend className="mb-3 font-display text-[15px] font-semibold text-paper">Prices and size</legend>
+            <Field label="Entry price" htmlFor="tf-entry">
+              <TextInput id="tf-entry" type="number" step="any" value={entry} onChange={(e) => setEntry(e.target.value)} required />
+            </Field>
+            <Field label="Stop loss" htmlFor="tf-stop" hint="Needed for R-multiple.">
+              <TextInput id="tf-stop" type="number" step="any" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} />
+            </Field>
+            <Field label="Exit price" htmlFor="tf-exit">
+              <TextInput id="tf-exit" type="number" step="any" value={exit} onChange={(e) => setExit(e.target.value)} required />
+            </Field>
+            <Field label="Quantity" htmlFor="tf-qty">
+              <TextInput id="tf-qty" type="number" step="any" value={qty} onChange={(e) => setQty(e.target.value)} required />
+            </Field>
+            <div className="flex flex-col justify-end gap-1.5 sm:col-span-2">
+              <div className="flex flex-wrap items-end gap-2 rounded-md border border-rule bg-ink/60 p-3">
+                <Field label="Risk % of balance" htmlFor="tf-risk" className="w-32">
+                  <TextInput id="tf-risk" type="number" step="any" value={riskPercent} onChange={(e) => setRiskPercent(e.target.value)} />
+                </Field>
+                <Button size="sm" disabled={!canCalculateSize} onClick={handleCalculateSize} className="mb-0.5">
+                  <Calculator size={14} /> Size from stop
+                </Button>
+                <p className="w-full text-xs text-mist">
+                  Sets quantity so hitting the stop loses {riskPercent || "?"}% of the balance before the trade.
+                </p>
+              </div>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-400">Stop Loss</label>
-              <input
-                type="number"
-                step="any"
-                value={stopLoss}
-                onChange={(e) => setStopLoss(e.target.value)}
-                placeholder="67800.00"
-                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-400">Risk % of Balance</label>
-              <input
-                type="number"
-                step="any"
-                value={riskPercent}
-                onChange={(e) => setRiskPercent(e.target.value)}
-                placeholder="1"
-                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
-              />
-            </div>
-            <button
-              type="button"
-              disabled={!canCalculateSize}
-              onClick={handleCalculateSize}
-              className="flex items-center justify-center gap-2 bg-violet-600/20 border border-violet-500/30 hover:bg-violet-600/30 disabled:opacity-40 disabled:cursor-not-allowed text-violet-300 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer"
-            >
-              <Calculator size={16} /> Calculate Size
-            </button>
-            <p className="md:col-span-4 text-[11px] text-slate-500 -mt-1">
-              Uses Balance Before as account size. Fills Quantity below with the size that risks exactly {riskPercent || "?"}% of balance if the stop is hit.
-            </p>
-          </div>
+          </fieldset>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-400">Quantity</label>
-              <input
-                type="number"
-                step="any"
-                value={qty}
-                onChange={(e) => setQty(e.target.value)}
-                placeholder="1.0"
-                required
-                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-400">Exit Price</label>
-              <input
-                type="number"
-                step="any"
-                value={exit}
-                onChange={(e) => setExit(e.target.value)}
-                placeholder="69200.00"
-                required
-                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-400">Realized PnL ($)</label>
-              <input
+          <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <legend className="mb-3 font-display text-[15px] font-semibold text-paper">Result</legend>
+            <Field label="Net P&L ($)" htmlFor="tf-pnl" hint="After fees.">
+              <TextInput
+                id="tf-pnl"
                 type="number"
                 step="any"
                 value={pnl}
                 onChange={(e) => setPnl(e.target.value)}
-                placeholder="700.00"
                 required
-                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
+                className={isNaN(net) ? "" : toneClass(net)}
               />
-            </div>
-          </div>
+            </Field>
+            <Field label="Balance before" htmlFor="tf-bal-before" hint="Optional.">
+              <TextInput id="tf-bal-before" type="number" step="any" value={balBefore} onChange={(e) => setBalBefore(e.target.value)} />
+            </Field>
+            <Field label="Balance after" htmlFor="tf-bal-after" hint="Optional.">
+              <TextInput id="tf-bal-after" type="number" step="any" value={balAfter} onChange={(e) => setBalAfter(e.target.value)} />
+            </Field>
+          </fieldset>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-400">Balance Before</label>
-              <input 
-                type="number" 
-                step="any" 
-                value={balBefore} 
-                onChange={(e) => setBalBefore(e.target.value)} 
-                placeholder="100000" 
-                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
+          <fieldset className="flex flex-col gap-4">
+            <legend className="mb-3 font-display text-[15px] font-semibold text-paper">Review</legend>
+            <Field label="Tags" htmlFor="tf-tags" hint="Separate with commas, for example: clean-setup, moved-stop.">
+              <TextInput id="tf-tags" value={tags} onChange={(e) => setTags(e.target.value)} />
+            </Field>
+            <Field label="Notes" htmlFor="tf-notes">
+              <TextArea
+                id="tf-notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={5}
+                placeholder="Why you took it, what the market was doing, and what you'd do differently."
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-400">Balance After</label>
-              <input 
-                type="number" 
-                step="any" 
-                value={balAfter} 
-                onChange={(e) => setBalAfter(e.target.value)} 
-                placeholder="100700" 
-                className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
-              />
-            </div>
-          </div>
+            </Field>
+          </fieldset>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-400">Tags (comma-separated)</label>
-            <input
-              type="text"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              placeholder="clean-setup, fomo-entry, moved-stop, high-conviction"
-              className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-400">Market Thinking & Strategy Notes</label>
-            <textarea 
-              value={notes} 
-              onChange={(e) => setNotes(e.target.value)} 
-              placeholder="Describe the market structure, support/resistance levels, MACD state, and the psychological reasoning behind this trade setup..." 
-              rows={5}
-              className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600 resize-none"
-            ></textarea>
-          </div>
-
-          <div className="flex justify-end gap-3 mt-4">
-            <button 
-              type="button" 
-              className="bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-200 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer"
-              onClick={onClose}
-            >
+          <div className="flex justify-end gap-2 border-t border-rule pt-5">
+            <Button variant="ghost" onClick={onClose}>
               Cancel
-            </button>
-            <button 
-              type="submit" 
-              className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-violet-500/20 transition-all hover:-translate-y-0.5 duration-300 cursor-pointer"
-            >
-              Save Journal Entry
-            </button>
+            </Button>
+            <Button type="submit" variant="primary">
+              {activeTrade ? "Save changes" : "Save trade"}
+            </Button>
           </div>
         </form>
       </DialogContent>

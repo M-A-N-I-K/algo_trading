@@ -66,8 +66,8 @@ export default function TraderLoader({
               style={{ 
                 animationDelay: candle.delay,
                 boxShadow: candle.color.includes("emerald") 
-                  ? "0 0 10px rgba(16,185,129,0.15)" 
-                  : "0 0 10px rgba(239,68,68,0.15)"
+                  ? "0 0 10px rgba(43,161,146,0.15)" 
+                  : "0 0 10px rgba(221,96,75,0.15)"
               }}
             ></div>
           </div>
@@ -76,7 +76,7 @@ export default function TraderLoader({
 
       {/* Status Messages */}
       <div className="flex flex-col gap-1.5 max-w-[280px]">
-        <h4 className="font-Outfit text-xs font-bold text-white tracking-widest uppercase">
+        <h4 className="font-display text-paper text-xs text-mist">
           {message}
         </h4>
         <div className="font-mono text-[9px] text-violet-400 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg flex items-center justify-center gap-1.5">

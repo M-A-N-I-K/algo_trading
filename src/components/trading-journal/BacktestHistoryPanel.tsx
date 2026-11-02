@@ -132,19 +132,19 @@ export default function BacktestHistoryPanel({ refreshTrigger, activeRunId, onSe
             handleSelect(run.id);
           }
         }}
-        className={`flex items-center justify-between gap-3 text-left px-4 py-3 rounded-xl border transition-all cursor-pointer ${
+        className={`flex items-center justify-between gap-3 text-left px-4 py-3 rounded-lg border transition-all cursor-pointer ${
           loadingId === run.id ? "opacity-60 pointer-events-none" : ""
         } ${isActive ? "bg-violet-500/10 border-violet-500/30" : "bg-slate-900/40 border-slate-800 hover:border-slate-700"}`}
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-slate-200 truncate">{strategyLabel(run.strategyKey) || run.strategyName}</span>
-            <span className="shrink-0 text-[10px] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 px-1.5 py-0.5 rounded-md uppercase tracking-wider">
+            <span className="shrink-0 text-violet-400 bg-violet-500/10 border border-violet-500/20 px-1.5 py-0.5 rounded-md text-xs text-mist">
               {run.interval}
             </span>
           </div>
           <p className="text-[11px] text-slate-500 truncate mt-0.5">
-            {run.symbols} · {run.candleLimit.toLocaleString()} candles · {new Date(run.createdAt).toLocaleString()}
+            {run.symbols}, {run.candleLimit.toLocaleString()} candles. Run {new Date(run.createdAt).toLocaleString()}
           </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -167,10 +167,10 @@ export default function BacktestHistoryPanel({ refreshTrigger, activeRunId, onSe
 
   return (
     <>
-      <Card className="glass border-slate-800 p-6">
+      <Card className="bg-deck border-slate-800 p-6">
         <div className="flex items-center gap-2 mb-6">
           <History size={20} className="text-violet-400" />
-          <h3 className="font-Outfit text-lg font-bold text-white">Backtest History</h3>
+          <h3 className="font-display text-lg font-bold text-paper">Backtest history</h3>
         </div>
 
         {loading && <p className="text-xs text-slate-500">Loading history…</p>}
@@ -186,7 +186,7 @@ export default function BacktestHistoryPanel({ refreshTrigger, activeRunId, onSe
           <button
             type="button"
             onClick={() => setShowAll(true)}
-            className="w-full flex items-center justify-center gap-1.5 mt-3 text-xs font-semibold text-violet-400 hover:text-violet-300 bg-violet-500/5 hover:bg-violet-500/10 border border-violet-500/20 rounded-xl py-2.5 transition-all"
+            className="w-full flex items-center justify-center gap-1.5 mt-3 text-xs font-semibold text-violet-400 hover:text-violet-300 bg-violet-500/5 hover:bg-violet-500/10 border border-violet-500/20 rounded-lg py-2.5 transition-all"
           >
             View more ({hiddenCount} more) <ChevronDown size={14} />
           </button>
@@ -194,9 +194,9 @@ export default function BacktestHistoryPanel({ refreshTrigger, activeRunId, onSe
       </Card>
 
       <Dialog open={showAll} onOpenChange={setShowAll}>
-        <DialogContent className="max-w-[95vw] sm:max-w-xl bg-slate-950 border border-slate-800 text-slate-200 p-6 md:p-8 rounded-2xl overflow-y-auto max-h-[85vh]">
+        <DialogContent className="max-w-[95vw] sm:max-w-xl bg-slate-950 border border-slate-800 text-slate-200 p-6 md:p-8 rounded-[10px] overflow-y-auto max-h-[85vh]">
           <DialogHeader className="mb-6">
-            <DialogTitle className="font-Outfit text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
+            <DialogTitle className="font-display text-2xl font-bold text-paper tracking-tight flex items-center gap-2.5">
               <History size={22} className="text-violet-400" /> All Backtest Runs
             </DialogTitle>
           </DialogHeader>

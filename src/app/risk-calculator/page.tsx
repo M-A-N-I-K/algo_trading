@@ -106,7 +106,7 @@ export default function RiskCalculatorPage() {
           />
 
           {issues.length > 0 && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-500 font-medium flex flex-col gap-1">
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-500 font-medium flex flex-col gap-1">
               {issues.map((issue) => (
                 <span key={issue.field}>⚠️ {issue.message}</span>
               ))}

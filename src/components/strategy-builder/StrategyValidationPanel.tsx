@@ -13,7 +13,7 @@ interface StrategyValidationPanelProps {
 export default function StrategyValidationPanel({ result }: StrategyValidationPanelProps) {
   return (
     <div className="flex flex-col gap-2">
-      <div className={`text-xs font-bold uppercase tracking-wider ${result.isReady ? "text-emerald-400" : "text-amber-400"}`}>
+      <div className={` text-xs text-mist${result.isReady ? "text-emerald-400" : "text-amber-400"}`}>
         {result.isReady ? "Ready to trade" : "Not ready yet"}
       </div>
       <ul className="flex flex-col gap-1.5">

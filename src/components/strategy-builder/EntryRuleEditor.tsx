@@ -56,9 +56,9 @@ function EntrySide({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h4 className={`text-xs font-bold uppercase tracking-wider ${accent}`}>{label}</h4>
+        <h4 className={` text-xs text-mist${accent}`}>{label}</h4>
         <div className="flex items-center rounded-lg border border-slate-800 bg-slate-900 p-0.5 text-[11px] font-semibold">
-          <span className="px-2.5 py-1 rounded-md bg-violet-600 text-white">Market</span>
+          <span className="px-2.5 py-1 rounded-md bg-violet-600 text-paper">Market</span>
           <span title="Coming soon" className="px-2.5 py-1 rounded-md text-slate-600 cursor-not-allowed">
             Stop
           </span>

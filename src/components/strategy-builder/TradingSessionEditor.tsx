@@ -52,7 +52,7 @@ export default function TradingSessionEditor({ value, onChange }: TradingSession
                     onChange({ ...value, days: active ? value.days.filter((d) => d !== day) : [...value.days, day] })
                   }
                   className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all ${
-                    active ? "bg-violet-600 border-violet-500 text-white" : "bg-slate-900 border-slate-800 text-slate-500"
+                    active ? "bg-violet-600 border-violet-500 text-paper" : "bg-slate-900 border-slate-800 text-slate-500"
                   }`}
                 >
                   {DAY_LABELS[day]}

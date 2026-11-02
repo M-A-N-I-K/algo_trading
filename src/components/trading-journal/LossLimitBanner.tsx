@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, ShieldCheck, Settings2 } from "lucide-react";
+import { Settings2 } from "lucide-react";
+import { Button, Callout, Field, TextInput, money } from "@/components/kit";
 import type { Trade } from "./DashboardContext";
 import { useDashboard } from "./DashboardContext";
 
@@ -64,88 +65,77 @@ export default function LossLimitBanner({ trades }: LossLimitBannerProps) {
     updateLossLimits(daily, weekly);
   };
 
+  const meters = [
+    { label: "Today", pnl: todayPnl, limit: dailyLimit, breached: dailyBreached, warn: dailyWarn },
+    { label: "Last 7 days", pnl: weekPnl, limit: weeklyLimit, breached: weeklyBreached, warn: weeklyWarn },
+  ];
+
   return (
-    <div
-      className={`mb-8 rounded-2xl border p-5 flex flex-col gap-3 transition-all ${
-        breached
-          ? "bg-rose-950/40 border-rose-500/30"
-          : warning
-            ? "bg-amber-950/30 border-amber-500/30"
-            : "bg-slate-900/40 border-slate-800"
-      }`}
-    >
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          {breached ? (
-            <AlertTriangle className="text-rose-400 shrink-0" size={20} />
-          ) : (
-            <ShieldCheck className={warning ? "text-amber-400 shrink-0" : "text-emerald-400 shrink-0"} size={20} />
-          )}
-          <div className="text-sm">
-            {breached ? (
-              <span className="font-semibold text-rose-300">
-                {dailyBreached ? "Daily" : "Weekly"} loss limit hit — consider stopping and reviewing before taking another trade.
-              </span>
-            ) : warning ? (
-              <span className="font-semibold text-amber-300">Approaching your loss limit — trade carefully.</span>
-            ) : (
-              <span className="font-semibold text-slate-300">Within your daily and weekly loss limits.</span>
-            )}
-            <div className="text-xs text-slate-400 mt-0.5">
-              Today: <span className={todayPnl < 0 ? "text-rose-400" : "text-emerald-400"}>{todayPnl >= 0 ? "+" : ""}${todayPnl.toFixed(2)}</span>
-              {" "}/ -${dailyLimit.toFixed(0)} limit
-              {"  ·  "}
-              Last 7d: <span className={weekPnl < 0 ? "text-rose-400" : "text-emerald-400"}>{weekPnl >= 0 ? "+" : ""}${weekPnl.toFixed(2)}</span>
-              {" "}/ -${weeklyLimit.toFixed(0)} limit
-            </div>
-            {usingAutoLimits && (
-              <div className="text-[11px] text-slate-500 mt-1">
-                Auto-calculated (4%/8%) from {usingSyncedBalance ? "your synced CoinDCX balance" : "trade history"} — $
-                {referenceBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+    <section aria-label="Loss limits" className="mb-8 space-y-3">
+      {breached && (
+        <Callout tone="critical" title={`${dailyBreached ? "Daily" : "Weekly"} loss limit reached`}>
+          Stop for now and review your last trades before taking another one.
+        </Callout>
+      )}
+      {warning && (
+        <Callout tone="warning" title="You are close to a loss limit">
+          You have used over 80% of a limit. Size down or step away.
+        </Callout>
+      )}
+
+      <div className="flex flex-col gap-4 rounded-[10px] border border-rule bg-deck px-5 py-4 md:flex-row md:items-center md:gap-8">
+        {meters.map((m) => {
+          const used = Math.max(0, -m.pnl);
+          const share = m.limit > 0 ? Math.min(1, used / m.limit) : 0;
+          const fill = m.breached ? "var(--loss)" : m.warn ? "var(--fees)" : "var(--fog)";
+          return (
+            <div key={m.label} className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="text-paper">{m.label}</span>
+                <span className="text-fog">
+                  <span className={m.pnl < 0 ? "text-loss-ink" : m.pnl > 0 ? "text-gain-ink" : "text-fog"}>{money(m.pnl)}</span>
+                  {" "}against a {money(m.limit, { sign: false, digits: 0 })} loss limit
+                </span>
               </div>
-            )}
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={openSettings}
-          className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors"
-        >
+              <div
+                className="mt-2 h-1.5 overflow-hidden rounded-full bg-deck-2"
+                role="meter"
+                aria-label={`${m.label} loss limit used`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(share * 100)}
+              >
+                <div className="h-full rounded-full transition-[width]" style={{ width: `${share * 100}%`, background: fill }} />
+              </div>
+            </div>
+          );
+        })}
+        <Button variant="ghost" size="sm" onClick={openSettings} aria-expanded={showSettings} className="self-start md:self-center">
           <Settings2 size={14} /> Limits
-        </button>
+        </Button>
       </div>
 
+      {usingAutoLimits && !showSettings && (
+        <p className="px-1 text-xs text-mist">
+          Limits are set automatically to 4% a day and 8% a week of{" "}
+          {usingSyncedBalance ? "your synced CoinDCX balance" : "your last recorded balance"} (
+          {money(referenceBalance, { sign: false })}). Set your own under Limits.
+        </p>
+      )}
+
       {showSettings && (
-        <div className="flex flex-wrap items-end gap-4 pt-3 border-t border-slate-800/60">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Daily Loss Limit ($)</label>
-            <input
-              type="number"
-              step="any"
-              value={dailyInput}
-              onChange={(e) => setDailyInput(e.target.value)}
-              className="bg-slate-900 border border-slate-800 text-slate-200 px-3 py-2 rounded-lg outline-none text-sm w-40 focus:border-violet-500"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Weekly Loss Limit ($)</label>
-            <input
-              type="number"
-              step="any"
-              value={weeklyInput}
-              onChange={(e) => setWeeklyInput(e.target.value)}
-              className="bg-slate-900 border border-slate-800 text-slate-200 px-3 py-2 rounded-lg outline-none text-sm w-40 focus:border-violet-500"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={handleSaveLimits}
-            className="bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-lg text-xs font-semibold transition-all"
-          >
-            Save
-          </button>
+        <div className="flex flex-wrap items-end gap-4 rounded-[10px] border border-rule bg-deck px-5 py-4">
+          <Field label="Daily loss limit ($)" htmlFor="ll-daily" className="w-44">
+            <TextInput id="ll-daily" type="number" step="any" value={dailyInput} onChange={(e) => setDailyInput(e.target.value)} />
+          </Field>
+          <Field label="Weekly loss limit ($)" htmlFor="ll-weekly" className="w-44">
+            <TextInput id="ll-weekly" type="number" step="any" value={weeklyInput} onChange={(e) => setWeeklyInput(e.target.value)} />
+          </Field>
+          <Button variant="primary" onClick={handleSaveLimits}>
+            Save limits
+          </Button>
         </div>
       )}
-    </div>
+    </section>
   );
 }

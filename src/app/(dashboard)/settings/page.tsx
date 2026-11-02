@@ -1,37 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Settings, Wallet, ShieldAlert, Tag, LayoutGrid, RefreshCw } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import PlaceholderPage from "@/components/layout/PlaceholderPage";
-import { KPI_CARD_KEYS } from "@/components/trading-journal/KPICards";
+import Link from "next/link";
+import { DASHBOARD_SECTIONS } from "@/components/dashboard/sections";
 import { STRATEGY_CATALOG } from "@/lib/strategyCatalog";
 import { useDashboard } from "@/components/trading-journal/DashboardContext";
+import { Button, Field, SelectInput, TextInput, money } from "@/components/kit";
 
-function SettingsSection({
-  icon: Icon,
-  title,
-  description,
-  children,
-}: {
-  icon: React.ElementType;
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
+/** One row of the settings sheet: what it is on the left, the control on the right. */
+function SettingsRow({ title, description, children }: { title: string; description: React.ReactNode; children: React.ReactNode }) {
   return (
-    <Card className="glass border-slate-800">
-      <CardContent className="p-6">
-        <div className="flex items-center gap-3 mb-1.5">
-          <div className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center shrink-0">
-            <Icon className="text-violet-500" size={16} />
-          </div>
-          <h3 className="font-Outfit text-lg font-bold text-white">{title}</h3>
-        </div>
-        <p className="text-slate-400 text-xs leading-relaxed mb-5 ml-12">{description}</p>
-        <div className="ml-12">{children}</div>
-      </CardContent>
-    </Card>
+    <section className="grid gap-4 border-t border-rule py-6 first:border-t-0 first:pt-0 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] md:gap-10">
+      <div>
+        <h2 className="font-display text-[17px] font-semibold tracking-[-0.01em] text-paper">{title}</h2>
+        <p className="mt-1 max-w-[46ch] text-sm leading-relaxed text-fog">{description}</p>
+      </div>
+      <div className="min-w-0">{children}</div>
+    </section>
+  );
+}
+
+function SaveButton({ dirty, saving, onClick }: { dirty: boolean; saving: boolean; onClick: () => void }) {
+  return (
+    <Button variant={dirty ? "primary" : "secondary"} disabled={!dirty || saving} onClick={onClick}>
+      {saving ? "Saving…" : "Save"}
+    </Button>
   );
 }
 
@@ -55,67 +48,22 @@ function StartingBalanceSection() {
   };
 
   return (
-    <SettingsSection
-      icon={Wallet}
-      title="Starting Balance"
-      description="The baseline your Equity Curve and account-growth % are measured from, used for any trade that doesn't carry its own logged balance."
+    <SettingsRow
+      title="Starting balance"
+      description="The baseline for account growth, used for any trade that doesn't carry its own logged balance."
     >
-      <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-        <input
-          type="number"
-          min="0"
-          step="any"
-          className="w-full sm:w-64 bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-        />
-        <button
-          disabled={!isDirty || isSaving}
-          onClick={handleSave}
-          className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
-        >
-          {isSaving ? "Saving..." : "Save"}
-        </button>
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Balance ($)" htmlFor="set-start" className="w-56">
+          <TextInput id="set-start" type="number" min="0" step="any" value={value} onChange={(e) => setValue(e.target.value)} />
+        </Field>
+        <SaveButton dirty={isDirty} saving={isSaving} onClick={handleSave} />
       </div>
-    </SettingsSection>
-  );
-}
-
-function CoindcxBalanceSection() {
-  const { coindcxBalance, coindcxBalanceSyncedAt, isSyncingBalance, syncCoindcxBalance } = useDashboard();
-
-  return (
-    <SettingsSection
-      icon={Wallet}
-      title="CoinDCX Account Balance"
-      description="Pulls your live USDT futures wallet balance (free + locked margin) from CoinDCX. Daily/weekly loss limits below auto-calculate from this balance whenever you haven't set an explicit value — sync any time to keep that calculation current."
-    >
-      <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
-        <div className="flex-1">
-          <div className="text-2xl font-bold text-white">
-            {coindcxBalance != null ? `$${coindcxBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
-          </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {coindcxBalanceSyncedAt
-              ? `Last synced ${new Date(coindcxBalanceSyncedAt).toLocaleString()}`
-              : "Never synced yet"}
-          </p>
-        </div>
-        <button
-          onClick={() => syncCoindcxBalance()}
-          disabled={isSyncingBalance}
-          className="flex items-center justify-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
-        >
-          <RefreshCw size={14} className={isSyncingBalance ? "animate-spin" : ""} />
-          {isSyncingBalance ? "Syncing..." : "Sync Now"}
-        </button>
-      </div>
-    </SettingsSection>
+    </SettingsRow>
   );
 }
 
 function RiskLimitsSection() {
-  const { dailyLossLimit, weeklyLossLimit, updateLossLimits } = useDashboard();
+  const { dailyLossLimit, weeklyLossLimit, updateLossLimits, coindcxBalance } = useDashboard();
   const [daily, setDaily] = useState(dailyLossLimit?.toString() ?? "");
   const [weekly, setWeekly] = useState(weeklyLossLimit?.toString() ?? "");
   const [isSaving, setIsSaving] = useState(false);
@@ -138,45 +86,30 @@ function RiskLimitsSection() {
   };
 
   return (
-    <SettingsSection
-      icon={ShieldAlert}
-      title="Daily & Weekly Loss Limits"
-      description="Thresholds shown on the dashboard's loss-limit banner. Leave unset to default to 4% / 8% of your most recent account balance."
+    <SettingsRow
+      title="Loss limits"
+      description={
+        <>
+          Shown as meters on the dashboard. Leave a field empty to use 4% a day and 8% a week of{" "}
+          {coindcxBalance != null ? <>your CoinDCX balance ({money(coindcxBalance, { sign: false })})</> : "your last recorded balance"}.
+          Update the balance on the{" "}
+          <Link href="/import" className="text-signal underline-offset-2 hover:underline">
+            Sync page
+          </Link>
+          .
+        </>
+      }
     >
-      <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Daily Limit ($)</label>
-          <input
-            type="number"
-            min="0"
-            step="any"
-            placeholder="Auto (4% of balance)"
-            className="w-full sm:w-56 bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
-            value={daily}
-            onChange={(e) => setDaily(e.target.value)}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Weekly Limit ($)</label>
-          <input
-            type="number"
-            min="0"
-            step="any"
-            placeholder="Auto (8% of balance)"
-            className="w-full sm:w-56 bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
-            value={weekly}
-            onChange={(e) => setWeekly(e.target.value)}
-          />
-        </div>
-        <button
-          disabled={!isDirty || isSaving}
-          onClick={handleSave}
-          className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
-        >
-          {isSaving ? "Saving..." : "Save"}
-        </button>
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Daily limit ($)" htmlFor="set-daily" className="w-48">
+          <TextInput id="set-daily" type="number" min="0" step="any" placeholder="Automatic" value={daily} onChange={(e) => setDaily(e.target.value)} />
+        </Field>
+        <Field label="Weekly limit ($)" htmlFor="set-weekly" className="w-48">
+          <TextInput id="set-weekly" type="number" min="0" step="any" placeholder="Automatic" value={weekly} onChange={(e) => setWeekly(e.target.value)} />
+        </Field>
+        <SaveButton dirty={isDirty} saving={isSaving} onClick={handleSave} />
       </div>
-    </SettingsSection>
+    </SettingsRow>
   );
 }
 
@@ -198,30 +131,18 @@ function DefaultStrategySection() {
   };
 
   return (
-    <SettingsSection
-      icon={Tag}
-      title="Default Strategy"
-      description="Pre-filled strategy tag for new manual trade entries and CSV imports."
-    >
-      <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-        <select
-          className="w-full sm:w-72 bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-        >
-          {STRATEGY_CATALOG.map((s) => (
-            <option key={s.value} value={s.value}>{s.label}</option>
-          ))}
-        </select>
-        <button
-          disabled={!isDirty || isSaving}
-          onClick={handleSave}
-          className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
-        >
-          {isSaving ? "Saving..." : "Save"}
-        </button>
+    <SettingsRow title="Default strategy" description="Pre-filled when you log a trade by hand.">
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Strategy" htmlFor="set-strategy" className="w-72 max-w-full">
+          <SelectInput id="set-strategy" value={value} onChange={(e) => setValue(e.target.value)}>
+            {STRATEGY_CATALOG.map((st) => (
+              <option key={st.value} value={st.value}>{st.label}</option>
+            ))}
+          </SelectInput>
+        </Field>
+        <SaveButton dirty={isDirty} saving={isSaving} onClick={handleSave} />
       </div>
-    </SettingsSection>
+    </SettingsRow>
   );
 }
 
@@ -253,59 +174,32 @@ function DashboardCardsSection() {
   };
 
   return (
-    <SettingsSection
-      icon={LayoutGrid}
-      title="Dashboard Cards"
-      description="Uncheck any KPI card you don't want cluttering the main dashboard."
-    >
-      <div className="flex flex-col gap-3">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {KPI_CARD_KEYS.map(({ key, label }) => (
-            <label
-              key={key}
-              className="flex items-center gap-2 bg-slate-900/50 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-slate-300 cursor-pointer hover:border-slate-700 transition-colors"
-            >
-              <input
-                type="checkbox"
-                checked={!selected.has(key)}
-                onChange={() => toggle(key)}
-                className="accent-violet-500"
-              />
+    <SettingsRow title="Dashboard sections" description="Choose what appears under the P&L bridge. The bridge itself is always shown.">
+      <fieldset>
+        <legend className="sr-only">Visible dashboard sections</legend>
+        <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+          {DASHBOARD_SECTIONS.map(({ key, label }) => (
+            <label key={key} className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 text-sm text-paper hover:bg-deck-2">
+              <input type="checkbox" checked={!selected.has(key)} onChange={() => toggle(key)} className="h-4 w-4 accent-[var(--signal)]" />
               {label}
             </label>
           ))}
         </div>
-        <button
-          disabled={!isDirty || isSaving}
-          onClick={handleSave}
-          className="self-start bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
-        >
-          {isSaving ? "Saving..." : "Save"}
-        </button>
+      </fieldset>
+      <div className="mt-4">
+        <SaveButton dirty={isDirty} saving={isSaving} onClick={handleSave} />
       </div>
-    </SettingsSection>
+    </SettingsRow>
   );
 }
 
 export default function SettingsPage() {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="max-w-5xl rounded-[10px] border border-rule bg-deck p-5 sm:p-7">
       <StartingBalanceSection />
-      <CoindcxBalanceSection />
       <RiskLimitsSection />
       <DefaultStrategySection />
       <DashboardCardsSection />
-
-      <PlaceholderPage
-        icon={Settings}
-        title="More Settings"
-        description="Account and trading-account preferences will live here as the platform grows beyond a single default account."
-        plannedCapabilities={[
-          "Manage multiple trading accounts",
-          "Notification preferences",
-          "Data export",
-        ]}
-      />
     </div>
   );
 }

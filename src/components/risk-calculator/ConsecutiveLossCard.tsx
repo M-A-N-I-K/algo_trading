@@ -16,14 +16,14 @@ export default function ConsecutiveLossCard({ currency, capital, riskAmount, max
   const rows = computeConsecutiveLossTable(capital, riskAmount, maxConsecutiveLosses);
 
   return (
-    <SectionCard title="Consecutive Loss Protection" icon={<TrendingDown size={16} className="text-primary" />}>
+    <SectionCard title="Consecutive loss protection" icon={<TrendingDown size={16} className="text-primary" />}>
       <div className="overflow-x-auto -mx-2">
         <Table className="min-w-[420px]">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead>Losing Trades</TableHead>
-              <TableHead>Cumulative Loss</TableHead>
-              <TableHead>Remaining Capital</TableHead>
+              <TableHead>Losing trades</TableHead>
+              <TableHead>Cumulative loss</TableHead>
+              <TableHead>Remaining capital</TableHead>
               <TableHead className="text-right">% of Capital Left</TableHead>
             </TableRow>
           </TableHeader>
@@ -44,7 +44,7 @@ export default function ConsecutiveLossCard({ currency, capital, riskAmount, max
         </Table>
       </div>
 
-      <div className="flex items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-bold text-destructive">
+      <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-bold text-destructive">
         🛑 At {maxConsecutiveLosses} consecutive losses: stop trading and review your setup.
       </div>
     </SectionCard>

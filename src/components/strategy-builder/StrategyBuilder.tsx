@@ -33,12 +33,12 @@ interface StrategyBuilderProps {
   initialVersions?: StrategyVersionRecord[];
 }
 
-const sectionClass = "flex flex-col gap-3 bg-slate-900/40 border border-slate-800 rounded-2xl p-4";
-const sectionTitleClass = "text-sm font-bold text-slate-200 uppercase tracking-wide";
+const sectionClass = "flex flex-col gap-3 rounded-[10px] border border-rule bg-deck p-5";
+const sectionTitleClass = "font-display text-[17px] font-semibold tracking-[-0.01em] text-paper";
 const buttonClass =
-  "text-xs font-semibold px-3.5 py-2 rounded-lg border transition-all disabled:opacity-40 disabled:cursor-not-allowed";
-const primaryButtonClass = buttonClass + " bg-violet-600 border-violet-500 text-white hover:bg-violet-500";
-const secondaryButtonClass = buttonClass + " bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700";
+  "inline-flex items-center gap-2 rounded-md px-3.5 py-2 text-[13px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45";
+const primaryButtonClass = buttonClass + " bg-paper text-ink hover:bg-white";
+const secondaryButtonClass = buttonClass + " border border-rule bg-deck text-paper hover:bg-deck-2";
 
 function isImportSuccess(result: StrategyImportResult): result is Extract<StrategyImportResult, { success: true }> {
   return result.success;
@@ -222,7 +222,7 @@ export default function StrategyBuilder({ strategyId: initialStrategyId, initial
     <div className="flex flex-col gap-6">
       <div className={sectionClass}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className={sectionTitleClass}>Strategy Metadata</h2>
+          <h2 className={sectionTitleClass}>Strategy metadata</h2>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => setShowTemplates(true)} className={secondaryButtonClass}>
               Templates
@@ -275,23 +275,23 @@ export default function StrategyBuilder({ strategyId: initialStrategyId, initial
         {/* Right column: rules */}
         <div className="flex flex-col gap-4">
           <div className={sectionClass}>
-            <h2 className={sectionTitleClass}>Entry Rules</h2>
+            <h2 className={sectionTitleClass}>Entry rules</h2>
             <EntryRuleEditor direction={definition.direction} value={definition.entry} onChange={(entry) => setDefinition({ ...definition, entry })} />
           </div>
           <div className={sectionClass}>
-            <h2 className={sectionTitleClass}>Exit Rules</h2>
+            <h2 className={sectionTitleClass}>Exit rules</h2>
             <ExitRuleEditor value={definition.exit} onChange={(exit) => setDefinition({ ...definition, exit })} />
           </div>
           <div className={sectionClass}>
-            <h2 className={sectionTitleClass}>Position Sizing</h2>
+            <h2 className={sectionTitleClass}>Position sizing</h2>
             <PositionSizingEditor value={definition.positionSizing} onChange={(positionSizing) => setDefinition({ ...definition, positionSizing })} />
           </div>
           <div className={sectionClass}>
-            <h2 className={sectionTitleClass}>Risk Configuration</h2>
+            <h2 className={sectionTitleClass}>Risk configuration</h2>
             <RiskConfigEditor value={definition.risk} onChange={(risk) => setDefinition({ ...definition, risk })} />
           </div>
           <div className={sectionClass}>
-            <h2 className={sectionTitleClass}>Trading Session</h2>
+            <h2 className={sectionTitleClass}>Trading session</h2>
             <TradingSessionEditor value={definition.session} onChange={(session) => setDefinition({ ...definition, session })} />
           </div>
           {strategyId && versions.length > 0 && (
@@ -404,7 +404,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
-        className="bg-slate-950 border border-slate-800 rounded-2xl p-5 w-full max-w-lg max-h-[80vh] overflow-y-auto"
+        className="bg-slate-950 border border-slate-800 rounded-[10px] p-5 w-full max-w-lg max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">

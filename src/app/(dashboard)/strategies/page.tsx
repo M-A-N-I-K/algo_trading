@@ -47,13 +47,13 @@ export default function StrategiesPage() {
         <div className="flex items-center gap-3">
           <Layers className="text-violet-500" size={22} />
           <div>
-            <h1 className="text-xl font-bold text-slate-100">Strategy Builder</h1>
+            <h1 className="text-xl font-bold text-slate-100">Strategy builder</h1>
             <p className="text-sm text-slate-500">Visually build and version trading strategies as structured, backtest-ready definitions.</p>
           </div>
         </div>
         <Link
           href="/strategies/new"
-          className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-lg bg-violet-600 border border-violet-500 text-white hover:bg-violet-500 transition-all"
+          className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-lg bg-violet-600 border border-violet-500 text-paper hover:bg-violet-500 transition-all"
         >
           <Plus size={14} /> New Strategy
         </Link>
@@ -62,7 +62,7 @@ export default function StrategiesPage() {
       {strategiesQuery.isLoading && <p className="text-sm text-slate-500">Loading strategies…</p>}
 
       {!strategiesQuery.isLoading && strategies.length === 0 && (
-        <div className="flex flex-col items-center justify-center gap-3 py-16 border border-dashed border-slate-800 rounded-2xl text-center">
+        <div className="flex flex-col items-center justify-center gap-3 py-16 border border-dashed border-slate-800 rounded-[10px] text-center">
           <Layers className="text-slate-700" size={32} />
           <p className="text-sm text-slate-500">No strategies yet.</p>
           <Link href="/strategies/new" className="text-xs font-semibold text-violet-400 hover:text-violet-300">
@@ -73,14 +73,14 @@ export default function StrategiesPage() {
 
       <div className="flex flex-col gap-2">
         {strategies.map((s) => (
-          <div key={s.id} className="flex items-center justify-between gap-3 bg-slate-900/40 border border-slate-800 rounded-xl px-4 py-3">
+          <div key={s.id} className="flex items-center justify-between gap-3 bg-slate-900/40 border border-slate-800 rounded-lg px-4 py-3">
             <Link href={`/strategies/${s.id}/edit`} className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-slate-200 truncate">{s.name || "Untitled Strategy"}</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase ${STATUS_STYLES[s.status] ?? STATUS_STYLES.DRAFT}`}>{s.status}</span>
+                <span className="text-sm font-semibold text-slate-200 truncate">{s.name || "Untitled strategy"}</span>
+                <span className={`px-2 py-0.5 rounded-md border text-xs text-mist${STATUS_STYLES[s.status] ?? STATUS_STYLES.DRAFT}`}>{s.status}</span>
               </div>
               <p className="text-xs text-slate-500 truncate">
-                {s.market} · {s.timeframe} · updated {new Date(s.updatedAt).toLocaleDateString()}
+                {s.market}, {s.timeframe} chart. Updated {new Date(s.updatedAt).toLocaleDateString()}
               </p>
             </Link>
             <div className="flex items-center gap-2 shrink-0">

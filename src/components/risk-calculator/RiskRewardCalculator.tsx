@@ -25,7 +25,7 @@ export default function RiskRewardCalculator() {
 
   return (
     <SectionCard title="Risk / Reward Calculator" icon={<Crosshair size={16} className="text-primary" />}>
-      <div className="flex items-center rounded-xl border border-border bg-muted/40 p-1 text-xs font-semibold w-fit">
+      <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1 text-xs font-semibold w-fit">
         {(["LONG", "SHORT"] as PositionSide[]).map((s) => (
           <button
             key={s}
@@ -51,7 +51,7 @@ export default function RiskRewardCalculator() {
       </div>
 
       {result.error && (
-        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-xs font-semibold text-destructive">
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-xs font-semibold text-destructive">
           ⚠️ {result.error}
         </div>
       )}
@@ -90,7 +90,7 @@ export default function RiskRewardCalculator() {
         </>
       )}
 
-      <ExpandableFormula formula={`Long:  Risk = Entry − Stop   ·  Reward = Target − Entry\nShort: Risk = Stop − Entry   ·  Reward = Entry − Target\nR:R = Reward / Risk`} />
+      <ExpandableFormula formula={`Long:  risk = entry − stop, reward = target − entry\nShort: risk = stop − entry, reward = entry − target\nR:R = Reward / Risk`} />
     </SectionCard>
   );
 }

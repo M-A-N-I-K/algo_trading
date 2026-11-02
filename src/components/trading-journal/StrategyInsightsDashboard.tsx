@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Chart from "chart.js/auto";
 import Link from "next/link";
-import { Trophy, FlaskConical, TrendingUp, Target, Zap } from "lucide-react";
+import { FlaskConical } from "lucide-react";
+import { Stat, toneClass } from "@/components/kit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { strategyLabel } from "@/lib/strategyCatalog";
@@ -18,6 +19,10 @@ interface BacktestRunMetrics {
   totalReturnPercent: number;
   maxDrawdownPercent: number;
   testPeriodDays: number | null;
+}
+
+function signedPct(v: number) {
+  return `${v > 0 ? "+" : v < 0 ? "\u2212" : ""}${Math.abs(v).toFixed(2)}%`;
 }
 
 function formatDays(days: number): string {
@@ -185,8 +190,8 @@ export default function StrategyInsightsDashboard({ runs }: { runs: BacktestRunA
     const sorted = [...byStrategy].sort((a, b) => b.avgReturn - a.avgReturn);
     const labels = sorted.map((s) => strategyLabel(s.strategyKey));
     const data = sorted.map((s) => s.avgReturn);
-    const colors = data.map((v) => (v >= 0 ? "rgba(0, 230, 118, 0.6)" : "rgba(255, 23, 68, 0.6)"));
-    const borders = data.map((v) => (v >= 0 ? "#00e676" : "#ff1744"));
+    const colors = data.map((v) => (v >= 0 ? "rgba(47, 169, 127, 0.85)" : "rgba(232, 100, 106, 0.85)"));
+    const borders = data.map((v) => (v >= 0 ? "#2fa97f" : "#e8646a"));
 
     const ctx = chartRef.current.getContext("2d");
     if (!ctx) return;
@@ -195,7 +200,7 @@ export default function StrategyInsightsDashboard({ runs }: { runs: BacktestRunA
       type: "bar",
       data: {
         labels,
-        datasets: [{ label: "Avg Return (%)", data, backgroundColor: colors, borderColor: borders, borderWidth: 1.5, borderRadius: 8 }],
+        datasets: [{ label: "Average return (%)", data, backgroundColor: colors, borderColor: borders, borderWidth: 0, borderRadius: 4, maxBarThickness: 22 }],
       },
       options: {
         indexAxis: "y",
@@ -203,8 +208,8 @@ export default function StrategyInsightsDashboard({ runs }: { runs: BacktestRunA
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { grid: { color: "rgba(255,255,255,0.03)" }, ticks: { color: "#8e8ea8" } },
-          y: { grid: { display: false }, ticks: { color: "#8e8ea8", font: { size: 11 } } },
+          x: { grid: { color: "#2c3146" }, ticks: { color: "#a3a8bf" } },
+          y: { grid: { display: false }, ticks: { color: "#a3a8bf", font: { size: 11 } } },
         },
       },
     });
@@ -228,22 +233,22 @@ export default function StrategyInsightsDashboard({ runs }: { runs: BacktestRunA
 
   if (runs.length === 0) {
     return (
-      <Card className="glass border-slate-800">
+      <Card className="bg-deck border-slate-800">
         <CardContent className="flex flex-col items-center text-center gap-4 py-16 px-6">
-          <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center">
+          <div className="w-14 h-14 rounded-[10px] bg-slate-900 border border-slate-800 flex items-center justify-center">
             <FlaskConical className="text-violet-500" size={26} />
           </div>
           <div>
-            <h2 className="font-Outfit text-xl font-bold text-white">No backtests yet</h2>
+            <h2 className="font-display text-xl font-bold text-paper">No backtests yet</h2>
             <p className="text-sm text-slate-400 mt-1.5 max-w-md">
-              Run a backtest to start comparing strategies here — every run you save shows up automatically with its parameters and results.
+              Run a backtest to compare strategies here. Every saved run appears with its parameters and results.
             </p>
           </div>
           <Link
             href="/backtest"
-            className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
+            className="bg-paper hover:bg-white text-ink px-5 py-2.5 rounded-lg text-sm font-semibold transition-all"
           >
-            Run a Backtest
+            Run a backtest
           </Link>
         </CardContent>
       </Card>
@@ -252,122 +257,66 @@ export default function StrategyInsightsDashboard({ runs }: { runs: BacktestRunA
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Headline stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card className="glass">
-          <CardContent className="flex justify-between items-center p-6">
-            <div>
-              <span className="text-[13px] font-semibold text-slate-400 uppercase tracking-wider">Backtests Run</span>
-              <h3 className="font-Outfit text-3xl font-bold text-white mt-1.5 mb-1">{runs.length}</h3>
-              <span className="text-xs text-slate-400">{rows.length} unique configurations tested</span>
-            </div>
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-violet-500/10 text-violet-500">
-              <FlaskConical size={20} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="glass">
-          <CardContent className="flex justify-between items-center p-6">
-            <div>
-              <span className="text-[13px] font-semibold text-slate-400 uppercase tracking-wider">Best Strategy</span>
-              <h3 className="font-Outfit text-2xl font-bold text-emerald-400 mt-1.5 mb-1 truncate">
-                {bestStrategy ? strategyLabel(bestStrategy.strategyKey) : "—"}
-              </h3>
-              <span className="text-xs text-slate-400">
-                {bestStrategy ? `Avg ${bestStrategy.avgReturn >= 0 ? "+" : ""}${bestStrategy.avgReturn.toFixed(2)}% return` : "No data yet"}
-              </span>
-            </div>
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-emerald-500/10 text-emerald-400">
-              <Trophy size={20} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="glass">
-          <CardContent className="flex justify-between items-center p-6">
-            <div>
-              <span className="text-[13px] font-semibold text-slate-400 uppercase tracking-wider">Best Single Result</span>
-              <h3 className={`font-Outfit text-3xl font-bold mt-1.5 mb-1 ${bestRow && bestRow.totalReturnPercent >= 0 ? "text-emerald-400" : "text-rose-500"}`}>
-                {bestRow ? `${bestRow.totalReturnPercent >= 0 ? "+" : ""}${bestRow.totalReturnPercent.toFixed(2)}%` : "—"}
-              </h3>
-              <span className="text-xs text-slate-400">
-                {bestRow ? `${strategyLabel(bestRow.strategyKey)} on ${bestRow.symbol}` : "No data yet"}
-              </span>
-            </div>
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-cyan-500/10 text-cyan-400">
-              <TrendingUp size={20} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="glass">
-          <CardContent className="flex justify-between items-center p-6">
-            <div>
-              <span className="text-[13px] font-semibold text-slate-400 uppercase tracking-wider">Avg Win Rate</span>
-              <h3 className="font-Outfit text-3xl font-bold text-amber-400 mt-1.5 mb-1">{avgWinRate.toFixed(1)}%</h3>
-              <span className="text-xs text-slate-400">Across all backtested results</span>
-            </div>
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-amber-500/10 text-amber-400">
-              <Target size={20} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="glass">
-          <CardContent className="flex justify-between items-center p-6">
-            <div>
-              <span className="text-[13px] font-semibold text-slate-400 uppercase tracking-wider">Return Speed</span>
-              <h3 className={`font-Outfit text-3xl font-bold mt-1.5 mb-1 ${avgReturnPerDay == null ? "text-slate-500" : avgReturnPerDay >= 0 ? "text-emerald-400" : "text-rose-500"}`}>
-                {avgReturnPerDay != null ? `${avgReturnPerDay >= 0 ? "+" : ""}${avgReturnPerDay.toFixed(2)}%/day` : "—"}
-              </h3>
-              <span className="text-xs text-slate-400">Return % earned per day of backtested period</span>
-            </div>
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-yellow-500/10 text-yellow-400">
-              <Zap size={20} />
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-5 rounded-[10px] border border-rule bg-deck px-5 py-4 sm:grid-cols-3 lg:grid-cols-5">
+        <Stat label="Backtests run" value={runs.length} note={`${rows.length} configurations`} />
+        <Stat
+          label="Best strategy"
+          value={bestStrategy ? strategyLabel(bestStrategy.strategyKey) : "—"}
+          note={bestStrategy ? `Average ${signedPct(bestStrategy.avgReturn)} return` : undefined}
+        />
+        <Stat
+          label="Best single result"
+          value={bestRow ? signedPct(bestRow.totalReturnPercent) : "—"}
+          tone={bestRow ? toneClass(bestRow.totalReturnPercent) : undefined}
+          note={bestRow ? `${strategyLabel(bestRow.strategyKey)} on ${bestRow.symbol}` : undefined}
+        />
+        <Stat label="Average win rate" value={`${avgWinRate.toFixed(1)}%`} note="Across all results" />
+        <Stat
+          label="Return per day"
+          value={avgReturnPerDay != null ? signedPct(avgReturnPerDay) : "—"}
+          tone={avgReturnPerDay != null ? toneClass(avgReturnPerDay) : undefined}
+          note="Averaged over each test period"
+        />
       </div>
 
       {/* Strategy comparison chart */}
-      <Card className="glass p-6">
+      <Card className="bg-deck p-6 border border-rule">
         <div className="flex justify-between items-center mb-5">
-          <h3 className="font-Outfit text-lg font-semibold">Strategy Comparison</h3>
-          <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Avg Return % by Strategy</span>
+          <h3 className="font-display text-[17px] font-semibold tracking-[-0.01em] text-paper">Strategy comparison</h3>
+          <span className="text-[13px] text-fog">Average return per run, %</span>
         </div>
-        <div className="relative h-[280px] w-full">
+        <div className="relative w-full" style={{ height: 48 + byStrategy.length * 44 }}>
           <canvas ref={chartRef}></canvas>
         </div>
       </Card>
 
       {/* Filters + full comparison table */}
-      <Card className="glass border-slate-800 p-6">
+      <Card className="bg-deck border-slate-800 p-6">
         <div className="flex flex-col md:flex-row gap-4 mb-6">
           <select
-            className="flex-1 bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500"
+            className="flex-1 bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-lg outline-none text-sm transition-all focus:border-violet-500"
             value={strategyFilter}
             onChange={(e) => setStrategyFilter(e.target.value)}
           >
-            <option value="ALL">All Strategies</option>
+            <option value="ALL">All strategies</option>
             {strategies.map((s) => (
               <option key={s} value={s}>{strategyLabel(s)}</option>
             ))}
           </select>
           <select
-            className="flex-1 bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500"
+            className="flex-1 bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-lg outline-none text-sm transition-all focus:border-violet-500"
             value={symbolFilter}
             onChange={(e) => setSymbolFilter(e.target.value)}
           >
-            <option value="ALL">All Symbols</option>
+            <option value="ALL">All symbols</option>
             {symbols.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <select
-            className="flex-1 bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500"
+            className="flex-1 bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-lg outline-none text-sm transition-all focus:border-violet-500"
             value={intervalFilter}
             onChange={(e) => setIntervalFilter(e.target.value)}
           >
-            <option value="ALL">All Intervals</option>
+            <option value="ALL">All intervals</option>
             {intervals.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
@@ -376,44 +325,44 @@ export default function StrategyInsightsDashboard({ runs }: { runs: BacktestRunA
           <Table className="w-full">
             <TableHeader className="bg-slate-900/50">
               <TableRow className="hover:bg-transparent border-slate-800">
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Strategy</TableHead>
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Symbol</TableHead>
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Interval</TableHead>
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Candles</TableHead>
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Initial Balance</TableHead>
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4">Min R:R</TableHead>
+                <TableHead className="py-4 text-xs text-mist">Strategy</TableHead>
+                <TableHead className="py-4 text-xs text-mist">Symbol</TableHead>
+                <TableHead className="py-4 text-xs text-mist">Interval</TableHead>
+                <TableHead className="py-4 text-xs text-mist">Candles</TableHead>
+                <TableHead className="py-4 text-xs text-mist">Initial balance</TableHead>
+                <TableHead className="py-4 text-xs text-mist">Min R:R</TableHead>
                 <TableHead
-                  className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4 cursor-pointer select-none"
+                  className="py-4 cursor-pointer select-none text-xs text-mist"
                   onClick={() => toggleSort("totalTrades")}
                 >
                   Trades{sortIndicator("totalTrades")}
                 </TableHead>
                 <TableHead
-                  className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4 cursor-pointer select-none"
+                  className="py-4 cursor-pointer select-none text-xs text-mist"
                   onClick={() => toggleSort("winRate")}
                 >
-                  Win Rate{sortIndicator("winRate")}
+                  Win rate{sortIndicator("winRate")}
                 </TableHead>
                 <TableHead
-                  className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4 cursor-pointer select-none"
+                  className="py-4 cursor-pointer select-none text-xs text-mist"
                   onClick={() => toggleSort("maxDrawdownPercent")}
                 >
-                  Max DD{sortIndicator("maxDrawdownPercent")}
+                  Max drawdown{sortIndicator("maxDrawdownPercent")}
                 </TableHead>
                 <TableHead
-                  className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4 cursor-pointer select-none"
+                  className="py-4 cursor-pointer select-none text-xs text-mist"
                   onClick={() => toggleSort("testPeriodDays")}
                 >
-                  Test Period{sortIndicator("testPeriodDays")}
+                  Test period{sortIndicator("testPeriodDays")}
                 </TableHead>
                 <TableHead
-                  className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4 text-right cursor-pointer select-none"
+                  className="py-4 text-right cursor-pointer select-none text-xs text-mist"
                   onClick={() => toggleSort("totalReturnPercent")}
                 >
-                  Return %{sortIndicator("totalReturnPercent")}
+                  Return{sortIndicator("totalReturnPercent")}
                 </TableHead>
-                <TableHead className="text-slate-400 font-semibold uppercase text-[11px] tracking-wider py-4 text-right">
-                  Return/Day
+                <TableHead className="py-4 text-right text-xs text-mist">
+                  Return per day
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -424,10 +373,10 @@ export default function StrategyInsightsDashboard({ runs }: { runs: BacktestRunA
                   className="hover:bg-slate-800/10 border-slate-800/40 transition-colors cursor-pointer"
                   onClick={() => setSelectedRun({ runId: r.runId, symbol: r.symbol })}
                 >
-                  <TableCell className="text-white font-bold py-4 text-sm">{strategyLabel(r.strategyKey)}</TableCell>
+                  <TableCell className="text-paper font-bold py-4 text-sm">{strategyLabel(r.strategyKey)}</TableCell>
                   <TableCell className="text-slate-300 py-4 font-medium text-sm">{r.symbol}</TableCell>
                   <TableCell className="py-4">
-                    <span className="inline-flex px-2 py-1 rounded text-[10px] font-bold border bg-violet-500/10 text-violet-400 border-violet-500/20 uppercase">
+                    <span className="inline-flex px-2 py-1 rounded border bg-violet-500/10 text-violet-400 border-violet-500/20 text-xs text-mist">
                       {r.interval}
                     </span>
                   </TableCell>

@@ -29,10 +29,10 @@ export default function WhatIfSimulator({ currency, defaultCapital, defaultRiskP
   return (
     <SectionCard title="What-If Scenario Simulator" icon={<FlaskConical size={16} className="text-primary" />}>
       <div className="grid grid-cols-2 gap-4">
-        <NumberField label="Starting Capital" value={capital} onChange={setCapital} step={1000} prefix={currency === "INR" ? "₹" : undefined} suffix={currency === "USDT" ? "USDT" : undefined} />
+        <NumberField label="Starting capital" value={capital} onChange={setCapital} step={1000} prefix={currency === "INR" ? "₹" : undefined} suffix={currency === "USDT" ? "USDT" : undefined} />
         <NumberField label="Risk %" value={riskPct} onChange={setRiskPct} step={0.1} suffix="%" />
         <NumberField label="R:R Ratio" value={rr} onChange={setRR} step={0.1} />
-        <NumberField label="Win Rate" value={winRate} onChange={setWinRate} step={1} suffix="%" />
+        <NumberField label="Win rate" value={winRate} onChange={setWinRate} step={1} suffix="%" />
       </div>
 
       <div className="overflow-x-auto -mx-2">

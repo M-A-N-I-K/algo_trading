@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import Chart from "chart.js/auto";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Play, TrendingUp, DollarSign, Award, Target, Percent } from "lucide-react";
+import { inputClass } from "@/components/kit";
 import TraderLoader from "@/components/trading-journal/TraderLoader";
 import BacktestHistoryPanel, { BacktestRunRecord } from "@/components/trading-journal/BacktestHistoryPanel";
 import { STRATEGY_CATALOG } from "@/lib/strategyCatalog";
@@ -122,23 +123,20 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
 
     const labels = res.equityCurve.map((_, i) => `Trade ${i}`);
 
-    const gradient = ctx.createLinearGradient(0, 0, 0, 240);
-    gradient.addColorStop(0, "rgba(139, 92, 246, 0.35)");
-    gradient.addColorStop(1, "rgba(139, 92, 246, 0.0)");
 
     chartInstance.current = new Chart(ctx, {
       type: "line",
       data: {
         labels,
         datasets: [{
-          label: "Simulation Equity",
+          label: "Simulation equity",
           data: res.equityCurve,
-          borderColor: "#8b5cf6",
+          borderColor: "#9db4ff",
           borderWidth: 2.5,
-          pointBackgroundColor: "#8b5cf6",
+          pointBackgroundColor: "#9db4ff",
           pointRadius: 0,
           pointHoverRadius: 4,
-          backgroundColor: gradient,
+          backgroundColor: "rgba(157, 180, 255, 0.08)",
           fill: true,
           tension: 0.15
         }]
@@ -153,8 +151,8 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
             ticks: { display: false }
           },
           y: {
-            grid: { color: "rgba(255,255,255,0.03)" },
-            ticks: { color: "#8e8ea8", font: { size: 10 } }
+            grid: { color: "#2c3146" },
+            ticks: { color: "#a3a8bf", font: { size: 10 } }
           }
         }
       }
@@ -168,16 +166,16 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-6 items-start">
       {/* Parameters Panel */}
-      <Card className="glass border-slate-800 p-6 sm:p-8">
-        <h3 className="font-Outfit text-lg font-bold text-white mb-6">Simulation Engine Parameters</h3>
+      <Card className="bg-deck border-slate-800 p-6 sm:p-8">
+        <h3 className="mb-5 font-display text-[17px] font-semibold tracking-[-0.01em] text-paper">New backtest</h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 items-end">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-400">Trading Strategy</label>
+            <label className="text-[13px] text-fog">Trading strategy</label>
             <select
               value={strategy}
               onChange={(e) => setStrategy(e.target.value)}
-              className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500"
+              className={inputClass}
             >
               {STRATEGY_CATALOG.map((s) => (
                 <option key={s.value} value={s.value}>
@@ -188,22 +186,22 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-400">Symbols (comma separated)</label>
+            <label className="text-[13px] text-fog">Symbols, comma separated</label>
             <input
               type="text"
               value={symbol}
               onChange={(e) => setSymbol(e.target.value)}
               placeholder="BTCUSDT,ETHUSDT"
-              className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
+              className={inputClass}
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-400">Timeframe</label>
+            <label className="text-[13px] text-fog">Timeframe</label>
             <select
               value={interval}
               onChange={(e) => setInterval(e.target.value)}
-              className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500"
+              className={inputClass}
             >
               <option value="1m">1 Minute (1m)</option>
               <option value="5m">5 Minutes (5m)</option>
@@ -215,11 +213,11 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-400">Candles Limit</label>
+            <label className="text-[13px] text-fog">Candles limit</label>
             <select
               value={limit}
               onChange={(e) => setLimit(e.target.value)}
-              className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500"
+              className={inputClass}
             >
               <option value="500">Last 500 candles</option>
               <option value="1000">Last 1,000 candles</option>
@@ -230,24 +228,24 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-400">Initial capital ($)</label>
+            <label className="text-[13px] text-fog">Initial capital ($)</label>
             <input
               type="number"
               value={initialBalance}
               onChange={(e) => setInitialBalance(e.target.value)}
-              className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
+              className={inputClass}
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-400">Min Risk:Reward (e.g. 1.5)</label>
+            <label className="text-[13px] text-fog">Minimum R:R</label>
             <input
               type="number"
               step="any"
               value={minRiskRewardRatio}
               onChange={(e) => setMinRiskRewardRatio(e.target.value)}
               placeholder="1.5"
-              className="bg-slate-900 border border-slate-800 text-slate-200 px-4 py-2.5 rounded-xl outline-none text-sm transition-all focus:border-violet-500 placeholder-slate-600"
+              className={inputClass}
             />
           </div>
         </div>
@@ -256,7 +254,7 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
           <button
             onClick={runSimulation}
             disabled={loading}
-            className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white px-6 py-3 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-violet-500/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-paper hover:bg-white text-ink px-6 py-3 rounded-lg text-sm font-bold flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
               <>
@@ -265,7 +263,7 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
               </>
             ) : (
               <>
-                <Play size={16} /> Run Backtests
+                <Play size={16} /> Run backtest
               </>
             )}
           </button>
@@ -289,7 +287,7 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
                   className={`px-4 py-2 text-xs font-bold rounded-lg cursor-pointer transition-all border ${
                     selectedResultIndex === index
                       ? "bg-violet-500/10 border-violet-500/30 text-violet-400"
-                      : "bg-slate-900/50 border-slate-900 text-slate-400 hover:text-white"
+                      : "bg-slate-900/50 border-slate-900 text-slate-400 hover:text-paper"
                   }`}
                 >
                   {res.symbol} ({res.totalReturnPercent >= 0 ? "+" : ""}{res.totalReturnPercent.toFixed(1)}%)
@@ -304,61 +302,61 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
               {/* Metrics cards grid */}
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
 
-                <Card className="glass p-5 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+                <Card className="bg-deck p-5 flex items-center gap-4 border border-rule">
+                  <div className="w-10 h-10 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
                     <TrendingUp size={20} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Return</p>
-                    <h4 className={`text-lg font-black tracking-tight ${activeResult.totalReturnPercent >= 0 ? "text-emerald-400" : "text-rose-500"}`}>
+                    <p className="text-xs text-mist">Total return</p>
+                    <h4 className={`text-lg font-bold tracking-tight ${activeResult.totalReturnPercent >= 0 ? "text-emerald-400" : "text-rose-500"}`}>
                       {activeResult.totalReturnPercent >= 0 ? "+" : ""}{activeResult.totalReturnPercent.toFixed(2)}%
                     </h4>
                   </div>
                 </Card>
 
-                <Card className="glass p-5 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+                <Card className="bg-deck p-5 flex items-center gap-4 border border-rule">
+                  <div className="w-10 h-10 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
                     <DollarSign size={20} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Final Balance</p>
-                    <h4 className="text-lg font-black tracking-tight text-white">
+                    <p className="text-xs text-mist">Final balance</p>
+                    <h4 className="text-lg font-bold tracking-tight text-paper">
                       ${activeResult.finalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </h4>
                   </div>
                 </Card>
 
-                <Card className="glass p-5 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+                <Card className="bg-deck p-5 flex items-center gap-4 border border-rule">
+                  <div className="w-10 h-10 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
                     <Percent size={20} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Win Rate</p>
-                    <h4 className="text-lg font-black tracking-tight text-white">
+                    <p className="text-xs text-mist">Win rate</p>
+                    <h4 className="text-lg font-bold tracking-tight text-paper">
                       {activeResult.winRate.toFixed(2)}%
                     </h4>
                   </div>
                 </Card>
 
-                <Card className="glass p-5 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+                <Card className="bg-deck p-5 flex items-center gap-4 border border-rule">
+                  <div className="w-10 h-10 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
                     <Target size={20} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Simulated Trades</p>
-                    <h4 className="text-lg font-black tracking-tight text-white">
+                    <p className="text-xs text-mist">Simulated trades</p>
+                    <h4 className="text-lg font-bold tracking-tight text-paper">
                       {activeResult.totalTrades}
                     </h4>
                   </div>
                 </Card>
 
-                <Card className="glass p-5 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+                <Card className="bg-deck p-5 flex items-center gap-4 border border-rule">
+                  <div className="w-10 h-10 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
                     <Award size={20} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Max Drawdown</p>
-                    <h4 className="text-lg font-black tracking-tight text-rose-500">
+                    <p className="text-xs text-mist">Max drawdown</p>
+                    <h4 className="text-lg font-bold tracking-tight text-rose-500">
                       {activeResult.maxDrawdownPercent.toFixed(2)}%
                     </h4>
                   </div>
@@ -367,10 +365,10 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
               </div>
 
               {/* Equity curve charting */}
-              <Card className="glass p-6">
+              <Card className="bg-deck p-6 border border-rule">
                 <div className="flex justify-between items-center mb-5">
-                  <h4 className="font-Outfit text-md font-bold text-white">Simulated Equity Progression ({activeResult.symbol})</h4>
-                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Curve Growth</span>
+                  <h4 className="font-display text-md font-bold text-paper">Simulated Equity Progression ({activeResult.symbol})</h4>
+                  <span className="text-xs text-mist">Curve growth</span>
                 </div>
                 <div className="relative h-[280px] w-full">
                   <canvas ref={chartRef}></canvas>
@@ -378,18 +376,18 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
               </Card>
 
               {/* Trade Log list */}
-              <Card className="glass border-slate-800 p-6">
-                <h4 className="font-Outfit text-md font-bold text-white mb-6">Simulation Trades Log (Last 100)</h4>
+              <Card className="bg-deck border-slate-800 p-6">
+                <h4 className="font-display text-md font-bold text-paper mb-6">Simulation Trades Log (Last 100)</h4>
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="border-b border-slate-900 text-slate-500 font-semibold uppercase tracking-wider">
+                      <tr className="border-b border-slate-900 text-xs text-mist">
                         <th className="pb-3.5 pl-4">Side</th>
-                        <th className="pb-3.5">Entry Time</th>
-                        <th className="pb-3.5">Entry Price</th>
-                        <th className="pb-3.5">Exit Time</th>
-                        <th className="pb-3.5">Exit Price</th>
+                        <th className="pb-3.5">Entry time</th>
+                        <th className="pb-3.5">Entry price</th>
+                        <th className="pb-3.5">Exit time</th>
+                        <th className="pb-3.5">Exit price</th>
                         <th className="pb-3.5">Quantity</th>
                         <th className="pb-3.5 pr-4 text-right">PnL ($ / %)</th>
                       </tr>
@@ -439,18 +437,18 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
       )}
 
       {loading && (
-        <Card className="glass border-slate-800 p-12 flex justify-center items-center">
-          <TraderLoader message="Running Strategy Backtests" />
+        <Card className="bg-deck border-slate-800 p-12 flex justify-center items-center">
+          <TraderLoader message="Running strategy backtests" />
         </Card>
       )}
 
       {/* Default State Empty card */}
       {!loading && results.length === 0 && (
-        <Card className="glass border-slate-800 p-12 text-center flex flex-col items-center justify-center gap-3">
+        <Card className="bg-deck border-slate-800 p-12 text-center flex flex-col items-center justify-center gap-3">
           <TrendingUp className="text-slate-600 animate-pulse" size={48} />
-          <h4 className="text-slate-300 font-Outfit font-bold text-md">No Active Backtest Reports</h4>
+          <h4 className="text-slate-300 font-display font-bold text-md">No results yet</h4>
           <p className="text-slate-500 text-xs max-w-[400px] leading-relaxed">
-            Select a strategy, symbol, and candlestick parameters above and click &quot;Run Backtests&quot; to execute real-time market simulations.
+            Pick a strategy and symbols above, then run a backtest. Results appear here and are saved to your history.
           </p>
         </Card>
       )}

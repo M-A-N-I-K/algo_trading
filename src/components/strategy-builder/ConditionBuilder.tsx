@@ -16,7 +16,7 @@ interface ConditionBuilderProps {
 export default function ConditionBuilder({ label, group, onChange }: ConditionBuilderProps) {
   return (
     <div className="flex flex-col gap-2">
-      {label && <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</h4>}
+      {label && <h4 className="text-xs text-mist">{label}</h4>}
       <ConditionGroupEditor group={group} onChange={onChange} />
     </div>
   );

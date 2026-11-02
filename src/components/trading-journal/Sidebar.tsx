@@ -2,7 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sparkles, LineChart, ListTodo, Import, FlaskConical, ShieldHalf, Layers, Settings, X, Lightbulb } from "lucide-react";
+import {
+  LayoutDashboard,
+  NotebookPen,
+  Layers,
+  FlaskConical,
+  Lightbulb,
+  Ruler,
+  ShieldHalf,
+  RefreshCw,
+  Settings,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 
 interface SidebarProps {
   user: { name?: string | null; email?: string | null; image?: string | null } | null;
@@ -11,112 +23,118 @@ interface SidebarProps {
   onClose: () => void;
 }
 
-const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: LineChart },
-  { href: "/strategies", label: "Strategies", icon: Layers },
-  { href: "/risk", label: "Risk Calculator", icon: ShieldHalf },
-  { href: "/backtest", label: "Backtests", icon: FlaskConical },
-  { href: "/insights", label: "Insights", icon: Lightbulb },
-  { href: "/trades", label: "Trade Journal", icon: ListTodo },
-  { href: "/import", label: "Sync", icon: Import },
-  { href: "/settings", label: "Settings", icon: Settings },
+// Grouped by what the trader is doing, not by how the app is built.
+const NAV_GROUPS: { title: string; items: { href: string; label: string; icon: LucideIcon }[] }[] = [
+  {
+    title: "Review",
+    items: [
+      { href: "/", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/trades", label: "Journal", icon: NotebookPen },
+    ],
+  },
+  {
+    title: "Research",
+    items: [
+      { href: "/strategies", label: "Strategies", icon: Layers },
+      { href: "/backtest", label: "Backtests", icon: FlaskConical },
+      { href: "/insights", label: "Backtest insights", icon: Lightbulb },
+    ],
+  },
+  {
+    title: "Risk",
+    items: [
+      { href: "/risk", label: "Position size", icon: Ruler },
+      { href: "/risk-calculator", label: "Account risk", icon: ShieldHalf },
+    ],
+  },
+  {
+    title: "Account",
+    items: [
+      { href: "/import", label: "Sync", icon: RefreshCw },
+      { href: "/settings", label: "Settings", icon: Settings },
+    ],
+  },
 ];
 
-// Kept separate from the main nav so the two risk tools aren't confused:
-// per-trade instrument position sizing (above) vs. account-level risk
-// management — daily loss limits, drawdown, expectancy (below, unchanged
-// from before this restructure).
-const SECONDARY_NAV_ITEMS = [{ href: "/risk-calculator", label: "Account Risk", icon: ShieldHalf }];
+// A tiny P&L bridge: the dashboard's signature shape, used as the mark.
+function BrandMark() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+      <rect x="1" y="4" width="4" height="10" rx="1" fill="var(--gain)" />
+      <rect x="6.5" y="4" width="4" height="13" rx="1" fill="var(--fees)" />
+      <rect x="12" y="15" width="4" height="3" rx="1" fill="var(--funding)" />
+      <rect x="17" y="12" width="4" height="7" rx="1" fill="var(--paper)" />
+    </svg>
+  );
+}
 
 export default function Sidebar({ user, onLogout, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   return (
     <aside
-      className={`w-64 bg-slate-950/90 border-r border-slate-900 flex flex-col p-6 backdrop-blur-xl fixed left-0 top-0 h-screen z-40 transform transition-transform duration-300 ease-in-out ${
+      className={`fixed left-0 top-0 z-40 flex h-screen w-60 flex-col border-r border-rule bg-ink px-4 py-6 transition-transform duration-300 ease-out md:translate-x-0 ${
         isOpen ? "translate-x-0" : "-translate-x-full"
-      } md:translate-x-0`}
+      }`}
+      aria-label="Main navigation"
     >
-      <div className="flex items-center justify-between mb-10 px-2">
-        <div className="flex items-center gap-3">
-          <Sparkles className="text-violet-500 logo-icon animate-pulse" size={24} />
-          <span className="brand-text font-bold text-xl tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent font-Outfit">
-            AuraJournal
-          </span>
-        </div>
+      <div className="mb-8 flex items-center justify-between px-2">
+        <Link href="/" className="flex items-center gap-2.5 rounded-md" onClick={onClose}>
+          <BrandMark />
+          <span className="font-display text-[19px] font-bold tracking-[-0.02em] text-paper">AuraJournal</span>
+        </Link>
         <button
           type="button"
           onClick={onClose}
-          className="md:hidden text-slate-400 hover:text-white transition-colors"
+          className="rounded-md p-1 text-fog hover:text-paper md:hidden"
           aria-label="Close menu"
         >
           <X size={20} />
         </button>
       </div>
 
-      <nav className="flex flex-col gap-1.5 flex-grow">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href;
-          return (
-            <Link
-              key={href}
-              href={href}
-              onClick={onClose}
-              className={`flex items-center gap-3.5 px-4 py-3 text-sm text-slate-400 rounded-xl font-medium transition-all cursor-pointer border border-transparent text-left hover:text-white hover:bg-slate-900/50 ${isActive ? "bg-violet-500/10 border-violet-500/20 text-violet-400 font-semibold shadow-[0_4px_20px_rgba(124,77,255,0.06)]" : ""}`}
-            >
-              <Icon size={16} /> {label}
-            </Link>
-          );
-        })}
-
-        <div className="border-t border-slate-900 my-3" />
-        <span className="px-4 text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Tools</span>
-        {SECONDARY_NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href;
-          return (
-            <Link
-              key={href}
-              href={href}
-              onClick={onClose}
-              className={`flex items-center gap-3.5 px-4 py-3 text-sm text-slate-400 rounded-xl font-medium transition-all cursor-pointer border border-transparent text-left hover:text-white hover:bg-slate-900/50 ${isActive ? "bg-violet-500/10 border-violet-500/20 text-violet-400 font-semibold shadow-[0_4px_20px_rgba(124,77,255,0.06)]" : ""}`}
-            >
-              <Icon size={16} /> {label}
-            </Link>
-          );
-        })}
+      <nav className="flex flex-grow flex-col gap-6 overflow-y-auto">
+        {NAV_GROUPS.map((group) => (
+          <div key={group.title}>
+            <p className="mb-1.5 px-3 text-xs font-medium text-mist">{group.title}</p>
+            <ul className="flex flex-col gap-0.5">
+              {group.items.map(({ href, label, icon: Icon }) => {
+                const active = isActive(href);
+                return (
+                  <li key={href}>
+                    <Link
+                      href={href}
+                      onClick={onClose}
+                      aria-current={active ? "page" : undefined}
+                      className={`relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+                        active ? "bg-deck text-paper" : "text-fog hover:bg-deck/60 hover:text-paper"
+                      }`}
+                    >
+                      {active && <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-signal" />}
+                      <Icon size={16} strokeWidth={active ? 2.2 : 1.8} />
+                      {label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
       </nav>
 
-      <div className="mt-auto border-t border-slate-900 pt-6 flex flex-col gap-4">
-        {user && (
-          <div className="flex items-center gap-3">
-            {user.image ? (
-              <img
-                src={user.image}
-                alt={user.name || "User Avatar"}
-                className="w-8 h-8 rounded-full border border-slate-800"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-violet-600/20 text-violet-400 border border-violet-500/20 flex items-center justify-center font-bold text-xs uppercase">
-                {user.name ? user.name.slice(0, 2) : "UR"}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-white truncate">{user.name || "Trader"}</p>
-              <p className="text-[10px] text-slate-500 truncate">{user.email || ""}</p>
-            </div>
+      <div className="mt-6 flex items-center gap-3 border-t border-rule px-2 pt-5">
+        {user?.image ? (
+          <img src={user.image} alt="" className="h-8 w-8 rounded-full" referrerPolicy="no-referrer" />
+        ) : (
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-deck-2 text-xs font-semibold text-paper">
+            {(user?.name ?? "T").slice(0, 1)}
           </div>
         )}
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2 text-[11px] text-slate-400 font-medium">
-            <span className="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
-            Synced
-          </div>
-          <button
-            className="text-[11px] font-semibold text-rose-500 hover:text-rose-400 transition-colors"
-            onClick={onLogout}
-          >
-            Logout
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm text-paper">{user?.name || "Trader"}</p>
+          <button onClick={onLogout} className="text-xs text-fog hover:text-loss-ink">
+            Sign out
           </button>
         </div>
       </div>

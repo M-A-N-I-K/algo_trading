@@ -53,7 +53,7 @@ export default function ConditionGroupEditor({ group, onChange, onDelete, depth 
   return (
     <div className={depth > 0 ? "border-l-2 border-slate-800 pl-4" : ""}>
       <div className="flex flex-wrap items-center gap-2 mb-2.5">
-        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{group.operator === "AND" ? "All of:" : "Any of:"}</span>
+        <span className="text-xs text-mist">{group.operator === "AND" ? "All of:" : "Any of:"}</span>
 
         <div className="flex items-center rounded-lg border border-slate-800 bg-slate-900 p-0.5 text-[11px] font-bold">
           {(["AND", "OR"] as const).map((op) => (
@@ -61,7 +61,7 @@ export default function ConditionGroupEditor({ group, onChange, onDelete, depth 
               key={op}
               type="button"
               onClick={() => onChange({ ...group, operator: op })}
-              className={`px-2.5 py-1 rounded-md transition-all ${group.operator === op ? "bg-violet-600 text-white" : "text-slate-500 hover:text-slate-300"}`}
+              className={`px-2.5 py-1 rounded-md transition-all ${group.operator === op ? "bg-violet-600 text-paper" : "text-slate-500 hover:text-slate-300"}`}
             >
               {op}
             </button>

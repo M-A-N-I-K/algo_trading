@@ -20,15 +20,15 @@ export default function RiskRewardRangeCard({ currency, riskRange, rewardRange, 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Risk Range</span>
+            <span className="text-xs text-mist">Risk range</span>
             <span className="text-sm font-bold">
               {formatCurrency(riskRange.minRisk, currency)} – {formatCurrency(riskRange.maxRisk, currency)}
             </span>
           </div>
           <div className="relative h-2.5 rounded-full bg-muted overflow-hidden">
-            <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-500/40 to-primary/60 w-full" />
+            <div className="absolute inset-y-0 left-0 to-primary/60 w-full" />
             <div
-              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-primary ring-2 ring-background shadow"
+              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-primary ring-2 ring-background"
               style={{ left: `calc(${riskPosition}% - 6px)` }}
             />
           </div>
@@ -37,25 +37,25 @@ export default function RiskRewardRangeCard({ currency, riskRange, rewardRange, 
             <span className="text-primary font-bold">Recommended: {formatCurrency(riskRange.recommendedRisk, currency)} ({risk.riskPerTradePct}%)</span>
             <span>Max ({risk.maxRiskPct}%)</span>
           </div>
-          <ExpandableFormula formula={`Risk = Capital × Risk %\nMin: ${risk.minRiskPct}%  ·  Recommended: ${risk.riskPerTradePct}%  ·  Max: ${risk.maxRiskPct}%`} />
+          <ExpandableFormula formula={`Risk = Capital × Risk %\nMin ${risk.minRiskPct}%, recommended ${risk.riskPerTradePct}%, max ${risk.maxRiskPct}%`} />
         </div>
 
         <div className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Target Reward Range</span>
+            <span className="text-xs text-mist">Target reward range</span>
             <span className="text-sm font-bold">
               {formatCurrency(rewardRange.minReward, currency)} – {formatCurrency(rewardRange.maxReward, currency)}
             </span>
           </div>
           <div className="relative h-2.5 rounded-full bg-muted overflow-hidden">
-            <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-500/40 to-emerald-500/70 w-full" />
+            <div className="absolute inset-y-0 left-0 w-full" />
           </div>
           <div className="flex justify-between text-[11px] text-muted-foreground">
             <span>Min ({formatRR(risk.minRR)})</span>
             <span className="text-emerald-500 font-bold">Target: {formatCurrency(rewardRange.recommendedReward, currency)}</span>
             <span>Max ({formatRR(risk.maxRR)})</span>
           </div>
-          <ExpandableFormula formula={`Reward = Risk × R:R\nMin: Min Risk × Min R:R  ·  Target: Recommended Risk × Target R:R  ·  Max: Max Risk × Max R:R`} />
+          <ExpandableFormula formula={`Reward = Risk × R:R\nMin = min risk × min R:R\nTarget = recommended risk × target R:R\nMax = max risk × max R:R`} />
         </div>
       </div>
 

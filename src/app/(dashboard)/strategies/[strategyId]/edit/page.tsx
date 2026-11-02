@@ -41,7 +41,7 @@ export default function EditStrategyPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-100">{strategyQuery.data.strategy.name || "Untitled Strategy"}</h1>
+          <h1 className="text-xl font-bold text-slate-100">{strategyQuery.data.strategy.name || "Untitled strategy"}</h1>
           <p className="text-sm text-slate-500">
             Status: <span className="font-semibold text-slate-300">{strategyQuery.data.strategy.status}</span>
           </p>

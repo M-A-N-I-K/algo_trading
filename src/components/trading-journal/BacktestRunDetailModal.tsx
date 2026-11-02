@@ -77,9 +77,6 @@ export default function BacktestRunDetailModal({ runId, symbol, onClose }: Backt
     const ctx = chartRef.current.getContext("2d");
     if (!ctx) return;
 
-    const gradient = ctx.createLinearGradient(0, 0, 0, 240);
-    gradient.addColorStop(0, "rgba(139, 92, 246, 0.35)");
-    gradient.addColorStop(1, "rgba(139, 92, 246, 0.0)");
 
     chartInst.current = new Chart(ctx, {
       type: "line",
@@ -87,12 +84,12 @@ export default function BacktestRunDetailModal({ runId, symbol, onClose }: Backt
         labels: result.equityCurve.map((_, i) => `Trade ${i}`),
         datasets: [{
           data: result.equityCurve,
-          borderColor: "#8b5cf6",
+          borderColor: "#9db4ff",
           borderWidth: 2.5,
-          pointBackgroundColor: "#8b5cf6",
+          pointBackgroundColor: "#9db4ff",
           pointRadius: 0,
           pointHoverRadius: 4,
-          backgroundColor: gradient,
+          backgroundColor: "rgba(157, 180, 255, 0.08)",
           fill: true,
           tension: 0.15,
         }],
@@ -102,8 +99,8 @@ export default function BacktestRunDetailModal({ runId, symbol, onClose }: Backt
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { grid: { color: "rgba(255,255,255,0.03)" }, ticks: { color: "#8e8ea8", maxTicksLimit: 8 } },
-          y: { grid: { color: "rgba(255,255,255,0.03)" }, ticks: { color: "#8e8ea8" } },
+          x: { grid: { color: "#2c3146" }, ticks: { color: "#a3a8bf", maxTicksLimit: 8 } },
+          y: { grid: { color: "#2c3146" }, ticks: { color: "#a3a8bf" } },
         },
       },
     });
@@ -116,16 +113,16 @@ export default function BacktestRunDetailModal({ runId, symbol, onClose }: Backt
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-[95vw] sm:max-w-5xl bg-slate-950 border border-slate-800 text-slate-200 p-4 sm:p-6 md:p-8 rounded-2xl overflow-y-auto overflow-x-hidden max-h-[90vh]">
+      <DialogContent className="max-w-[95vw] sm:max-w-5xl bg-slate-950 border border-slate-800 text-slate-200 p-4 sm:p-6 md:p-8 rounded-[10px] overflow-y-auto overflow-x-hidden max-h-[90vh]">
         <DialogHeader className="mb-4 pr-8">
-          <DialogTitle className="font-Outfit text-lg sm:text-xl font-bold text-white tracking-tight">
+          <DialogTitle className="font-display text-lg sm:text-xl font-bold text-paper tracking-tight">
             {run ? `${strategyLabel(run.strategyKey)} — ${symbol}` : "Loading..."}
           </DialogTitle>
           {run && (
             <p className="text-xs sm:text-sm text-slate-400">
-              {run.interval} &middot; {run.candleLimit.toLocaleString()} candles &middot; ${run.initialBalance.toLocaleString()} initial
-              {run.minRiskRewardRatio != null && ` · Min R:R ${run.minRiskRewardRatio}`}
-              {" · "}{new Date(run.createdAt).toLocaleString()}
+              {run.interval} candles ({run.candleLimit.toLocaleString()}), starting from ${run.initialBalance.toLocaleString()}
+              {run.minRiskRewardRatio != null && `, minimum R:R ${run.minRiskRewardRatio}`}
+              {". Run "}{new Date(run.createdAt).toLocaleString()}
             </p>
           )}
         </DialogHeader>
@@ -133,7 +130,7 @@ export default function BacktestRunDetailModal({ runId, symbol, onClose }: Backt
         {isLoading && (
           <div className="py-16 flex justify-center">
             <TraderLoader
-              message="Loading Backtest"
+              message="Loading backtest"
               subMessages={["Fetching full trade log...", "Rebuilding equity curve..."]}
             />
           </div>
@@ -144,70 +141,70 @@ export default function BacktestRunDetailModal({ runId, symbol, onClose }: Backt
         {result && (
           <div className="flex flex-col gap-6 min-w-0">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <Card className="glass p-5 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 shrink-0">
+              <Card className="bg-deck p-5 flex items-center gap-4 border border-rule">
+                <div className="w-10 h-10 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 shrink-0">
                   <TrendingUp size={20} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Return</p>
-                  <h4 className={`text-lg font-black tracking-tight ${result.totalReturnPercent >= 0 ? "text-emerald-400" : "text-rose-500"}`}>
+                  <p className="text-xs text-mist">Return</p>
+                  <h4 className={`text-lg font-bold tracking-tight ${result.totalReturnPercent >= 0 ? "text-emerald-400" : "text-rose-500"}`}>
                     {result.totalReturnPercent >= 0 ? "+" : ""}{result.totalReturnPercent.toFixed(2)}%
                   </h4>
                 </div>
               </Card>
 
-              <Card className="glass p-5 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 shrink-0">
+              <Card className="bg-deck p-5 flex items-center gap-4 border border-rule">
+                <div className="w-10 h-10 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 shrink-0">
                   <Target size={20} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Win Rate</p>
-                  <h4 className="text-lg font-black tracking-tight text-white">{result.winRate.toFixed(2)}%</h4>
+                  <p className="text-xs text-mist">Win rate</p>
+                  <h4 className="text-lg font-bold tracking-tight text-paper">{result.winRate.toFixed(2)}%</h4>
                 </div>
               </Card>
 
-              <Card className="glass p-5 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 shrink-0">
+              <Card className="bg-deck p-5 flex items-center gap-4 border border-rule">
+                <div className="w-10 h-10 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 shrink-0">
                   <Award size={20} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Max Drawdown</p>
-                  <h4 className="text-lg font-black tracking-tight text-rose-500">{result.maxDrawdownPercent.toFixed(2)}%</h4>
+                  <p className="text-xs text-mist">Max drawdown</p>
+                  <h4 className="text-lg font-bold tracking-tight text-rose-500">{result.maxDrawdownPercent.toFixed(2)}%</h4>
                 </div>
               </Card>
 
-              <Card className="glass p-5 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 shrink-0">
+              <Card className="bg-deck p-5 flex items-center gap-4 border border-rule">
+                <div className="w-10 h-10 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 shrink-0">
                   <DollarSign size={20} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Final Balance</p>
-                  <h4 className="text-lg font-black tracking-tight text-white">${result.finalBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}</h4>
+                  <p className="text-xs text-mist">Final balance</p>
+                  <h4 className="text-lg font-bold tracking-tight text-paper">${result.finalBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}</h4>
                 </div>
               </Card>
             </div>
 
-            <Card className="glass p-6">
+            <Card className="bg-deck p-6 border border-rule">
               <div className="flex justify-between items-center mb-5">
-                <h4 className="font-Outfit text-md font-bold text-white">Equity Progression</h4>
-                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{result.totalTrades} Trades</span>
+                <h4 className="font-display text-md font-bold text-paper">Equity progression</h4>
+                <span className="text-xs text-mist">{result.totalTrades} Trades</span>
               </div>
               <div className="relative h-[240px] w-full">
                 <canvas ref={chartRef}></canvas>
               </div>
             </Card>
 
-            <Card className="glass border-slate-800 p-6 min-w-0">
-              <h4 className="font-Outfit text-md font-bold text-white mb-6">Trade Log</h4>
+            <Card className="bg-deck border-slate-800 p-6 min-w-0">
+              <h4 className="font-display text-md font-bold text-paper mb-6">Trade log</h4>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="border-b border-slate-900 text-slate-500 font-semibold uppercase tracking-wider">
+                    <tr className="border-b border-slate-900 text-xs text-mist">
                       <th className="pb-3.5 pl-4">Side</th>
-                      <th className="pb-3.5">Entry Time</th>
-                      <th className="pb-3.5">Entry Price</th>
-                      <th className="pb-3.5">Exit Time</th>
-                      <th className="pb-3.5">Exit Price</th>
+                      <th className="pb-3.5">Entry time</th>
+                      <th className="pb-3.5">Entry price</th>
+                      <th className="pb-3.5">Exit time</th>
+                      <th className="pb-3.5">Exit price</th>
                       <th className="pb-3.5">Quantity</th>
                       <th className="pb-3.5 pr-4 text-right">PnL ($ / %)</th>
                     </tr>

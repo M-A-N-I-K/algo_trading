@@ -28,7 +28,7 @@ export default function PositionSizeCalculator({ currency, defaultRiskAmount }: 
 
   return (
     <SectionCard title="Risk-Based Position Size" icon={<Ruler size={16} className="text-primary" />}>
-      <div className="flex items-center rounded-xl border border-border bg-muted/40 p-1 text-xs font-semibold w-fit">
+      <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1 text-xs font-semibold w-fit">
         {(["LONG", "SHORT"] as PositionSide[]).map((s) => (
           <button
             key={s}
@@ -48,15 +48,15 @@ export default function PositionSizeCalculator({ currency, defaultRiskAmount }: 
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <NumberField label="Entry Price" value={entry} onChange={setEntry} step={0.01} placeholder="100.00" />
+        <NumberField label="Entry price" value={entry} onChange={setEntry} step={0.01} placeholder="100.00" />
         <NumberField label="Stop-Loss Price" value={stop} onChange={setStop} step={0.01} placeholder="95.00" />
-        <NumberField label="Risk Amount" value={riskAmount} onChange={setRiskAmount} step={10} prefix={currency === "INR" ? "₹" : undefined} suffix={currency === "USDT" ? "USDT" : undefined} tooltip="Defaults to your recommended risk per trade from Risk Settings — override freely." />
+        <NumberField label="Risk amount" value={riskAmount} onChange={setRiskAmount} step={10} prefix={currency === "INR" ? "₹" : undefined} suffix={currency === "USDT" ? "USDT" : undefined} tooltip="Defaults to your recommended risk per trade from Risk Settings — override freely." />
         <NumberField label="Leverage" value={leverage} onChange={setLeverage} step={1} suffix="x" optional />
         <NumberField label="Fees / Slippage" value={feePct} onChange={setFeePct} step={0.01} suffix="%" optional tooltip="Estimated round-trip fee/slippage %, for informational purposes only." />
       </div>
 
       {result.error && (
-        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-xs font-semibold text-destructive">
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-xs font-semibold text-destructive">
           ⚠️ {result.error}
         </div>
       )}
@@ -64,10 +64,10 @@ export default function PositionSizeCalculator({ currency, defaultRiskAmount }: 
       {result.valid && (
         <>
           <div className="grid grid-cols-2 gap-4">
-            <StatBlock label="Position Size" value={`${formatQuantity(result.positionSizeUnits)} units`} tone="accent" />
-            <StatBlock label="Position Value" value={formatCurrency(result.positionValue, currency)} />
-            <StatBlock label="Risk Amount" value={formatCurrency(result.riskAmount, currency)} tone="negative" />
-            <StatBlock label="Stop Distance" value={formatPercent(result.stopDistancePct)} />
+            <StatBlock label="Position size" value={`${formatQuantity(result.positionSizeUnits)} units`} tone="accent" />
+            <StatBlock label="Position value" value={formatCurrency(result.positionValue, currency)} />
+            <StatBlock label="Risk amount" value={formatCurrency(result.riskAmount, currency)} tone="negative" />
+            <StatBlock label="Stop distance" value={formatPercent(result.stopDistancePct)} />
             {result.marginRequired !== null && <StatBlock label="Margin Required (Leveraged)" value={formatCurrency(result.marginRequired, currency)} />}
             {result.estimatedFeeCost !== null && <StatBlock label="Est. Round-Trip Fees" value={formatCurrency(result.estimatedFeeCost, currency)} />}
           </div>
