@@ -114,3 +114,34 @@ describe("determinism", () => {
     }
   });
 });
+
+describe("evaluateEntry: trading session days", () => {
+  const interpreter = getStrategyInterpreter();
+  const SATURDAY_NOON = Date.UTC(2026, 9, 31, 12); // 2026-10-31 is a Saturday
+  const WEDNESDAY_NOON = Date.UTC(2026, 9, 28, 12);
+  const at = (ms: number): OHLC[] => [{ openTime: ms, closeTime: ms + HOUR_MS - 1, open: 100, high: 101, low: 99, close: 100, volume: 1 }];
+
+  const alwaysLong = (days: string[]) => {
+    const def = getTemplate("ma_crossover")!.build();
+    def.entry.long!.conditions = {
+      type: "group",
+      id: "g",
+      operator: "AND",
+      negate: false,
+      conditions: [{ type: "condition", id: "c", negate: false, left: { type: "constant", value: 1 }, operator: "GREATER_THAN", right: { type: "constant", value: 0 } }],
+    };
+    def.session = { days: days as never, sessionType: "REGULAR" };
+    return def;
+  };
+
+  it("trades on Saturday when the session includes Saturday", () => {
+    const def = alwaysLong(["SATURDAY", "SUNDAY", "MONDAY"]);
+    expect(interpreter.evaluateEntry(def, createEvaluationContext(at(SATURDAY_NOON)), 0).long).toBe(true);
+  });
+
+  it("still skips weekends for a Monday–Friday session", () => {
+    const def = alwaysLong(["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"]);
+    expect(interpreter.evaluateEntry(def, createEvaluationContext(at(SATURDAY_NOON)), 0).long).toBe(false);
+    expect(interpreter.evaluateEntry(def, createEvaluationContext(at(WEDNESDAY_NOON)), 0).long).toBe(true);
+  });
+});

@@ -6,6 +6,7 @@ import { inputClass } from "@/components/kit";
 import TraderLoader from "@/components/trading-journal/TraderLoader";
 import BacktestHistoryPanel, { BacktestRunRecord } from "@/components/trading-journal/BacktestHistoryPanel";
 import { STRATEGY_CATALOG } from "@/lib/strategyCatalog";
+import type { StoredBacktestMetrics } from "@/db/repositories/backtestRunRepository";
 
 interface BacktestTrade {
   side: "LONG" | "SHORT";
@@ -16,6 +17,11 @@ interface BacktestTrade {
   quantity: number;
   pnl: number;
   pnlPercent: number;
+  // Present on runs from the simulation engine.
+  fees?: number;
+  rMultiple?: number | null;
+  exitType?: string;
+  legs?: number;
 }
 
 interface BacktestResult {
@@ -28,6 +34,24 @@ interface BacktestResult {
   maxDrawdownPercent: number;
   trades: BacktestTrade[];
   equityCurve: number[];
+  // Full-run metrics. Absent on legacy runs (saved before the simulation engine).
+  metrics?: StoredBacktestMetrics;
+}
+
+const EXIT_LABELS: Record<string, string> = {
+  stop: "Stop",
+  "trailing-stop": "Trailing stop",
+  target: "Target",
+  signal: "Signal",
+  time: "Time",
+  "end-of-data": "End of data",
+};
+
+const money = (n: number) => `${n < 0 ? "−" : ""}$${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+function profitFactorLabel(m: StoredBacktestMetrics): string {
+  if (m.profitFactorInfinite) return "∞";
+  return m.profitFactor === null ? "—" : m.profitFactor.toFixed(2);
 }
 
 export default function BacktestTab({ addNotification }: { addNotification: (msg: string, type: "success" | "error") => void }) {
@@ -121,8 +145,7 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
     const ctx = chartRef.current.getContext("2d");
     if (!ctx) return;
 
-    const labels = res.equityCurve.map((_, i) => `Trade ${i}`);
-
+    const labels = res.equityCurve.map(() => "");
 
     chartInstance.current = new Chart(ctx, {
       type: "line",
@@ -343,7 +366,7 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
                     <Target size={20} />
                   </div>
                   <div>
-                    <p className="text-xs text-mist">Simulated trades</p>
+                    <p className="text-xs text-mist">Round trips</p>
                     <h4 className="text-lg font-bold tracking-tight text-paper">
                       {activeResult.totalTrades}
                     </h4>
@@ -364,6 +387,36 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
 
               </div>
 
+              {activeResult.metrics ? (
+                <div className="flex flex-col gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px overflow-hidden rounded-lg border border-rule bg-rule">
+                    {[
+                      ["Profit factor", profitFactorLabel(activeResult.metrics)],
+                      ["Expectancy", activeResult.metrics.expectancy === null ? "—" : money(activeResult.metrics.expectancy)],
+                      ["Average R", activeResult.metrics.avgR === null ? "—" : `${activeResult.metrics.avgR.toFixed(2)}R`],
+                      ["Fees paid", money(activeResult.metrics.totalFees)],
+                      ["Net P&L", money(activeResult.metrics.netPnl)],
+                      ["Time in market", `${activeResult.metrics.exposurePercent.toFixed(1)}%`],
+                    ].map(([label, value]) => (
+                      <div key={label} className="bg-deck px-4 py-3">
+                        <p className="text-xs text-mist">{label}</p>
+                        <p className="mt-0.5 text-[15px] font-semibold tabular-nums text-paper">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {activeResult.metrics.endOfDataExits > 0 && (
+                    <p className="text-xs text-mist">
+                      {activeResult.metrics.endOfDataExits === 1 ? "1 round trip was" : `${activeResult.metrics.endOfDataExits} round trips were`} still open when the data ended and{" "}
+                      {activeResult.metrics.endOfDataExits === 1 ? "was" : "were"} closed at the last candle&apos;s close.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="rounded-lg border border-rule bg-deck px-4 py-3 text-xs text-mist">
+                  Legacy run: saved before the current backtest engine. Its figures count partial take-profits as separate trades and only its last 100 trades were kept, so it isn&apos;t directly comparable with newer runs.
+                </p>
+              )}
+
               {/* Equity curve charting */}
               <Card className="bg-deck p-6 border border-rule">
                 <div className="flex justify-between items-center mb-5">
@@ -377,7 +430,12 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
 
               {/* Trade Log list */}
               <Card className="bg-deck border-slate-800 p-6">
-                <h4 className="font-display text-md font-bold text-paper mb-6">Simulation Trades Log (Last 100)</h4>
+                <h4 className="font-display text-md font-bold text-paper mb-6">
+                  {activeResult.metrics ? "Round trips" : "Simulation trades"}
+                  {activeResult.totalTrades > activeResult.trades.length && (
+                    <span className="ml-2 text-xs font-medium text-mist">last {activeResult.trades.length} of {activeResult.totalTrades}</span>
+                  )}
+                </h4>
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
@@ -389,6 +447,7 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
                         <th className="pb-3.5">Exit time</th>
                         <th className="pb-3.5">Exit price</th>
                         <th className="pb-3.5">Quantity</th>
+                        <th className="pb-3.5">Exit</th>
                         <th className="pb-3.5 pr-4 text-right">PnL ($ / %)</th>
                       </tr>
                     </thead>
@@ -410,6 +469,10 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
                             <td>{trade.exitTime}</td>
                             <td>${trade.exitPrice.toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
                             <td>{trade.quantity.toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
+                            <td className="text-mist">
+                              {trade.exitType ? EXIT_LABELS[trade.exitType] ?? trade.exitType : "—"}
+                              {trade.legs !== undefined && trade.legs > 1 && <span className="ml-1 text-[10px]">({trade.legs} legs)</span>}
+                            </td>
                             <td className={`pr-4 text-right font-semibold ${trade.pnl >= 0 ? "text-emerald-400" : "text-rose-500"}`}>
                               ${trade.pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               <span className="text-[10px] opacity-75 font-medium ml-1">
@@ -420,7 +483,7 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={7} className="py-8 text-center text-slate-500 font-medium">
+                          <td colSpan={8} className="py-8 text-center text-slate-500 font-medium">
                             No trades executed in this simulation.
                           </td>
                         </tr>

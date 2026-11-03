@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import {
   IndicatorExpression,
   STRATEGY_TEMPLATES,
@@ -26,6 +27,9 @@ import StrategyPreview from "./StrategyPreview";
 import StrategyValidationPanel from "./StrategyValidationPanel";
 import StrategyVersionSelector from "./StrategyVersionSelector";
 import StrategyChart from "./StrategyChart";
+import RunBacktestDialog from "@/components/backtests/RunBacktestDialog";
+import StrategyBacktestsPanel from "@/components/backtests/StrategyBacktestsPanel";
+import type { Instrument } from "@/domain/market-data/types";
 
 interface StrategyBuilderProps {
   strategyId?: string;
@@ -58,7 +62,26 @@ export default function StrategyBuilder({ strategyId: initialStrategyId, initial
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
+  const [backtestVersion, setBacktestVersion] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Same query key as the metadata form's instrument picker, so this is shared.
+  const instrumentsQuery = useQuery({
+    queryKey: ["instruments"],
+    queryFn: () => fetchJson<{ instruments: Instrument[] }>("/api/instruments"),
+  });
+  // Opened from a new strategy's first save (see openBacktest).
+  useEffect(() => {
+    if (!strategyId) return;
+    const v = Number(new URLSearchParams(window.location.search).get("backtest"));
+    if (Number.isInteger(v) && v > 0) {
+      setBacktestVersion(v);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, [strategyId]);
+
+  const instrument = instrumentsQuery.data?.instruments.find((i) => i.id === definition.market.instrumentId);
+  const isCrypto = instrument?.assetType === "CRYPTO";
 
   const persistVersion = useCallback(
     async (def: StrategyDefinition, changeNote?: string): Promise<{ strategyId: string; version: StrategyVersionRecord }> => {
@@ -81,13 +104,13 @@ export default function StrategyBuilder({ strategyId: initialStrategyId, initial
   );
 
   const afterPersist = useCallback(
-    (newStrategyId: string, version: StrategyVersionRecord, isNew: boolean) => {
+    (newStrategyId: string, version: StrategyVersionRecord, isNew: boolean, query = "") => {
       markSaved(version.definition);
       setVersions((prev) => [version, ...prev]);
       setSelectedVersion(version.version);
       if (isNew) {
         setStrategyId(newStrategyId);
-        router.push(`/strategies/${newStrategyId}/edit`);
+        router.push(`/strategies/${newStrategyId}/edit${query}`);
       }
     },
     [markSaved, router],
@@ -152,6 +175,32 @@ export default function StrategyBuilder({ strategyId: initialStrategyId, initial
       setSaving(false);
     }
   }, [definition, strategyId, persistVersion, afterPersist]);
+
+  // Backtests run against a saved version: save unsaved changes as a new
+  // version first, then backtest the version that's showing.
+  const openBacktest = useCallback(async () => {
+    if (!validation.isReady) {
+      setStatus("Fix the issues in the validation panel before backtesting.");
+      return;
+    }
+    if (strategyId && !isDirty) {
+      setBacktestVersion(selectedVersion);
+      return;
+    }
+    setSaving(true);
+    setStatus(null);
+    try {
+      const wasNew = !strategyId;
+      const { strategyId: id, version } = await persistVersion(definition, "Saved for backtest");
+      // A new strategy moves to its edit page, which reopens the dialog from ?backtest=.
+      afterPersist(id, version, wasNew, wasNew ? `?backtest=${version.version}` : "");
+      if (!wasNew) setBacktestVersion(version.version);
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Failed to save.");
+    } finally {
+      setSaving(false);
+    }
+  }, [validation.isReady, strategyId, isDirty, selectedVersion, persistVersion, definition, afterPersist]);
 
   const applyTemplate = useCallback(
     (build: () => StrategyDefinition) => {
@@ -241,8 +290,11 @@ export default function StrategyBuilder({ strategyId: initialStrategyId, initial
                 Save New Version
               </button>
             )}
-            <button type="button" onClick={saveAndValidate} disabled={saving} className={primaryButtonClass}>
+            <button type="button" onClick={saveAndValidate} disabled={saving} className={secondaryButtonClass}>
               Save &amp; Validate
+            </button>
+            <button type="button" onClick={openBacktest} disabled={saving} className={primaryButtonClass}>
+              Backtest
             </button>
           </div>
         </div>
@@ -292,7 +344,7 @@ export default function StrategyBuilder({ strategyId: initialStrategyId, initial
           </div>
           <div className={sectionClass}>
             <h2 className={sectionTitleClass}>Trading session</h2>
-            <TradingSessionEditor value={definition.session} onChange={(session) => setDefinition({ ...definition, session })} />
+            <TradingSessionEditor allWeek={isCrypto} value={definition.session} onChange={(session) => setDefinition({ ...definition, session })} />
           </div>
           {strategyId && versions.length > 0 && (
             <div className={sectionClass}>
@@ -302,6 +354,23 @@ export default function StrategyBuilder({ strategyId: initialStrategyId, initial
           )}
         </div>
       </div>
+
+      {strategyId && (
+        <div className={sectionClass}>
+          <h2 className={sectionTitleClass}>Backtests</h2>
+          <StrategyBacktestsPanel strategyId={strategyId} />
+        </div>
+      )}
+
+      {strategyId && backtestVersion != null && (
+        <RunBacktestDialog
+          strategyId={strategyId}
+          version={backtestVersion}
+          symbol={instrument?.symbol ?? definition.market.symbol ?? "—"}
+          timeframe={definition.timeframe}
+          onClose={() => setBacktestVersion(null)}
+        />
+      )}
 
       {showTemplates && (
         <Modal onClose={() => setShowTemplates(false)} title="Choose a template">

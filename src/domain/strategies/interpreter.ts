@@ -66,10 +66,7 @@ function isWithinSession(session: TradingSession | undefined, candle: OHLC): boo
 
   const date = new Date(candle.openTime);
   const dayName = UTC_DAY_NAMES[date.getUTCDay()];
-  if (dayName !== "SUNDAY" && dayName !== "SATURDAY" && !session.days.includes(dayName as (typeof session.days)[number])) {
-    return false;
-  }
-  if (dayName === "SUNDAY" || dayName === "SATURDAY") return false;
+  if (!session.days.includes(dayName)) return false;
 
   const minutesOfDay = date.getUTCHours() * 60 + date.getUTCMinutes();
   if (session.startTime && minutesOfDay < timeToMinutes(session.startTime)) return false;

@@ -30,6 +30,7 @@ interface BacktestResult {
   maxDrawdownPercent: number;
   trades: BacktestTrade[];
   equityCurve: number[];
+  metrics?: unknown; // absent on legacy runs
 }
 
 interface BacktestRunRecord {
@@ -140,6 +141,11 @@ export default function BacktestRunDetailModal({ runId, symbol, onClose }: Backt
 
         {result && (
           <div className="flex flex-col gap-6 min-w-0">
+            {!result.metrics && (
+              <p className="rounded-lg border border-rule bg-deck px-4 py-3 text-xs text-mist">
+                Legacy run: saved before the current backtest engine. Its figures count partial take-profits as separate trades and only its last 100 trades were kept.
+              </p>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <Card className="bg-deck p-5 flex items-center gap-4 border border-rule">
                 <div className="w-10 h-10 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 shrink-0">

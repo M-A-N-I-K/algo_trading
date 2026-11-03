@@ -19,6 +19,7 @@ interface BacktestRunMetrics {
   totalReturnPercent: number;
   maxDrawdownPercent: number;
   testPeriodDays: number | null;
+  legacy?: boolean;
 }
 
 function signedPct(v: number) {
@@ -57,6 +58,7 @@ interface FlatRow {
   totalReturnPercent: number;
   maxDrawdownPercent: number;
   testPeriodDays: number | null;
+  legacy: boolean;
   createdAt: string;
 }
 
@@ -83,6 +85,7 @@ function flatten(runs: BacktestRunAnalyticsRow[]): FlatRow[] {
         totalReturnPercent: r.totalReturnPercent,
         maxDrawdownPercent: r.maxDrawdownPercent,
         testPeriodDays: r.testPeriodDays,
+        legacy: r.legacy ?? true,
         createdAt: run.createdAt,
       });
     }
@@ -373,7 +376,14 @@ export default function StrategyInsightsDashboard({ runs }: { runs: BacktestRunA
                   className="hover:bg-slate-800/10 border-slate-800/40 transition-colors cursor-pointer"
                   onClick={() => setSelectedRun({ runId: r.runId, symbol: r.symbol })}
                 >
-                  <TableCell className="text-paper font-bold py-4 text-sm">{strategyLabel(r.strategyKey)}</TableCell>
+                  <TableCell className="text-paper font-bold py-4 text-sm">
+                    {strategyLabel(r.strategyKey)}
+                    {r.legacy && (
+                      <span className="ml-2 rounded border border-rule px-1.5 py-0.5 text-[10px] font-medium text-mist" title="Saved before the current backtest engine; not directly comparable">
+                        legacy run
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-slate-300 py-4 font-medium text-sm">{r.symbol}</TableCell>
                   <TableCell className="py-4">
                     <span className="inline-flex px-2 py-1 rounded border bg-violet-500/10 text-violet-400 border-violet-500/20 text-xs text-mist">

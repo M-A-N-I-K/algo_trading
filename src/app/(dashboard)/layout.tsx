@@ -17,6 +17,8 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   "/strategies": { title: "Strategies", subtitle: "Build and version rule-based strategies." },
   "/backtest": { title: "Backtests", subtitle: "Run a strategy against historical candles." },
   "/insights": { title: "Backtest insights", subtitle: "Compare every backtest run side by side." },
+  "/markets": { title: "Markets", subtitle: "Live bias, zones, volatility and upcoming events for crypto and commodities." },
+  "/guides": { title: "Guides", subtitle: "Step-by-step playbooks for trading each strategy by hand." },
   "/risk": { title: "Position size", subtitle: "Size a trade from your stop, lot size and costs." },
   "/import": { title: "Sync", subtitle: "Pull closed trades, fees and funding from CoinDCX." },
   "/settings": { title: "Settings", subtitle: "Account size, loss limits and dashboard preferences." },
@@ -81,7 +83,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const meta = PAGE_META[pathname] ?? PAGE_META["/"];
+  // Nested pages (e.g. /guides/smc) use their section's title.
+  const section = Object.keys(PAGE_META)
+    .filter((p) => p !== "/" && (pathname === p || pathname.startsWith(`${p}/`)))
+    .sort((a, b) => b.length - a.length)[0];
+  const meta = PAGE_META[pathname] ?? (section ? PAGE_META[section] : PAGE_META["/"]);
 
   return (
     <div className="flex min-h-screen w-full bg-ink text-paper">

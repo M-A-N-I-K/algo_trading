@@ -8,6 +8,8 @@ import {
   Layers,
   FlaskConical,
   Lightbulb,
+  BookOpen,
+  Activity,
   Ruler,
   ShieldHalf,
   RefreshCw,
@@ -38,6 +40,8 @@ const NAV_GROUPS: { title: string; items: { href: string; label: string; icon: L
       { href: "/strategies", label: "Strategies", icon: Layers },
       { href: "/backtest", label: "Backtests", icon: FlaskConical },
       { href: "/insights", label: "Backtest insights", icon: Lightbulb },
+      { href: "/markets", label: "Markets", icon: Activity },
+      { href: "/guides", label: "Guides", icon: BookOpen },
     ],
   },
   {

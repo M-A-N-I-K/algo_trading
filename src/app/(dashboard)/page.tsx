@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import TradesTable from "@/components/trading-journal/TradesTable";
 import LossLimitBanner from "@/components/trading-journal/LossLimitBanner";
+import LivePulse from "@/components/market-pulse/LivePulse";
 import MarketInsightCard from "@/components/trading-journal/MarketInsightCard";
 import PnlCalendar from "@/components/trading-journal/PnlCalendar";
 import { useDashboard } from "@/components/trading-journal/DashboardContext";
@@ -134,6 +135,11 @@ export default function DashboardPage() {
       <PnlBridge breakdown={m.breakdown} summary={m.summary} fundingEvents={fundingStats.data?.eventCount} />
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+        {show("livePulse") && (
+          <div className="xl:col-span-12">
+            <LivePulse wide />
+          </div>
+        )}
         {show("equity") && (
           <Panel
             className={show("ratios") ? "xl:col-span-8" : "xl:col-span-12"}

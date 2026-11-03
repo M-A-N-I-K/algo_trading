@@ -11,23 +11,10 @@ export interface StrategyCatalogEntry {
 
 export const STRATEGY_CATALOG: StrategyCatalogEntry[] = [
   { value: "macd-200ema-sr", label: "MACD + 200 EMA + S/R" },
-  { value: "supply-demand", label: "Supply & Demand Zones" },
-  { value: "ema-rsi-bollinger", label: "EMA + RSI + Bollinger" },
   { value: "macd-sma-atr", label: "MACD + SMA + ATR" },
-  { value: "trend-following", label: "Dual EMA Trend Follow" },
-  { value: "vwap", label: "VWAP Candle Failure" },
-  { value: "order-block", label: "Order Block" },
-  { value: "4h-range", label: "4-Hour Range Breakout Fade" },
+  { value: "extreme-order-block", label: "Extreme Order Block (Trend Pullback)" },
   { value: "smc", label: "Smart Money Concepts" },
-  { value: "cmf-macd-swing-stop", label: "CMF + MACD Swing-Stop" },
-  { value: "ema-vwap-trend-reclaim", label: "EMA + VWAP Trend Reclaim" },
-  { value: "fib-retracement-continuation", label: "Fibonacci Retracement Continuation" },
-  { value: "ichimoku-long-swing", label: "Ichimoku Cloud Long-Only Swing" },
-  { value: "gold-london-sweep", label: "Gold London Liquidity Sweep" },
   { value: "session-london-bos", label: "Session-Based London Open BOS" },
-  { value: "trend-rsi-engulfing-scalp", label: "Trend + RSI + Engulfing Scalp" },
-  { value: "mtf-choch-fvg", label: "MTF CHoCH + FVG Entry Model" },
-  { value: "xrp-scalping", label: "XRP Scalping" },
 ];
 
 export function strategyLabel(value: string): string {

@@ -22,24 +22,10 @@ const STRATEGY_CHECKLISTS: Record<string, string[]> = {
     "MACD crossover was confirmed on a closed candle",
     "Crossover happened within the trigger window of a support/resistance hit",
   ],
-  "supply-demand": [
-    "Zone formed from a consolidation base + explosive impulse candle",
-    "Price closed back into the zone with a rejection/engulfing candle",
-    "Trade was taken with the prevailing structural trend",
-  ],
-  "ema-rsi-bollinger": [
-    "RSI condition confirmed before entry",
-    "Price was interacting with the Bollinger Band",
-    "EMA trend alignment confirmed",
-  ],
   "macd-sma-atr": [
     "Price was on the correct side of the trend SMA",
     "MACD histogram crossover confirmed",
     "ATR was expanding, not flat/choppy",
-  ],
-  "trend-following": [
-    "Dual EMA alignment confirmed",
-    "Entered with the trend, not against it",
   ],
   "smc": [
     "Liquidity sweep of a prior swing high/low confirmed",
@@ -47,23 +33,12 @@ const STRATEGY_CHECKLISTS: Record<string, string[]> = {
     "FVG was present and unmitigated",
     "Entry taken on a retest of the FVG",
   ],
-  "vwap": [
-    "Candle fully closed through VWAP before reacting (not just a wick)",
-    "Long rejection wick present at VWAP",
-    "VWAP was sloped, not flat, at the time of the setup",
-    "Traded with VWAP's slope direction",
-  ],
-  "order-block": [
-    "Zone was drawn body-to-wick per the rule, not just any candle",
-    "Break of structure was confirmed before drawing the zone",
-    "A full candle close confirmed the reject or retest reaction",
-    "Stop was placed at the zone edge (or midpoint if the zone was oversized)",
-  ],
-  "4h-range": [
-    "First 4-hour NY range had fully closed before marking it",
-    "Breakout candle fully CLOSED outside the range (not just a wick)",
-    "Re-entry candle fully closed back inside the range",
-    "Stop placed at the exact extreme of the breakout excursion",
+  "extreme-order-block": [
+    "Trend confirmed by a break of structure, not by indicators",
+    "Zone was the extreme block at the leg's origin, not the one just before the break",
+    "First return to the zone, and the zone hadn't closed through",
+    "A candle closed back out of the zone in the trend direction before entry",
+    "Target was the impulse extreme and at least 2R",
   ],
 };
 

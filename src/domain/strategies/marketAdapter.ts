@@ -1,5 +1,6 @@
 import { OHLC } from "@/indicators/utils";
 import { Candle } from "@/domain/market-data/types";
+import { TIMEFRAME_MS } from "@/domain/market-data/historicalCandles";
 
 // Adapts the market-data domain's Candle[] (ISO timestamp, one time field)
 // to the indicator library's OHLC[] shape (epoch-ms open/close time). The
@@ -15,7 +16,7 @@ export function candlesToOhlc(candles: Candle[]): OHLC[] {
       low: c.low,
       close: c.close,
       volume: c.volume,
-      closeTime: openTime,
+      closeTime: openTime + TIMEFRAME_MS[c.timeframe] - 1,
     };
   });
 }

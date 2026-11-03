@@ -8,7 +8,7 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAt
 import { AlertTriangle, CheckCircle2, Info, OctagonAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export { Panel, Legend, EmptyState, money, pct, signedNumber, toneClass } from "@/components/viz/shared";
+export { Panel, Legend, EmptyState, money, pct, signedNumber, toneClass, duration } from "@/components/viz/shared";
 
 /* ---------- buttons ---------- */
 

@@ -1,32 +1,8 @@
-import { parseCandlesticks } from "../indicators/utils";
-import {
-  createEmaRsiBollingerStrategy,
-  createMacdSmaAtrStrategy,
-  createTrendFollowingStrategy,
-  createSupplyDemandStrategy,
-  createMacd200EmaSrStrategy,
-  createSmartMoneyConceptsStrategy,
-  createVwapStrategy,
-  createOrderBlockStrategy,
-  createFourHourRangeStrategy,
-} from "../strategies";
-import { OHLC } from "../indicators/utils";
+import { OHLC, parseCandlesticks } from "../indicators/utils";
 import { Strategy } from "../types";
-import { runBacktest } from "./engine";
+import { CODED_STRATEGIES } from "../strategies/registry";
+import { CodedBacktestOptions, runCodedBacktest } from "./codedBacktest";
 import { fetchCandlestickHistory } from "./fetchHistory";
-
-const STRATEGIES: Record<string, (opts?: any) => Strategy> = {
-  "ema-rsi-bollinger": createEmaRsiBollingerStrategy,
-  "macd-sma-atr": createMacdSmaAtrStrategy,
-  "trend-following": createTrendFollowingStrategy,
-  "supply-demand": createSupplyDemandStrategy,
-  "macd-200ema-sr": createMacd200EmaSrStrategy,
-  "smc": createSmartMoneyConceptsStrategy,
-  "smart-money-concepts": createSmartMoneyConceptsStrategy,
-  "vwap": createVwapStrategy,
-  "order-block": createOrderBlockStrategy,
-  "4h-range": createFourHourRangeStrategy,
-};
 
 const MAX_COMBINATIONS = 500;
 
@@ -52,24 +28,16 @@ function runCombo(
   ohlc: OHLC[],
   createStrategy: (opts?: any) => Strategy,
   combo: Record<string, any>,
-  backtestOptions: Parameters<typeof runBacktest>[2],
+  backtestOptions: CodedBacktestOptions,
 ): SweepRow {
-  const strategy = createStrategy(combo);
-  const result = runBacktest(ohlc, strategy, backtestOptions);
-
-  const wins = result.trades.filter((t) => t.pnl > 0);
-  const losses = result.trades.filter((t) => t.pnl <= 0);
-  const grossProfit = wins.reduce((s, t) => s + t.pnl, 0);
-  const grossLoss = losses.reduce((s, t) => s + Math.abs(t.pnl), 0);
-  const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : wins.length > 0 ? Infinity : 0;
-
+  const { metrics: m } = runCodedBacktest(ohlc, createStrategy(combo), backtestOptions);
   return {
     combo,
-    trades: result.trades.length,
-    winRate: result.winRate,
-    profitFactor,
-    totalReturnPercent: result.totalReturnPercent,
-    maxDrawdownPercent: result.maxDrawdownPercent,
+    trades: m.count,
+    winRate: (m.winRate ?? 0) * 100,
+    profitFactor: m.profitFactor ?? 0,
+    totalReturnPercent: m.totalReturnPercent,
+    maxDrawdownPercent: m.maxDrawdownPercent,
   };
 }
 
@@ -81,7 +49,7 @@ async function main() {
   const symbol = process.env.SWEEP_SYMBOL || "BTCUSDT";
   const interval = process.env.SWEEP_INTERVAL || "5m";
   const limit = Number(process.env.SWEEP_LIMIT) || 43200;
-  const strategyKey = process.env.SWEEP_STRATEGY || "4h-range";
+  const strategyKey = process.env.SWEEP_STRATEGY || "macd-sma-atr";
   const gridJson = process.env.SWEEP_GRID;
   const sortBy = (process.env.SWEEP_SORT_BY || "profitFactor") as keyof Omit<SweepRow, "combo">;
   const topN = Number(process.env.SWEEP_TOP) || 20;
@@ -92,14 +60,14 @@ async function main() {
   if (!gridJson) {
     console.error(
       `Set SWEEP_GRID to a JSON object mapping strategy option keys to arrays of values to test, e.g.\n` +
-        `  SWEEP_GRID='{"rewardRiskRatio":[1.5,2,2.5],"wickBodyRatio":[0.3,0.4,0.5]}'`,
+        `  SWEEP_GRID='{"trendSmaPeriod":[50,100,200],"atrPeriod":[10,14,20]}'`,
     );
     return;
   }
 
-  const createStrategy = STRATEGIES[strategyKey];
+  const createStrategy = CODED_STRATEGIES[strategyKey];
   if (!createStrategy) {
-    console.error(`Unknown strategy "${strategyKey}". Available: ${Object.keys(STRATEGIES).join(", ")}`);
+    console.error(`Unknown strategy "${strategyKey}". Available: ${Object.keys(CODED_STRATEGIES).join(", ")}`);
     return;
   }
 
@@ -144,7 +112,7 @@ async function main() {
 
   const rows = results.slice(0, topN).map((r) => {
     const row: Record<string, any> = { ...r.combo };
-    row["Trades"] = r.trades;
+    row["Round trips"] = r.trades;
     row["Win Rate"] = `${r.winRate.toFixed(2)}%`;
     row["Profit Factor"] = r.profitFactor === Infinity ? "∞" : r.profitFactor.toFixed(3);
     row["Return"] = `${r.totalReturnPercent.toFixed(2)}%`;

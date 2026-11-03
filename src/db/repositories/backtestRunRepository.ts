@@ -1,18 +1,29 @@
 import { prisma } from "@/db/client";
 import { Prisma, BacktestRun as PrismaBacktestRun } from "@prisma/client";
+import type { StoredBacktestMetrics } from "@/domain/backtesting/metrics";
+
+export type { StoredBacktestMetrics };
 
 // The exact per-symbol result shape returned by POST /api/backtest — stored
 // verbatim in `results` so history playback needs no recomputation.
+// The top-level figures repeat `metrics` in the units older views expect
+// (winRate in %). Runs saved before the simulation engine have no `metrics`
+// and only their last 100 trades: views label them "legacy run".
 export interface BacktestRunResult {
   symbol: string;
   strategyName: string;
-  totalTrades: number;
-  winRate: number;
+  totalTrades: number; // round trips
+  winRate: number; // %
   finalBalance: number;
   totalReturnPercent: number;
   maxDrawdownPercent: number;
-  trades: unknown[];
-  equityCurve: number[];
+  trades: unknown[]; // the last 100 round trips, for display
+  equityCurve: number[]; // evenly sampled across the whole run, for display
+  metrics?: StoredBacktestMetrics;
+}
+
+export function isLegacyResult(result: Pick<BacktestRunResult, "metrics">): boolean {
+  return !result.metrics;
 }
 
 export interface BacktestRunSummary {
@@ -101,9 +112,10 @@ export async function listBacktestRunsForUser(userId: string, limit = 50): Promi
 }
 
 export interface TestPeriodStats {
-  // Calendar span from the first trade's entry to the last trade's exit —
-  // answers "how much time did it take to produce this return".
+  // How much time it took to produce this return. New runs: the candle span
+  // tested. Legacy runs: first trade's entry to last stored trade's exit.
   testPeriodDays: number | null;
+  legacy: boolean;
 }
 
 export type BacktestRunMetrics = Omit<BacktestRunResult, "trades" | "equityCurve"> & TestPeriodStats;
@@ -132,7 +144,7 @@ function testPeriodStats(trades: unknown[]): TestPeriodStats {
     if (Number.isFinite(exitMs)) latestExit = Math.max(latestExit, exitMs);
   }
 
-  return { testPeriodDays: latestExit > earliestEntry ? (latestExit - earliestEntry) / 86_400_000 : null };
+  return { testPeriodDays: latestExit > earliestEntry ? (latestExit - earliestEntry) / 86_400_000 : null, legacy: true };
 }
 
 // Same rows as listBacktestRunsForUser, but also includes each symbol's
@@ -150,9 +162,9 @@ export async function listBacktestRunsWithMetricsForUser(userId: string, limit =
 
   return rows.map((row) => {
     const fullResults = row.results as unknown as BacktestRunResult[];
-    const results: BacktestRunMetrics[] = fullResults.map(({ trades, equityCurve, ...metrics }) => ({
-      ...metrics,
-      ...testPeriodStats(trades),
+    const results: BacktestRunMetrics[] = fullResults.map(({ trades, equityCurve, ...rest }) => ({
+      ...rest,
+      ...(rest.metrics ? { testPeriodDays: rest.metrics.testPeriodDays, legacy: false } : testPeriodStats(trades)),
     }));
     return { ...summaryFromRow(row), results };
   });

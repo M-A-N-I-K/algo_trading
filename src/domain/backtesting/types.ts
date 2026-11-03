@@ -1,51 +1,165 @@
-import { Candle } from "@/domain/market-data/types";
-import { StrategyDefinition } from "@/domain/strategies/types";
+import { OHLC } from "@/indicators/utils";
+import { Summary } from "@/lib/journal/metrics";
+import { PositionSizingConfig } from "@/domain/strategies/positionSizing";
 
-export interface BacktestRunConfiguration {
-  instrumentId: string;
-  timeframe: string;
-  from: string; // ISO date
-  to: string; // ISO date
-  initialCapital: number;
+// Vocabulary follows GLOSSARY.md ("Backtesting" section): a backtest yields
+// round trips with legs, exactly like exchange sync, so every journal stat
+// means the same thing for a backtest as for live trading.
+
+export type Side = "LONG" | "SHORT";
+
+export type ExitType = "stop" | "trailing-stop" | "target" | "signal" | "time" | "end-of-data";
+
+// --- Signal source: the seam ------------------------------------------------
+
+export interface PartialExit {
+  price: number;
+  // Fraction (0-1] of the ORIGINAL quantity closed at this price.
+  portion: number;
 }
 
-export interface BacktestTrade {
-  side: "LONG" | "SHORT";
-  entryTime: string;
+export interface TrailingStop {
+  // Start trailing once price has moved this many multiples of initial risk in favour.
+  triggerR: number;
+  // Distance (price units) the stop trails behind the best price of each bar.
+  distance: number;
+}
+
+// Absolute price levels for one position, known once the entry fill price is.
+export interface TradeLevels {
+  stop?: number;
+  target?: number;
+  partials?: PartialExit[];
+  trailing?: TrailingStop;
+}
+
+export interface EntryIntent {
+  side: Side;
+  // Called with the actual entry fill (next bar's open, after slippage).
+  // Return null to abandon the entry.
+  levels(fillPrice: number): TradeLevels | null;
+}
+
+export interface PositionView {
+  side: Side;
+  entryIndex: number;
+  entryTime: number;
   entryPrice: number;
-  exitTime: string;
-  exitPrice: number;
-  quantity: number;
-  fees: number;
-  slippage: number;
-  pnl: number;
-  rMultiple: number | null;
-  mae: number | null; // Maximum Adverse Excursion
-  mfe: number | null; // Maximum Favorable Excursion
 }
 
-export interface BacktestMetrics {
-  totalTrades: number;
-  winRate: number;
-  profitFactor: number;
+export interface Decision {
+  // Open a position at the next bar's open. Ignored while a position is open,
+  // unless it is opposite-side and reverseOnOppositeSignal is on.
+  enter?: EntryIntent;
+  // Close the open position at the next bar's open.
+  exit?: boolean;
+}
+
+export interface PreparedSignalSource {
+  // Called once bar `t` has closed. Must only depend on bars 0..t
+  // (detectLookAhead checks this).
+  decide(t: number, position: PositionView | null): Decision;
+  // Checked at the open of bar `t`, for exits that happen at a clock time.
+  exitAtOpen?(t: number, position: PositionView): boolean;
+}
+
+export interface Guardrails {
+  maxRiskPerTradePercent?: number;
+  maxPositionSizeCapital?: number;
+  maxDailyLossPercent?: number;
+}
+
+export type BacktestPositionSizing = PositionSizingConfig | { type: "EQUITY_PERCENT"; percent: number };
+
+export interface SignalSource {
+  name: string;
+  // Defaults the source brings with it; execution settings override them.
+  sizing?: BacktestPositionSizing;
+  guardrails?: Guardrails;
+  reverseOnOppositeSignal?: boolean;
+  prepare(candles: readonly OHLC[]): PreparedSignalSource;
+}
+
+// --- Execution settings -------------------------------------------------------
+
+export interface ExecutionSettings {
+  initialCapital?: number; // default 10 000
+  feeRate?: number; // per side, on each leg's notional. default 0.0004
+  slippagePercent?: number; // fraction of price, always adverse. default 0
+  maxLeverage?: number; // notional cap = equity × maxLeverage. default 1
+  sizing?: BacktestPositionSizing; // overrides the source's; final default EQUITY_PERCENT 100
+  lotSize?: number;
+  minRiskReward?: number; // skip entries whose target/stop R:R is below this
+  reverseOnOppositeSignal?: boolean; // overrides the source's
+  guardrails?: Guardrails; // merged over the source's
+  // Leading bars that only feed indicators: no entries are decided before the
+  // last of them, and the equity curve and metrics start after them.
+  warmupBars?: number;
+}
+
+// --- Backtest result ------------------------------------------------------------
+
+export interface Leg {
+  barIndex: number;
+  time: number;
+  price: number; // fill, after slippage
+  quantity: number;
+  exitType: ExitType | "partial";
+  grossPnl: number;
+  fee: number;
+}
+
+export interface RoundTrip {
+  side: Side;
+  entryIndex: number;
+  entryTime: number;
+  entryPrice: number;
+  entryFee: number;
+  quantity: number; // original size
+  exitIndex: number;
+  exitTime: number;
+  exitPrice: number; // quantity-weighted average of the legs
+  exitType: ExitType; // how the final leg closed
+  legs: Leg[];
+  grossPnl: number;
+  fees: number; // entry fee + every leg's fee
+  slippage: number; // what slippage cost, across the entry and every leg (≥ 0)
+  funding: number; // always 0 in a backtest
+  netPnl: number; // gross − fees + funding
+  initialStop: number | null;
+  initialRisk: number | null; // |entry − stop| × quantity
+  rMultiple: number | null;
+  mae: number; // worst adverse move × quantity (≥ 0)
+  mfe: number; // best favourable move × quantity (≥ 0)
+}
+
+export interface EquityPoint {
+  time: number;
+  equity: number; // marked to market at the bar's close
+}
+
+export interface BacktestMetrics extends Summary {
+  initialCapital: number;
+  finalEquity: number;
+  netPnl: number;
+  totalFees: number;
   totalReturnPercent: number;
-  maxDrawdownPercent: number;
+  maxDrawdownPercent: number; // from the mark-to-market equity curve, ≥ 0
+  exposurePercent: number; // share of bars with a position open
+  testPeriodDays: number;
+  endOfDataExits: number;
 }
 
 export interface BacktestResult {
-  trades: BacktestTrade[];
-  equityCurve: number[];
-  drawdownCurve: number[];
+  strategyName: string;
+  roundTrips: RoundTrip[];
+  equityCurve: EquityPoint[];
   metrics: BacktestMetrics;
 }
 
-export type BacktestStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
-
-// Foundation-only interface for P0. No implementation runs a strategy
-// configuration against real candle data yet — see engine.ts for the
-// explicit not-implemented placeholder. This exists so the DB schema
-// (Backtest/BacktestTrade), API routes, and UI can be built against a
-// stable contract before the real engine lands in a later phase.
-export interface BacktestEngine {
-  run(strategy: StrategyDefinition, marketData: Candle[], configuration: BacktestRunConfiguration): Promise<BacktestResult>;
+export class BacktestConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BacktestConfigError";
+  }
 }

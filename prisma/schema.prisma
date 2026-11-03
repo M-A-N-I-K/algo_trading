@@ -246,6 +246,7 @@ enum Timeframe {
   M15
   M30
   H1
+  H4
   D1
 }
 
@@ -371,6 +372,8 @@ model Backtest {
   configuration     Json
   // Populated only once status = COMPLETED: { metrics, equityCurve, drawdownCurve }.
   metrics           Json?
+  // Why a FAILED run failed, in words the results page can show.
+  error             String?
   startedAt         DateTime?
   completedAt       DateTime?
   createdAt         DateTime       @default(now())
@@ -400,6 +403,10 @@ model BacktestTrade {
   rMultiple    Decimal? @db.Decimal(10, 4)
   mae          Decimal? @db.Decimal(18, 4) // Maximum Adverse Excursion
   mfe          Decimal? @db.Decimal(18, 4) // Maximum Favorable Excursion
+  // stop | trailing-stop | target | signal | time | end-of-data
+  exitType     String?
+  // Every exit fill of the round trip: [{ time, price, quantity, exitType, grossPnl, fee }]
+  legs         Json?
 
   backtest Backtest @relation(fields: [backtestId], references: [id], onDelete: Cascade)
 

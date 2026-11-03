@@ -1,46 +1,17 @@
 import { parseCandlesticks } from "../indicators/utils";
-import {
-  createEmaRsiBollingerStrategy,
-  createMacdSmaAtrStrategy,
-  createTrendFollowingStrategy,
-  createSupplyDemandStrategy,
-  createMacd200EmaSrStrategy,
-  createSmartMoneyConceptsStrategy,
-  createVwapStrategy,
-  createOrderBlockStrategy,
-  createFourHourRangeStrategy,
-} from "../strategies";
-import { Strategy } from "../types";
-import { BacktestResult, runBacktest } from "./engine";
+import { BacktestResult } from "../domain/backtesting";
+import { CODED_STRATEGIES } from "../strategies/registry";
+import { runCodedBacktest } from "./codedBacktest";
 import { fetchCandlestickHistory } from "./fetchHistory";
 
-const STRATEGIES: Record<string, (opts?: any) => Strategy> = {
-  "ema-rsi-bollinger": createEmaRsiBollingerStrategy,
-  "macd-sma-atr": createMacdSmaAtrStrategy,
-  "trend-following": createTrendFollowingStrategy,
-  "supply-demand": createSupplyDemandStrategy,
-  "macd-200ema-sr": createMacd200EmaSrStrategy,
-  "smc": createSmartMoneyConceptsStrategy,
-  "smart-money-concepts": createSmartMoneyConceptsStrategy,
-  "vwap": createVwapStrategy,
-  "order-block": createOrderBlockStrategy,
-  "4h-range": createFourHourRangeStrategy,
-};
-
-function summarize(label: string, result: BacktestResult) {
-  const wins = result.trades.filter((t) => t.pnl > 0);
-  const losses = result.trades.filter((t) => t.pnl <= 0);
-  const grossProfit = wins.reduce((s, t) => s + t.pnl, 0);
-  const grossLoss = losses.reduce((s, t) => s + Math.abs(t.pnl), 0);
-  const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : wins.length > 0 ? Infinity : 0;
-
+function summarize(label: string, { metrics: m }: BacktestResult) {
   return {
     Window: label,
-    Trades: result.trades.length,
-    "Win Rate": `${result.winRate.toFixed(2)}%`,
-    "Profit Factor": profitFactor === Infinity ? "∞" : profitFactor.toFixed(2),
-    "Total Return": `${result.totalReturnPercent.toFixed(2)}%`,
-    "Max Drawdown": `${result.maxDrawdownPercent.toFixed(2)}%`,
+    "Round trips": m.count,
+    "Win Rate": m.winRate === null ? "–" : `${(m.winRate * 100).toFixed(2)}%`,
+    "Profit Factor": m.profitFactor === null ? "–" : m.profitFactor === Infinity ? "∞" : m.profitFactor.toFixed(2),
+    "Total Return": `${m.totalReturnPercent.toFixed(2)}%`,
+    "Max Drawdown": `${m.maxDrawdownPercent.toFixed(2)}%`,
   };
 }
 
@@ -54,15 +25,15 @@ async function main() {
   const symbol = process.env.WF_SYMBOL || "BTCUSDT";
   const interval = process.env.WF_INTERVAL || "5m";
   const limit = Number(process.env.WF_LIMIT) || 43200;
-  const strategyKey = process.env.WF_STRATEGY || "4h-range";
+  const strategyKey = process.env.WF_STRATEGY || "macd-sma-atr";
   const folds = Math.max(1, Number(process.env.WF_FOLDS) || 1);
   const initialBalance = process.env.WF_INITIAL_BALANCE ? Number(process.env.WF_INITIAL_BALANCE) : 10000;
   const positionSizePercent = Number(process.env.WF_POSITION_SIZE) || 1;
   const maxRiskPercent = process.env.WF_MAX_RISK ? Number(process.env.WF_MAX_RISK) : undefined;
 
-  const createStrategy = STRATEGIES[strategyKey];
+  const createStrategy = CODED_STRATEGIES[strategyKey];
   if (!createStrategy) {
-    console.error(`Unknown strategy "${strategyKey}". Available: ${Object.keys(STRATEGIES).join(", ")}`);
+    console.error(`Unknown strategy "${strategyKey}". Available: ${Object.keys(CODED_STRATEGIES).join(", ")}`);
     return;
   }
 
@@ -101,13 +72,13 @@ async function main() {
     const isCandles = ohlc.slice(isStart, isEnd);
     const oosCandles = ohlc.slice(oosStart, oosEnd);
 
-    const isResult = runBacktest(isCandles, createStrategy(), { initialBalance, positionSizePercent, maxRiskPercent });
-    const oosResult = runBacktest(oosCandles, createStrategy(), { initialBalance, positionSizePercent, maxRiskPercent });
+    const isResult = runCodedBacktest(isCandles, createStrategy(), { initialBalance, positionSizePercent, maxRiskPercent });
+    const oosResult = runCodedBacktest(oosCandles, createStrategy(), { initialBalance, positionSizePercent, maxRiskPercent });
 
     rows.push(summarize(`Fold ${f + 1} — In-Sample`, isResult));
     rows.push(summarize(`Fold ${f + 1} — Out-of-Sample`, oosResult));
 
-    oosReturns.push(oosResult.totalReturnPercent);
+    oosReturns.push(oosResult.metrics.totalReturnPercent);
   }
 
   console.table(rows);

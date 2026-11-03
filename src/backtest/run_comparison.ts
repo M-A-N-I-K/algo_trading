@@ -2,26 +2,13 @@ import axios from "axios";
 import * as fs from "fs";
 import * as path from "path";
 import { parseCandlesticks, OHLC } from "../indicators/utils";
-import {
-  createEmaRsiBollingerStrategy,
-  createMacdSmaAtrStrategy,
-  createTrendFollowingStrategy,
-  createSupplyDemandStrategy,
-  createMacd200EmaSrStrategy,
-  createSmartMoneyConceptsStrategy,
-} from "../strategies";
-import { Strategy, Candlestick } from "../types";
-import { runBacktest, BacktestResult, Trade } from "./engine";
+import { Candlestick } from "../types";
+import { BacktestResult } from "../domain/backtesting";
+import { CODED_STRATEGIES } from "../strategies/registry";
+import { runCodedBacktest } from "./codedBacktest";
 import { intervalToMs } from "./fetchHistory";
 
-const STRATEGIES: Record<string, () => Strategy> = {
-  "ema-rsi-bollinger": createEmaRsiBollingerStrategy,
-  "macd-sma-atr": createMacdSmaAtrStrategy,
-  "trend-following": createTrendFollowingStrategy,
-  "supply-demand": createSupplyDemandStrategy,
-  "macd-200ema-sr": createMacd200EmaSrStrategy,
-  "smc": createSmartMoneyConceptsStrategy,
-};
+const STRATEGY_KEYS = ["macd-sma-atr", "macd-200ema-sr", "smc"];
 
 const SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"];
 const INTERVAL = "15m";
@@ -139,32 +126,25 @@ function calculateDetailedStats(
   strategyName: string,
   result: BacktestResult,
 ): StrategyStats {
-  const trades = result.trades;
-  const totalTrades = trades.length;
-
-  const wins = trades.filter((t) => t.pnl > 0);
-  const losses = trades.filter((t) => t.pnl <= 0);
-
-  const winRate = totalTrades > 0 ? (wins.length / totalTrades) * 100 : 0;
-
-  const grossProfit = wins.reduce((sum, t) => sum + t.pnl, 0);
-  const grossLoss = losses.reduce((sum, t) => sum + Math.abs(t.pnl), 0);
-  const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
-
-  const avgTradePnlUsd = totalTrades > 0 ? trades.reduce((sum, t) => sum + t.pnl, 0) / totalTrades : 0;
-  const avgTradePnlPercent = totalTrades > 0 ? trades.reduce((sum, t) => sum + t.pnlPercent, 0) / totalTrades : 0;
-
-  const maxWinUsd = trades.length > 0 ? Math.max(...trades.map((t) => t.pnl)) : 0;
-  const maxLossUsd = trades.length > 0 ? Math.min(...trades.map((t) => t.pnl)) : 0;
+  const m = result.metrics;
+  const trips = result.roundTrips;
+  const totalTrades = m.count;
+  const winRate = (m.winRate ?? 0) * 100;
+  const profitFactor = m.profitFactor ?? 0;
+  const avgTradePnlUsd = m.expectancy ?? 0;
+  const avgTradePnlPercent =
+    totalTrades > 0 ? trips.reduce((sum, t) => sum + (t.netPnl / (t.entryPrice * t.quantity)) * 100, 0) / totalTrades : 0;
+  const maxWinUsd = trips.length > 0 ? Math.max(...trips.map((t) => t.netPnl)) : 0;
+  const maxLossUsd = trips.length > 0 ? Math.min(...trips.map((t) => t.netPnl)) : 0;
 
   return {
     strategyKey,
     strategyName,
     totalTrades,
     winRate,
-    finalBalance: result.finalBalance,
-    totalReturnPercent: result.totalReturnPercent,
-    maxDrawdownPercent: result.maxDrawdownPercent,
+    finalBalance: m.finalEquity,
+    totalReturnPercent: m.totalReturnPercent,
+    maxDrawdownPercent: m.maxDrawdownPercent,
     profitFactor,
     avgTradePnlUsd,
     avgTradePnlPercent,
@@ -205,11 +185,11 @@ async function main() {
 
       console.log(`[${symbol}] Running strategies against ${ohlc.length} candles...`);
 
-      for (const [key, createStrategy] of Object.entries(STRATEGIES)) {
-        const strategy = createStrategy();
+      for (const key of STRATEGY_KEYS) {
+        const strategy = CODED_STRATEGIES[key]();
         console.log(`[${symbol}] Running backtest for ${strategy.name}...`);
         
-        const result = runBacktest(ohlc, strategy, {
+        const result = runCodedBacktest(ohlc, strategy, {
           initialBalance: INITIAL_BALANCE,
           positionSizePercent: 1, // Committing 100% of balance (or risk-adjusted when SL exists)
           maxRiskPercent: 0.02,   // 2% max risk per trade when SL/TP is defined

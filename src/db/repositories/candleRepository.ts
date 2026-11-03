@@ -1,6 +1,7 @@
 import { prisma } from "@/db/client";
 import { Candle, CandleQuery, Timeframe } from "@/domain/market-data/types";
 import { Candle as PrismaCandle, Timeframe as PrismaTimeframe } from "@prisma/client";
+import type { CandleStore } from "@/domain/market-data/historicalCandles";
 
 // The domain layer uses lowercase timeframe strings ("5m", "1h") for
 // readability in the UI/URLs; Prisma's enum uses uppercase identifiers
@@ -11,6 +12,7 @@ const TIMEFRAME_TO_DB: Record<Timeframe, PrismaTimeframe> = {
   "15m": "M15",
   "30m": "M30",
   "1h": "H1",
+  "4h": "H4",
   "1d": "D1",
 };
 const TIMEFRAME_FROM_DB: Record<PrismaTimeframe, Timeframe> = {
@@ -19,6 +21,7 @@ const TIMEFRAME_FROM_DB: Record<PrismaTimeframe, Timeframe> = {
   M15: "15m",
   M30: "30m",
   H1: "1h",
+  H4: "4h",
   D1: "1d",
 };
 
@@ -78,3 +81,28 @@ export async function findHistoricalCandles(
 }
 
 export { TIMEFRAME_TO_DB, TIMEFRAME_FROM_DB };
+
+// CandleStore for the historical candle source (src/domain/market-data/historicalCandles.ts).
+// Closed candles never change, so a row that already exists is left as is.
+export const prismaCandleStore: CandleStore = {
+  find: (instrumentId, timeframe, from, to) => findHistoricalCandles(instrumentId, timeframe, from, to),
+  async save(candles) {
+    const BATCH = 1000;
+    for (let i = 0; i < candles.length; i += BATCH) {
+      await prisma.candle.createMany({
+        data: candles.slice(i, i + BATCH).map((c) => ({
+          instrumentId: c.instrumentId,
+          timeframe: TIMEFRAME_TO_DB[c.timeframe],
+          timestamp: new Date(c.timestamp),
+          open: c.open,
+          high: c.high,
+          low: c.low,
+          close: c.close,
+          volume: c.volume,
+          isDemo: c.isDemo,
+        })),
+        skipDuplicates: true,
+      });
+    }
+  },
+};

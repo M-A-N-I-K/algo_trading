@@ -1,6 +1,8 @@
 import { z } from "zod";
 
-export const DayOfWeekSchema = z.enum(["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"]);
+export const DayOfWeekSchema = z.enum(["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]);
+export const WEEKDAYS = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"] as const;
+export const ALL_DAYS = [...WEEKDAYS, "SATURDAY", "SUNDAY"] as const;
 export type DayOfWeek = z.infer<typeof DayOfWeekSchema>;
 
 const TimeStringSchema = z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Time must be in HH:MM 24-hour format.");
@@ -13,7 +15,8 @@ const TimeStringSchema = z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Time m
 export const TradingSessionSchema = z.object({
   startTime: TimeStringSchema.optional(),
   endTime: TimeStringSchema.optional(),
-  days: z.array(DayOfWeekSchema).default(["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"]),
+  // Defaults to weekdays; crypto instruments trade all week (see ALL_DAYS).
+  days: z.array(DayOfWeekSchema).default([...WEEKDAYS]),
   sessionType: z.enum(["REGULAR", "CUSTOM"]).default("REGULAR"),
   dateRange: z
     .object({

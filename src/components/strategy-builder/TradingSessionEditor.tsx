@@ -1,24 +1,32 @@
 "use client";
 
-import { DayOfWeek, TradingSession } from "@/domain/strategies";
+import { ALL_DAYS, DayOfWeek, TradingSession, WEEKDAYS } from "@/domain/strategies";
 
 interface TradingSessionEditorProps {
   value?: TradingSession;
   onChange: (value: TradingSession | undefined) => void;
+  // Crypto trades all week, so its session starts with every day selected.
+  allWeek?: boolean;
 }
 
-const ALL_DAYS: DayOfWeek[] = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
-const DAY_LABELS: Record<DayOfWeek, string> = { MONDAY: "Mon", TUESDAY: "Tue", WEDNESDAY: "Wed", THURSDAY: "Thu", FRIDAY: "Fri" };
-
-const DEFAULT_SESSION: TradingSession = { days: ALL_DAYS, sessionType: "REGULAR" };
+const DAY_LABELS: Record<DayOfWeek, string> = {
+  MONDAY: "Mon",
+  TUESDAY: "Tue",
+  WEDNESDAY: "Wed",
+  THURSDAY: "Thu",
+  FRIDAY: "Fri",
+  SATURDAY: "Sat",
+  SUNDAY: "Sun",
+};
 
 const inputClass = "bg-slate-900 border border-slate-800 text-slate-200 px-3 py-2 rounded-lg outline-none text-sm transition-all focus:border-violet-500";
 
-export default function TradingSessionEditor({ value, onChange }: TradingSessionEditorProps) {
+export default function TradingSessionEditor({ value, onChange, allWeek = false }: TradingSessionEditorProps) {
+  const defaultSession: TradingSession = { days: [...(allWeek ? ALL_DAYS : WEEKDAYS)], sessionType: "REGULAR" };
   return (
     <div className="flex flex-col gap-3">
       <label className="flex items-center gap-1.5 text-xs text-slate-500">
-        <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked ? DEFAULT_SESSION : undefined)} />
+        <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked ? defaultSession : undefined)} />
         Restrict trading session
       </label>
 

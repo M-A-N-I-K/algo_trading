@@ -60,28 +60,53 @@ const MAX_PAGINATION_ATTEMPTS = 3;
 // count unchanged. A duplicate id is the only visible symptom, so on any
 // duplicate the whole walk is retried; reconciling a set with a hole in it
 // would corrupt round trips.
+//
+// Retrying alone can't fix rows that tie on the sort key, though: one
+// market order often fills as a dozen fills in the same millisecond, and
+// CoinDCX's order among them isn't stable between page queries, so a page
+// boundary inside that group duplicates and drops rows the same way on
+// every walk. `repair` gets the duplicated rows and returns their full tie
+// groups (fetched some other way); the walk is accepted once nothing is
+// missing — every page was full, so the walked row count is the true total.
 async function fetchAllPages<T>(
   path: string,
   params: Record<string, unknown>,
   idOf: (row: T) => string,
+  repair?: (duplicated: T[]) => Promise<T[]>,
 ): Promise<T[]> {
   for (let attempt = 1; attempt <= MAX_PAGINATION_ATTEMPTS; attempt++) {
-    const rows: T[] = [];
-    for (let page = 1; ; page++) {
-      const raw = await coindcxSignedRequest<T[]>("POST", path, {
-        ...params,
-        page: String(page),
-        size: String(PAGE_SIZE),
-      });
-      if (!raw.length) break;
-      rows.push(...raw);
-      if (raw.length < PAGE_SIZE) break;
+    const rows = await walkPages<T>(path, params);
+    const unique = new Map<string, T>();
+    const duplicated: T[] = [];
+    for (const row of rows) {
+      if (unique.has(idOf(row))) duplicated.push(row);
+      else unique.set(idOf(row), row);
     }
-    if (new Set(rows.map(idOf)).size === rows.length) return rows;
+    if (duplicated.length && repair) {
+      for (const row of await repair(duplicated)) {
+        if (!unique.has(idOf(row))) unique.set(idOf(row), row);
+      }
+    }
+    if (unique.size >= rows.length) return [...unique.values()];
   }
   throw new Error(
     `CoinDCX ${path} returned shifting pages ${MAX_PAGINATION_ATTEMPTS} times in a row; try the sync again.`,
   );
+}
+
+async function walkPages<T>(path: string, params: Record<string, unknown>): Promise<T[]> {
+  const rows: T[] = [];
+  for (let page = 1; ; page++) {
+    const raw = await coindcxSignedRequest<T[]>("POST", path, {
+      ...params,
+      page: String(page),
+      size: String(PAGE_SIZE),
+    });
+    if (!raw.length) break;
+    rows.push(...raw);
+    if (raw.length < PAGE_SIZE) break;
+  }
+  return rows;
 }
 
 interface RawFuturesFill {
@@ -124,7 +149,15 @@ interface RawFuturesWallet {
 export function createHttpCoinDcxClient(): CoinDcxClient {
   return {
     async futuresFills() {
-      const raw = await fetchAllPages<RawFuturesFill>("/exchange/v1/derivatives/futures/trades", {}, (f) => f.fill_id);
+      const path = "/exchange/v1/derivatives/futures/trades";
+      // Same-millisecond fills tie per order, so refetch each affected
+      // order's fills in full via the endpoint's order_id filter.
+      const raw = await fetchAllPages<RawFuturesFill>(path, {}, (f) => f.fill_id, async (duplicated) => {
+        const orderIds = [...new Set(duplicated.map((f) => f.order_id))];
+        const groups = [];
+        for (const orderId of orderIds) groups.push(await walkPages<RawFuturesFill>(path, { order_id: orderId }));
+        return groups.flat();
+      });
       return raw.map((f) => ({
         id: f.fill_id,
         orderId: f.order_id,

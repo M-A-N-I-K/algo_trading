@@ -11,7 +11,7 @@ export const P0_SUPPORTED_ASSET_TYPES: AssetType[] = ["STOCK", "INDEX"];
 // `Timeframe` derives from the const tuple (rather than the tuple being
 // typed as `Timeframe[]`) so Zod's `z.enum(SUPPORTED_TIMEFRAMES)` infers
 // the literal union instead of widening to `string`.
-export const SUPPORTED_TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "1d"] as const;
+export const SUPPORTED_TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"] as const;
 export type Timeframe = (typeof SUPPORTED_TIMEFRAMES)[number];
 
 export interface Instrument {
