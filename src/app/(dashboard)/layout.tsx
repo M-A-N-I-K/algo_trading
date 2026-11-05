@@ -14,9 +14,11 @@ import QueryProvider from "@/components/layout/QueryProvider";
 const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   "/": { title: "Dashboard", subtitle: "Where your P&L comes from, and where it leaks." },
   "/trades": { title: "Journal", subtitle: "Every closed trade, with its notes, tags and checklist." },
+  "/review": { title: "Trade review", subtitle: "An honest look at your trades: what's losing you money and what to change." },
   "/strategies": { title: "Strategies", subtitle: "Build and version rule-based strategies." },
   "/backtest": { title: "Backtests", subtitle: "Run a strategy against historical candles." },
   "/insights": { title: "Backtest insights", subtitle: "Compare every backtest run side by side." },
+  "/signals": { title: "Signals", subtitle: "Live signals from the strategies that have been making money on gold, silver, BTC and ETH." },
   "/markets": { title: "Markets", subtitle: "Live bias, zones, volatility and upcoming events for crypto and commodities." },
   "/guides": { title: "Guides", subtitle: "Step-by-step playbooks for trading each strategy by hand." },
   "/risk": { title: "Position size", subtitle: "Size a trade from your stop, lot size and costs." },

@@ -36,11 +36,28 @@ export interface LedgerRow {
   createdAt: number; // ms
 }
 
+// A stop-market exit order on a position (CoinDCX "tpsl_exit"): either the
+// bracket stop of an entry, or one added to the open position later. It
+// carries no position id, so it's matched to a round trip by symbol, side
+// and time. `stopPrice` is its last value: moving a stop edits the order.
+export interface PositionStop {
+  orderId: string;
+  symbol: string;
+  side: "buy" | "sell"; // the closing side: sell stops a long
+  stopPrice: number;
+  createdAt: number; // ms
+}
+
+export interface FuturesStops {
+  /** entry order id -> stop-loss price attached to that order (bracket-style). */
+  byOrderId: Map<string, number>;
+  positionStops: PositionStop[];
+}
+
 export interface CoinDcxClient {
   futuresFills(): Promise<FuturesFill[]>;
   futuresLedger(): Promise<LedgerRow[]>;
-  /** order id -> stop-loss price attached to that order (bracket-style). */
-  futuresStopLosses(): Promise<Map<string, number>>;
+  futuresStops(): Promise<FuturesStops>;
   /** USDT futures wallet equity: free + locked margin. */
   futuresUsdtBalance(): Promise<number>;
 }
@@ -137,7 +154,13 @@ interface RawLedgerRow {
 
 interface RawFuturesOrder {
   id: string;
+  pair: string;
+  side: "buy" | "sell";
+  order_type: string;
+  stage: string;
+  stop_price: number | null;
   stop_loss_price: number | null;
+  created_at: number;
 }
 
 interface RawFuturesWallet {
@@ -193,17 +216,32 @@ export function createHttpCoinDcxClient(): CoinDcxClient {
       }));
     },
 
-    async futuresStopLosses() {
-      const raw = await fetchAllPages<RawFuturesOrder>(
-        "/exchange/v1/derivatives/futures/orders",
-        { status: "filled" },
-        (o) => o.id,
-      );
-      const stops = new Map<string, number>();
+    async futuresStops() {
+      // Stops added to a position stay "cancelled" when the position is
+      // closed some other way, so both statuses are needed. Like the ledger,
+      // the margin currency defaults to USDT only.
+      const fetchStatus = (status: string) =>
+        fetchAllPages<RawFuturesOrder>(
+          "/exchange/v1/derivatives/futures/orders",
+          { status, margin_currency_short_name: ["INR", "USDT"] },
+          (o) => o.id,
+        );
+      const raw = (await Promise.all([fetchStatus("filled"), fetchStatus("cancelled")])).flat();
+      const byOrderId = new Map<string, number>();
+      const positionStops: PositionStop[] = [];
       for (const order of raw) {
-        if (order.stop_loss_price != null) stops.set(order.id, Number(order.stop_loss_price));
+        if (order.stop_loss_price != null) byOrderId.set(order.id, Number(order.stop_loss_price));
+        if (order.stage === "tpsl_exit" && order.order_type.startsWith("stop") && Number(order.stop_price) > 0) {
+          positionStops.push({
+            orderId: order.id,
+            symbol: normalizeFuturesPair(order.pair),
+            side: order.side,
+            stopPrice: Number(order.stop_price),
+            createdAt: Number(order.created_at),
+          });
+        }
       }
-      return stops;
+      return { byOrderId, positionStops };
     },
 
     async futuresUsdtBalance() {
@@ -222,12 +260,16 @@ export function createInMemoryCoinDcxClient(data: {
   fills?: FuturesFill[];
   ledger?: LedgerRow[];
   stopLosses?: Record<string, number>;
+  positionStops?: PositionStop[];
   usdtBalance?: number;
 }): CoinDcxClient {
   return {
     futuresFills: async () => data.fills ?? [],
     futuresLedger: async () => data.ledger ?? [],
-    futuresStopLosses: async () => new Map(Object.entries(data.stopLosses ?? {})),
+    futuresStops: async () => ({
+      byOrderId: new Map(Object.entries(data.stopLosses ?? {})),
+      positionStops: data.positionStops ?? [],
+    }),
     futuresUsdtBalance: async () => data.usdtBalance ?? 0,
   };
 }

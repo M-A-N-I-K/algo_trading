@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   NotebookPen,
+  Stethoscope,
   Layers,
   FlaskConical,
   Lightbulb,
   BookOpen,
   Activity,
+  Radar,
   Ruler,
   ShieldHalf,
   RefreshCw,
@@ -32,6 +34,7 @@ const NAV_GROUPS: { title: string; items: { href: string; label: string; icon: L
     items: [
       { href: "/", label: "Dashboard", icon: LayoutDashboard },
       { href: "/trades", label: "Journal", icon: NotebookPen },
+      { href: "/review", label: "Trade review", icon: Stethoscope },
     ],
   },
   {
@@ -40,6 +43,7 @@ const NAV_GROUPS: { title: string; items: { href: string; label: string; icon: L
       { href: "/strategies", label: "Strategies", icon: Layers },
       { href: "/backtest", label: "Backtests", icon: FlaskConical },
       { href: "/insights", label: "Backtest insights", icon: Lightbulb },
+      { href: "/signals", label: "Signals", icon: Radar },
       { href: "/markets", label: "Markets", icon: Activity },
       { href: "/guides", label: "Guides", icon: BookOpen },
     ],

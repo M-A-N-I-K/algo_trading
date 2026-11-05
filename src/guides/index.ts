@@ -4,6 +4,9 @@ import { sessionLondonBosGuide } from "./sessionLondonBos";
 import { smartMoneyConceptsGuide } from "./smartMoneyConcepts";
 import { macd200EmaSrGuide } from "./macd200EmaSr";
 import { macdSmaAtrGuide } from "./macdSmaAtr";
+import { perfectEntryGuide } from "./perfectEntry";
+import { liquiditySweepGuide } from "./liquiditySweep";
+import { liquidityReversalGuide } from "./liquidityReversal";
 
 export type { StrategyGuide, GuideStep, GuideDiagram, GuideBacktestRow, DiagramTone } from "./types";
 
@@ -14,6 +17,9 @@ export const STRATEGY_GUIDES: StrategyGuide[] = [
   macd200EmaSrGuide,
   macdSmaAtrGuide,
   extremeOrderBlockGuide,
+  perfectEntryGuide,
+  liquiditySweepGuide,
+  liquidityReversalGuide,
   smartMoneyConceptsGuide,
 ];
 

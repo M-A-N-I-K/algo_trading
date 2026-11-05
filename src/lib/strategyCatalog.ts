@@ -13,6 +13,9 @@ export const STRATEGY_CATALOG: StrategyCatalogEntry[] = [
   { value: "macd-200ema-sr", label: "MACD + 200 EMA + S/R" },
   { value: "macd-sma-atr", label: "MACD + SMA + ATR" },
   { value: "extreme-order-block", label: "Extreme Order Block (Trend Pullback)" },
+  { value: "perfect-entry", label: "Perfect Entry (Context + Confirmation)" },
+  { value: "liquidity-sweep", label: "Liquidity Sweep (Equal Highs/Lows)" },
+  { value: "liquidity-reversal", label: "Liquidity Reversal (Sweep + Shift)" },
   { value: "smc", label: "Smart Money Concepts" },
   { value: "session-london-bos", label: "Session-Based London Open BOS" },
 ];

@@ -1,4 +1,4 @@
-import type { CoinDcxClient, FuturesFill, LedgerRow } from "./client";
+import type { CoinDcxClient, FuturesFill, LedgerRow, PositionStop } from "./client";
 
 // Pure reconciliation of CoinDCX futures activity into round trips.
 //
@@ -13,6 +13,11 @@ import type { CoinDcxClient, FuturesFill, LedgerRow } from "./client";
 // - Funding settlements are attributed to the round trip whose open window
 //   contains them, to the still-open round trip ("open"), or counted as
 //   "unattributed" — never dropped.
+// - The stop is the one attached to the entry order; failing that, the
+//   earliest stop order placed on the position while it was open (a stop
+//   added after entry), if it's still on the losing side of the entry. A
+//   stop already moved to breakeven or beyond says nothing about the risk
+//   taken, so it's ignored.
 //
 // All money fields on RoundTrip are USDT (converted per ledger row at its
 // own price_in_usdt); `netPnlNative` is in the position's margin currency.
@@ -106,8 +111,10 @@ export function reconcileFutures(input: {
   fills: FuturesFill[];
   ledger: LedgerRow[];
   stopLossByOrderId?: Map<string, number>;
+  positionStops?: PositionStop[];
 }): ReconcileResult {
   const stops = input.stopLossByOrderId ?? new Map<string, number>();
+  const positionStops = [...(input.positionStops ?? [])].sort((a, b) => a.createdAt - b.createdAt);
 
   // 1. Per-order ledger totals (an order with several fills has several rows).
   const orderLedger = new Map<string, OrderLedger>();
@@ -237,7 +244,19 @@ export function reconcileFutures(input: {
       }
     }
 
-    const firstStop = d.entries.map((l) => stops.get(l.orderId)).find((s) => s != null) ?? null;
+    const entryStop = d.entries.map((l) => stops.get(l.orderId)).find((s) => s != null) ?? null;
+    const addedStop =
+      entryStop != null
+        ? null
+        : (positionStops.find(
+            (s) =>
+              s.symbol === d.symbol &&
+              s.side === (d.side === "LONG" ? "sell" : "buy") &&
+              s.createdAt >= d.openedAt &&
+              s.createdAt <= (d.closedAt as number) &&
+              (s.stopPrice - entryPrice) * dir < 0,
+          )?.stopPrice ?? null);
+    const firstStop = entryStop ?? addedStop;
     const initialRiskAmount =
       firstStop == null
         ? null
@@ -329,10 +348,14 @@ export function reconcileFutures(input: {
 
 // Fetch everything behind the client seam and reconcile it — no database.
 export async function reconcileFromClient(client: CoinDcxClient) {
-  const [fills, ledger, stopLossByOrderId] = await Promise.all([
+  const [fills, ledger, stops] = await Promise.all([
     client.futuresFills(),
     client.futuresLedger(),
-    client.futuresStopLosses(),
+    client.futuresStops(),
   ]);
-  return { fills, ledger, result: reconcileFutures({ fills, ledger, stopLossByOrderId }) };
+  return {
+    fills,
+    ledger,
+    result: reconcileFutures({ fills, ledger, stopLossByOrderId: stops.byOrderId, positionStops: stops.positionStops }),
+  };
 }

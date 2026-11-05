@@ -151,6 +151,55 @@ describe("reconcileFutures", () => {
     expect(rt.initialRiskAmount).toBeCloseTo(5 + 9);
   });
 
+  it("uses a stop added to the position after entry when the entry order had none", async () => {
+    const stop = (p: { orderId: string; side: "buy" | "sell"; stopPrice: number; createdAt: number; symbol?: string }) => ({
+      symbol: "ETHUSDT",
+      ...p,
+    });
+    const result = await reconcile({
+      fills: [
+        fill({ orderId: "a1", side: "buy", quantity: 2, price: 100, timestamp: 10 }),
+        fill({ orderId: "a2", side: "sell", quantity: 2, price: 110, timestamp: 50 }),
+      ],
+      positionStops: [
+        stop({ orderId: "before", side: "sell", stopPrice: 90, createdAt: 5 }), // before the trade opened
+        stop({ orderId: "other", side: "sell", stopPrice: 91, createdAt: 15, symbol: "BTCUSDT" }),
+        stop({ orderId: "wrongSide", side: "buy", stopPrice: 92, createdAt: 16 }),
+        stop({ orderId: "added", side: "sell", stopPrice: 96, createdAt: 20 }),
+        stop({ orderId: "later", side: "sell", stopPrice: 97, createdAt: 30 }),
+      ],
+    });
+
+    const [rt] = result.roundTrips;
+    expect(rt.stopLoss).toBe(96);
+    expect(rt.initialRiskAmount).toBeCloseTo(8);
+  });
+
+  it("ignores an added stop that's already at breakeven or in profit", async () => {
+    const result = await reconcile({
+      fills: [
+        fill({ orderId: "s1", side: "sell", quantity: 1, price: 100, timestamp: 10 }),
+        fill({ orderId: "s2", side: "buy", quantity: 1, price: 95, timestamp: 50 }),
+      ],
+      positionStops: [{ orderId: "trail", symbol: "ETHUSDT", side: "buy", stopPrice: 99, createdAt: 20 }],
+    });
+
+    expect(result.roundTrips[0].stopLoss).toBeNull();
+  });
+
+  it("prefers the entry order's own stop over a stop order on the position", async () => {
+    const result = await reconcile({
+      fills: [
+        fill({ orderId: "b1", side: "buy", quantity: 1, price: 100, timestamp: 10 }),
+        fill({ orderId: "b2", side: "sell", quantity: 1, price: 110, timestamp: 50 }),
+      ],
+      stopLosses: { b1: 94 },
+      positionStops: [{ orderId: "moved", symbol: "ETHUSDT", side: "sell", stopPrice: 98, createdAt: 11 }],
+    });
+
+    expect(result.roundTrips[0].stopLoss).toBe(94);
+  });
+
   it("falls back to fill prices and fees when an order has no ledger row", async () => {
     const result = await reconcile({
       fills: [

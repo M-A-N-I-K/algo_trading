@@ -6,6 +6,9 @@ import {
   createSmartMoneyConceptsStrategy,
   createSessionLondonOpenBosStrategy,
   createExtremeOrderBlockStrategy,
+  createPerfectEntryStrategy,
+  createLiquiditySweepStrategy,
+  createLiquidityReversalStrategy,
 } from "./index";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each factory takes its own options shape
@@ -20,6 +23,9 @@ export const CODED_STRATEGIES: Record<string, StrategyFactory> = {
   smc: createSmartMoneyConceptsStrategy,
   "session-london-bos": createSessionLondonOpenBosStrategy,
   "extreme-order-block": createExtremeOrderBlockStrategy,
+  "perfect-entry": createPerfectEntryStrategy,
+  "liquidity-sweep": createLiquiditySweepStrategy,
+  "liquidity-reversal": createLiquidityReversalStrategy,
 };
 
 // Strategies whose bias comes from a real higher-timeframe series, fetched
@@ -28,6 +34,7 @@ export const CODED_STRATEGIES: Record<string, StrategyFactory> = {
 export const HIGHER_TIMEFRAME: Record<string, { interval: string; executionInterval?: string }> = {
   "session-london-bos": { interval: "4h" },
   "extreme-order-block": { interval: "1h", executionInterval: "15m" },
+  "perfect-entry": { interval: "4h", executionInterval: "1h" },
 };
 
 export function createCodedStrategy(key: string, htfCandles?: OHLC[]): Strategy | null {
