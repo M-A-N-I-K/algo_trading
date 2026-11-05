@@ -88,13 +88,20 @@ function Level({ label, value, note, tone }: { label: string; value: string; not
 }
 
 const signed = (n: number, digits = 1) => `${n >= 0 ? "+" : ""}${n.toFixed(digits)}%`;
+// How often a strategy traded in its backtest, per week and per month.
+const tradeRate = (s: SignalRow["stats"]) => {
+  const perWeek = s.days > 0 ? s.trades / (s.days / 7) : 0;
+  return { perWeek, perMonth: s.days > 0 ? s.trades / (s.days / 30.44) : 0 };
+};
+const rate = (n: number) => (n >= 10 ? n.toFixed(0) : n.toFixed(1));
+
 const history = (days: number) => (days >= 700 ? `${(days / 365).toFixed(0)} years` : `${Math.round(days / 30)} months`);
 
 function BacktestLine({ row }: { row: SignalRow }) {
   const s = row.stats;
   return (
     <p className="text-xs text-mist">
-      Backtest over {history(s.days)} on {row.symbol}: {s.trades} trades, {s.winRatePct.toFixed(0)}% won, profit factor{" "}
+      Backtest over {history(s.days)} on {row.symbol}: {s.trades} trades (about {rate(tradeRate(s).perMonth)} a month), {s.winRatePct.toFixed(0)}% won, profit factor{" "}
       {s.profitFactor === null ? "—" : s.profitFactor.toFixed(2)}, {signed(s.returnPct)} ({signed(s.annualReturnPct)} a year) vs{" "}
       {signed(s.buyHoldPct)} holding {marketOf(row.symbol).label}, worst drawdown {s.maxDrawdownPct.toFixed(1)}%.
     </p>
@@ -255,6 +262,13 @@ export default function SignalsBoard() {
   const inMarket = useMemo(() => (data?.rows ?? []).filter((r) => market === "all" || r.symbol === market), [data, market]);
   const board = inMarket.filter((r) => r.qualified).sort((a, b) => b.stats.annualReturnPct - a.stats.annualReturnPct);
   const hidden = inMarket.filter((r) => !r.qualified).sort((a, b) => b.stats.annualReturnPct - a.stats.annualReturnPct);
+  const total = board.reduce(
+    (acc, r) => {
+      const t = tradeRate(r.stats);
+      return { perWeek: acc.perWeek + t.perWeek, perMonth: acc.perMonth + t.perMonth };
+    },
+    { perWeek: 0, perMonth: 0 },
+  );
   const fresh = board.filter((r) => r.signal?.status === "new");
   const running = board.filter((r) => r.signal?.status === "open");
   const qualifiedCount = (data?.rows ?? []).filter((r) => r.qualified).length;
@@ -358,7 +372,7 @@ export default function SignalsBoard() {
             <table className={tableClass}>
               <thead>
                 <tr>
-                  {["Market", "Strategy", "TF", "Tested over", "Trades", "Won", "Profit factor", "Per year", "Strategy vs holding", "Max DD", "Latest signal"].map((h) => (
+                  {["Market", "Strategy", "TF", "Tested over", "Trades", "Per week", "Per month", "Won", "Profit factor", "Per year", "Strategy vs holding", "Max DD", "Latest signal"].map((h) => (
                     <th key={h} className={thClass}>{h}</th>
                   ))}
                 </tr>
@@ -373,6 +387,8 @@ export default function SignalsBoard() {
                     <td className={tdClass}><Tag tone="signal">{r.interval}</Tag></td>
                     <td className={`${tdClass} text-fog`}>{history(r.stats.days)}</td>
                     <td className={`${tdClass} tabular-nums`}>{r.stats.trades}</td>
+                    <td className={`${tdClass} tabular-nums`}>{rate(tradeRate(r.stats).perWeek)}</td>
+                    <td className={`${tdClass} tabular-nums`}>{rate(tradeRate(r.stats).perMonth)}</td>
                     <td className={`${tdClass} tabular-nums`}>{r.stats.winRatePct.toFixed(0)}%</td>
                     <td className={`${tdClass} tabular-nums`}>{r.stats.profitFactor === null ? "—" : r.stats.profitFactor.toFixed(2)}</td>
                     <td className={`${tdClass} tabular-nums text-gain-ink`}>{signed(r.stats.annualReturnPct)}</td>
@@ -386,6 +402,10 @@ export default function SignalsBoard() {
                 ))}
               </tbody>
             </table>
+            <p className="mt-3 text-xs text-mist">
+              Taking every signal above: about {rate(total.perWeek)} trades a week, {rate(total.perMonth)} a month (backtest average; real weeks vary,
+              and many have none).
+            </p>
           </div>
         )}
       </Panel>
@@ -401,7 +421,9 @@ export default function SignalsBoard() {
                 <span className="text-paper">
                   {marketOf(r.symbol).label} · {r.strategyName} <span className="text-fog">({r.interval})</span>
                 </span>
-                <span className="text-xs text-fog">{r.reasons.join(" · ")}</span>
+                <span className="text-xs text-fog">
+                  {r.reasons.join(" · ")} · {rate(tradeRate(r.stats).perWeek)} trades a week
+                </span>
               </li>
             ))}
           </ul>
