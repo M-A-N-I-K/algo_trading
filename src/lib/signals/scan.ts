@@ -3,6 +3,7 @@ import { runCodedBacktest } from "@/backtest/codedBacktest";
 import { createCodedStrategy } from "@/strategies/registry";
 import type { Strategy } from "@/types/strategy";
 import type { Side } from "@/domain/backtesting";
+import { assetClass, type AssetClass } from "@/lib/markets/yahoo";
 
 // One strategy on one market: how it did over the cached history, and what
 // it's saying now. Pure: candles in, row out, so it can be tested offline.
@@ -25,7 +26,30 @@ export const QUALIFY_RULE = {
 // A closed trade stays on the board this long after its signal.
 export const RECENT_MS = 3 * 24 * 60 * 60_000;
 
-const BACKTEST_SETTINGS = { initialBalance: 10_000, positionSizePercent: 1, maxRiskPercent: 0.02, feeRate: 0.0004 };
+// What a trade costs and how big it is, per asset class. Strategies are
+// judged at the cost of trading them for real. (The guides quote 0.04%.)
+// - Crypto and metals: the fee CoinDCX actually charges on market (taker)
+//   orders, GST included: 0.05% + 18% = 0.059% per side, read from the
+//   user's own fills. No leverage.
+// - Currency pairs: spread plus commission at a typical ECN broker, about
+//   0.7 pip each way on EUR/USD (0.006%), rounded up to 0.01% per side.
+//   They move about a tenth as much as crypto and are traded on margin, so
+//   they're judged at 10× (a position worth 10× the account).
+// - Indices (Nasdaq 100, S&P 500): an index CFD spread of about 1 point on
+//   the Nasdaq 100 and 0.5 on the S&P (≈0.005%), rounded up to 0.01% per
+//   side. They move roughly a third as much as crypto: judged at 5×.
+// The 2% risk cap still applies to every trade with a stop.
+export const MARKET_COSTS: Record<AssetClass, { feeRate: number; leverage: number }> = {
+  crypto: { feeRate: 0.00059, leverage: 1 },
+  forex: { feeRate: 0.0001, leverage: 10 },
+  index: { feeRate: 0.0001, leverage: 5 },
+};
+export const SIGNAL_FEE_RATE = MARKET_COSTS.crypto.feeRate;
+export const feeRateFor = (symbol: string) => MARKET_COSTS[assetClass(symbol)].feeRate;
+const settingsFor = (symbol: string) => {
+  const { feeRate, leverage } = MARKET_COSTS[assetClass(symbol)];
+  return { initialBalance: 10_000, positionSizePercent: leverage, maxLeverage: leverage, maxRiskPercent: 0.02, feeRate };
+};
 
 export type SignalStatus = "new" | "open" | "target" | "stop" | "closed";
 
@@ -42,6 +66,10 @@ export interface LatestSignal {
   exitPrice: number | null;
   exitTime: number | null;
   rMultiple: number | null; // realised (closed) or marked at the last close (open)
+  // A: a long below the previous week's midpoint or a short above it (full
+  // size); B: the opposite (half size). Null where the grade doesn't apply.
+  // Set by the scanner, see src/lib/plan/weeklyPlan.ts.
+  grade?: "A" | "B" | null;
 }
 
 export interface BacktestStats {
@@ -133,7 +161,7 @@ export function scanStrategy(input: {
     name: strategy.name,
     generateSignals: () => signals,
     ...(targets && { getTradeTargets: () => targets }),
-  }, BACKTEST_SETTINGS);
+  }, settingsFor(symbol));
 
   const m = result.metrics;
   const stats: BacktestStats = {

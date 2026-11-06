@@ -9,6 +9,8 @@ import {
   createPerfectEntryStrategy,
   createLiquiditySweepStrategy,
   createLiquidityReversalStrategy,
+  createLiquidityReversalMtfStrategy,
+  createTopDownStrategy,
 } from "./index";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each factory takes its own options shape
@@ -26,6 +28,8 @@ export const CODED_STRATEGIES: Record<string, StrategyFactory> = {
   "perfect-entry": createPerfectEntryStrategy,
   "liquidity-sweep": createLiquiditySweepStrategy,
   "liquidity-reversal": createLiquidityReversalStrategy,
+  "liquidity-reversal-mtf": createLiquidityReversalMtfStrategy,
+  "top-down": createTopDownStrategy,
 };
 
 // Strategies whose bias comes from a real higher-timeframe series, fetched
@@ -35,6 +39,9 @@ export const HIGHER_TIMEFRAME: Record<string, { interval: string; executionInter
   "session-london-bos": { interval: "4h" },
   "extreme-order-block": { interval: "1h", executionInterval: "15m" },
   "perfect-entry": { interval: "4h", executionInterval: "1h" },
+  "liquidity-reversal-mtf": { interval: "1h", executionInterval: "5m" },
+  // Weekly and daily bias are built from the 1h series.
+  "top-down": { interval: "1h", executionInterval: "5m" },
 };
 
 export function createCodedStrategy(key: string, htfCandles?: OHLC[]): Strategy | null {

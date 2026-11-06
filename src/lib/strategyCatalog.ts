@@ -16,6 +16,8 @@ export const STRATEGY_CATALOG: StrategyCatalogEntry[] = [
   { value: "perfect-entry", label: "Perfect Entry (Context + Confirmation)" },
   { value: "liquidity-sweep", label: "Liquidity Sweep (Equal Highs/Lows)" },
   { value: "liquidity-reversal", label: "Liquidity Reversal (Sweep + Shift)" },
+  { value: "liquidity-reversal-mtf", label: "Liquidity Reversal MTF (1h Setup + 5m Entry)" },
+  { value: "top-down", label: "Top-Down Day Trade (Weekly Bias + 1h Range + 5m Entry)" },
   { value: "smc", label: "Smart Money Concepts" },
   { value: "session-london-bos", label: "Session-Based London Open BOS" },
 ];

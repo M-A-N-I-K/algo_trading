@@ -214,9 +214,12 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
               type="text"
               value={symbol}
               onChange={(e) => setSymbol(e.target.value)}
-              placeholder="BTCUSDT,ETHUSDT"
+              placeholder="BTCUSDT,ETHUSDT or EURUSD,NAS100"
               className={inputClass}
             />
+            <p className="text-xs leading-snug text-mist">
+              Currency pairs: EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD. Indices: NAS100 (Nasdaq 100), SPX500 (S&amp;P 500), from the futures. They have 2 years of 1h and 4h history but only 60 days below 1h.
+            </p>
           </div>
 
           <div className="flex flex-col gap-1.5">

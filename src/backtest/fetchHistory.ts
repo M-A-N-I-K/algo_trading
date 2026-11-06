@@ -1,5 +1,6 @@
 import { getCandleSticks } from "../tools/getCandlesticks";
 import { Candlestick } from "../types";
+import { fetchYahooCandles, isYahooMarket } from "../lib/markets/yahoo";
 
 const MAX_LIMIT_PER_REQUEST = 1000;
 
@@ -34,6 +35,13 @@ export async function fetchCandlestickHistory(
   interval: string,
   totalCandles: number,
 ): Promise<Candlestick[]> {
+  if (isYahooMarket(symbol)) {
+    // One request covers the whole span. Forex and index futures shut from
+    // Friday night to Sunday night, so look back ~1.45× as far to get `totalCandles` bars.
+    const span = totalCandles * intervalToMs(interval) * 1.45 + 4 * 24 * 60 * 60_000;
+    return (await fetchYahooCandles(symbol, interval, Date.now() - span)).slice(-totalCandles);
+  }
+
   const allCandles: Candlestick[] = [];
   let cursor = Date.now() - totalCandles * intervalToMs(interval);
 

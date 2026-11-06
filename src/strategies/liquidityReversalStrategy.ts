@@ -26,7 +26,7 @@ export interface LiquidityReversalOptions {
   maxSetupBars?: number;
 }
 
-interface Swing {
+export interface Swing {
   price: number;
   idx: number;
 }
@@ -36,6 +36,154 @@ interface Hit {
   stop: number;
   target: number;
 }
+
+// A setup that has swept liquidity and shifted structure: the demand zone
+// runs from the sweep low up to zoneTop. Emitted on bar `at` (the candle
+// that closed through the break-of-structure level).
+export interface BrokenSetup {
+  at: number;
+  lowIdx: number;
+  low: number;
+  zoneTop: number;
+}
+
+type ScanConfig = Required<LiquidityReversalOptions>;
+
+// The long-side state machine, one bar at a time. step(t) only reads
+// candles[0..t], so a caller can feed bars as they close (the multi-
+// timeframe strategy steps the 1h series alongside its 5m one).
+export function createLongScanner(candles: OHLC[], atrValues: number[], cfg: ScanConfig, onBroken?: (s: BrokenSetup) => void) {
+  const { swingLookback: k, liquidity, equalTolAtr, poolLookback, obSearchBars, stopBufferAtr, minRr, targetLookback, maxSetupBars } = cfg;
+  const highs: Swing[] = [];
+  const lows: Swing[] = [];
+  const pools: { level: number; createdAt: number; swept: boolean }[] = [];
+  const hits: Hit[] = [];
+
+  type Setup =
+    | { phase: "swept"; at: number; lowIdx: number; low: number }
+    | { phase: "broken"; at: number; lowIdx: number; low: number; zoneTop: number; touched: boolean };
+  let setup: Setup | null = null;
+
+  const isSwing = (r: number, kind: "high" | "low") => {
+    for (let j = r - k; j <= r + k; j++) {
+      if (j === r) continue;
+      if (kind === "high" ? candles[j].high >= candles[r].high : candles[j].low <= candles[r].low) return false;
+    }
+    return true;
+  };
+  const lowestBetween = (a: number, b: number) => {
+    let m = Infinity;
+    for (let j = a + 1; j < b; j++) m = Math.min(m, candles[j].low);
+    return m;
+  };
+  const highestAfter = (a: number, t: number) => {
+    let m = -Infinity;
+    for (let j = a + 1; j <= t; j++) m = Math.max(m, candles[j].high);
+    return m;
+  };
+
+  function step(t: number) {
+    const c = candles[t];
+    const r = t - k;
+    if (r >= k) {
+      if (isSwing(r, "high")) highs.push({ price: candles[r].high, idx: r });
+      if (isSwing(r, "low")) {
+        const s = { price: candles[r].low, idx: r };
+        if (liquidity === "swing") {
+          pools.push({ level: s.price, createdAt: t, swept: false });
+        } else {
+          const tol = equalTolAtr * atrValues[t];
+          for (let i = lows.length - 1; i >= 0 && lows[i].idx >= r - poolLookback; i--) {
+            const o = lows[i];
+            const level = Math.min(o.price, s.price);
+            // Equal, and nothing between them traded below the pair.
+            if (Number.isFinite(tol) && Math.abs(o.price - s.price) <= tol && lowestBetween(o.idx, r) >= level) {
+              pools.push({ level, createdAt: t, swept: false });
+              break;
+            }
+          }
+        }
+        lows.push(s);
+      }
+    }
+
+    // Progress or drop an existing setup.
+    if (setup) {
+      if (setup.phase === "swept") {
+        if (c.low < setup.low) setup = { ...setup, low: c.low, lowIdx: t };
+        const lowIdx = setup.lowIdx;
+        let bos: Swing | undefined;
+        for (let i = highs.length - 1; i >= 0; i--) {
+          if (highs[i].idx < lowIdx) {
+            bos = highs[i];
+            break;
+          }
+        }
+        if (bos && c.close > bos.price) {
+          // Demand: the last down candle at or just before the sweep low.
+          let zoneTop = candles[lowIdx].high;
+          for (let j = lowIdx; j >= Math.max(0, lowIdx - obSearchBars); j--) {
+            if (candles[j].close < candles[j].open) {
+              zoneTop = candles[j].open;
+              break;
+            }
+          }
+          setup = { phase: "broken", at: t, lowIdx, low: setup.low, zoneTop, touched: false };
+          onBroken?.({ at: t, lowIdx, low: setup.low, zoneTop });
+        } else if (t - setup.at > maxSetupBars) {
+          setup = null;
+        }
+      } else if (t > setup.at) {
+        if (c.close < setup.low || t - setup.at > maxSetupBars) {
+          setup = null;
+        } else {
+          if (c.low <= setup.zoneTop) setup.touched = true;
+          if (setup.touched && c.close > setup.zoneTop) {
+            const entry = c.close;
+            const buffer = stopBufferAtr > 0 ? stopBufferAtr * atrValues[t] : 0;
+            const stop = setup.low - (Number.isFinite(buffer) ? buffer : 0);
+            const risk = entry - stop;
+            let target = Infinity;
+            for (const h of highs) {
+              if (h.idx < t - targetLookback || h.price >= target) continue;
+              if (risk > 0 && h.price - entry >= minRr * risk && highestAfter(h.idx, t) < h.price) target = h.price;
+            }
+            if (Number.isFinite(target)) hits.push({ t, stop, target });
+            setup = null;
+          }
+        }
+      }
+    }
+
+    // Liquidity sweeps. A fresh sweep starts a setup unless one has
+    // already broken structure.
+    for (const pool of pools) {
+      if (pool.swept || pool.createdAt >= t || c.low >= pool.level) continue;
+      pool.swept = true;
+      if (!setup) setup = { phase: "swept", at: t, lowIdx: t, low: c.low };
+      else if (setup.phase === "swept") setup.at = t;
+    }
+  }
+
+  return { step, hits, highs, highestAfter };
+}
+
+export const LIQUIDITY_REVERSAL_DEFAULTS: ScanConfig = {
+  swingLookback: 3,
+  atrPeriod: 14,
+  liquidity: "equal",
+  equalTolAtr: 0.1,
+  poolLookback: 100,
+  obSearchBars: 10,
+  stopBufferAtr: 0.1,
+  minRr: 2,
+  targetLookback: 200,
+  maxSetupBars: 48,
+};
+
+// Price negated: a downtrend read upside down is an uptrend.
+export const flipCandles = (candles: OHLC[]): OHLC[] =>
+  candles.map((c) => ({ ...c, open: -c.open, high: -c.low, low: -c.high, close: -c.close }));
 
 // Liquidity reversal: sweep -> change of structure -> enter from the zone.
 //
@@ -52,134 +200,14 @@ interface Hit {
 // The long logic runs on the candles as-is, the short logic on the candles
 // negated (a downtrend read upside down is an uptrend).
 export function createLiquidityReversalStrategy(options: LiquidityReversalOptions = {}): Strategy {
-  const {
-    swingLookback = 3,
-    atrPeriod = 14,
-    liquidity = "equal",
-    equalTolAtr = 0.1,
-    poolLookback = 100,
-    obSearchBars = 10,
-    stopBufferAtr = 0.1,
-    minRr = 2,
-    targetLookback = 200,
-    maxSetupBars = 48,
-  } = options;
+  const cfg: ScanConfig = { ...LIQUIDITY_REVERSAL_DEFAULTS, ...options };
 
   let computedTargets: (TradeTarget | null)[] = [];
 
   function scanLongs(candles: OHLC[], atrValues: number[]): Hit[] {
-    const n = candles.length;
-    const k = swingLookback;
-    const highs: Swing[] = [];
-    const lows: Swing[] = [];
-    const pools: { level: number; createdAt: number; swept: boolean }[] = [];
-    const hits: Hit[] = [];
-
-    type Setup =
-      | { phase: "swept"; at: number; lowIdx: number; low: number }
-      | { phase: "broken"; at: number; lowIdx: number; low: number; zoneTop: number; touched: boolean };
-    let setup: Setup | null = null;
-
-    const isSwing = (r: number, kind: "high" | "low") => {
-      for (let j = r - k; j <= r + k; j++) {
-        if (j === r) continue;
-        if (kind === "high" ? candles[j].high >= candles[r].high : candles[j].low <= candles[r].low) return false;
-      }
-      return true;
-    };
-    const lowestBetween = (a: number, b: number) => {
-      let m = Infinity;
-      for (let j = a + 1; j < b; j++) m = Math.min(m, candles[j].low);
-      return m;
-    };
-    const highestAfter = (a: number, t: number) => {
-      let m = -Infinity;
-      for (let j = a + 1; j <= t; j++) m = Math.max(m, candles[j].high);
-      return m;
-    };
-
-    for (let t = 0; t < n; t++) {
-      const c = candles[t];
-      const r = t - k;
-      if (r >= k) {
-        if (isSwing(r, "high")) highs.push({ price: candles[r].high, idx: r });
-        if (isSwing(r, "low")) {
-          const s = { price: candles[r].low, idx: r };
-          if (liquidity === "swing") {
-            pools.push({ level: s.price, createdAt: t, swept: false });
-          } else {
-            const tol = equalTolAtr * atrValues[t];
-            for (let i = lows.length - 1; i >= 0 && lows[i].idx >= r - poolLookback; i--) {
-              const o = lows[i];
-              const level = Math.min(o.price, s.price);
-              // Equal, and nothing between them traded below the pair.
-              if (Number.isFinite(tol) && Math.abs(o.price - s.price) <= tol && lowestBetween(o.idx, r) >= level) {
-                pools.push({ level, createdAt: t, swept: false });
-                break;
-              }
-            }
-          }
-          lows.push(s);
-        }
-      }
-
-      // Progress or drop an existing setup.
-      if (setup) {
-        if (setup.phase === "swept") {
-          if (c.low < setup.low) setup = { ...setup, low: c.low, lowIdx: t };
-          const lowIdx = setup.lowIdx;
-          let bos: Swing | undefined;
-          for (let i = highs.length - 1; i >= 0; i--) {
-            if (highs[i].idx < lowIdx) {
-              bos = highs[i];
-              break;
-            }
-          }
-          if (bos && c.close > bos.price) {
-            // Demand: the last down candle at or just before the sweep low.
-            let zoneTop = candles[lowIdx].high;
-            for (let j = lowIdx; j >= Math.max(0, lowIdx - obSearchBars); j--) {
-              if (candles[j].close < candles[j].open) {
-                zoneTop = candles[j].open;
-                break;
-              }
-            }
-            setup = { phase: "broken", at: t, lowIdx, low: setup.low, zoneTop, touched: false };
-          } else if (t - setup.at > maxSetupBars) {
-            setup = null;
-          }
-        } else if (t > setup.at) {
-          if (c.close < setup.low || t - setup.at > maxSetupBars) {
-            setup = null;
-          } else {
-            if (c.low <= setup.zoneTop) setup.touched = true;
-            if (setup.touched && c.close > setup.zoneTop) {
-              const entry = c.close;
-              const buffer = stopBufferAtr > 0 ? stopBufferAtr * atrValues[t] : 0;
-              const stop = setup.low - (Number.isFinite(buffer) ? buffer : 0);
-              const risk = entry - stop;
-              let target = Infinity;
-              for (const h of highs) {
-                if (h.idx < t - targetLookback || h.price >= target) continue;
-                if (risk > 0 && h.price - entry >= minRr * risk && highestAfter(h.idx, t) < h.price) target = h.price;
-              }
-              if (Number.isFinite(target)) hits.push({ t, stop, target });
-              setup = null;
-            }
-          }
-        }
-      }
-
-      // Liquidity sweeps. A fresh sweep starts a setup unless one has
-      // already broken structure.
-      for (const pool of pools) {
-        if (pool.swept || pool.createdAt >= t || c.low >= pool.level) continue;
-        pool.swept = true;
-        if (!setup) setup = { phase: "swept", at: t, lowIdx: t, low: c.low };
-        else if (setup.phase === "swept") setup.at = t;
-      }
-    }
-    return hits;
+    const scanner = createLongScanner(candles, atrValues, cfg);
+    for (let t = 0; t < candles.length; t++) scanner.step(t);
+    return scanner.hits;
   }
 
   return {
@@ -191,8 +219,8 @@ export function createLiquidityReversalStrategy(options: LiquidityReversalOption
       computedTargets = new Array(n).fill(null);
       if (n === 0) return signals;
 
-      const atrValues = atr(candles, atrPeriod);
-      const flipped = candles.map((c) => ({ ...c, open: -c.open, high: -c.low, low: -c.high, close: -c.close }));
+      const atrValues = atr(candles, cfg.atrPeriod);
+      const flipped = flipCandles(candles);
 
       for (const h of scanLongs(candles, atrValues)) {
         signals[h.t] = "BUY";

@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Bell, BellOff } from "lucide-react";
-import { Button, Callout, EmptyState, Panel, Segmented, Tag, tableClass, tdClass, thClass } from "@/components/kit";
+import { Button, Callout, EmptyState, Panel, SelectInput, Tag, tableClass, tdClass, thClass } from "@/components/kit";
+import { assetClass, isForex, isIndex, marketLabel, priceDecimals } from "@/lib/markets/yahoo";
 import { useDashboard } from "@/components/trading-journal/DashboardContext";
 import { fetchJson } from "@/lib/apiClient";
 import { getPulseMarket } from "@/domain/market-pulse/markets";
@@ -16,19 +17,22 @@ const REFRESH_MS = 60_000;
 const NOTIFY_KEY = "signals-notify";
 const SEEN_KEY = "signals-seen";
 
-type ScanResponse = SignalScan & { rule: typeof QUALIFY_RULE };
+type MarketCost = { feeRate: number; leverage: number };
+type ScanResponse = SignalScan & { rule: typeof QUALIFY_RULE; feeRate: number; costs: Record<"crypto" | "forex" | "index", MarketCost> };
 
-const INTERVAL_MS: Record<string, number> = { "15m": 15 * 60_000, "1h": 60 * 60_000, "4h": 4 * 60 * 60_000 };
+const INTERVAL_MS: Record<string, number> = { "5m": 5 * 60_000, "15m": 15 * 60_000, "1h": 60 * 60_000, "4h": 4 * 60 * 60_000 };
 const clock = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
 const dayClock = new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" });
 
+// Markets without a Market Pulse entry get their label from the symbol
+// ("EURUSD" → "EUR/USD") and their decimals from the price or the pair.
 function marketOf(symbol: string) {
   const m = getPulseMarket(symbol);
-  return { label: m?.label ?? symbol, decimals: m?.decimals ?? 2 };
+  return { label: m?.label ?? marketLabel(symbol), decimals: m?.decimals ?? null };
 }
 function px(n: number | null, symbol: string) {
   if (n === null) return "—";
-  const d = marketOf(symbol).decimals;
+  const d = marketOf(symbol).decimals ?? priceDecimals(n, symbol);
   return n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 function distPct(from: number, to: number | null) {
@@ -38,10 +42,10 @@ function ago(ms: number) {
   const mins = Math.max(0, Math.round(ms / 60_000));
   return mins < 60 ? `${mins}m ago` : mins < 1440 ? `${Math.floor(mins / 60)}h ${mins % 60}m ago` : `${Math.floor(mins / 1440)}d ago`;
 }
-// The execution timeframe the strategy's guide teaches ("4h / 15m" → "15m").
+// The execution timeframe the strategy's guide teaches ("4h / 15m" → "15m", "5m (1h setup)" → "5m").
 function guideInterval(key: string) {
   const tf = STRATEGY_GUIDES.find((g) => g.key === key)?.backtest.rows[0]?.timeframe;
-  return tf?.split("/").pop()?.trim() ?? null;
+  return tf?.split("/").pop()?.trim().split(" ")[0] ?? null;
 }
 const signalKey = (row: SignalRow) => `${row.id}:${row.signal?.signalTime}`;
 
@@ -74,6 +78,18 @@ function SideTag({ side }: { side: "LONG" | "SHORT" }) {
     <span className="whitespace-nowrap">
       <Tag tone={side === "LONG" ? "gain" : "loss"}>{side === "LONG" ? "Buy / long" : "Sell / short"}</Tag>
     </span>
+  );
+}
+
+// Grade from the weekly plan: A = with last week's premium/discount, full size.
+// On forex, B-grade trades lost money outright in testing, so skip them.
+function GradeTag({ grade, symbol }: { grade: "A" | "B" | null | undefined; symbol: string }) {
+  if (!grade) return null;
+  const b = isForex(symbol) ? "skip" : "half size";
+  return (
+    <Link href="/plan" title={grade === "A" ? "With last week's location: full size (1% risk)" : `Against last week's location: ${b}`}>
+      <Tag tone={grade === "A" ? "signal" : "fees"}>{grade === "A" ? "A-grade · full size" : `B-grade · ${b}`}</Tag>
+    </Link>
   );
 }
 
@@ -119,6 +135,7 @@ function NewSignalCard({ row, now }: { row: SignalRow; now: number }) {
           <SideTag side={s.side} />
           <span className="font-display text-[17px] font-semibold text-paper">{marketOf(row.symbol).label}</span>
           <span className="text-xs text-fog">{row.symbol}</span>
+          <GradeTag grade={s.grade} symbol={row.symbol} />
         </div>
         <Tag tone="signal">{row.interval} chart only</Tag>
       </div>
@@ -163,7 +180,9 @@ function OpenTradeRow({ row }: { row: SignalRow }) {
       <td className={tdClass}>
         <Link href={`/guides/${row.strategyKey}`} className="hover:underline">{row.strategyName}</Link>
       </td>
-      <td className={tdClass}><SideTag side={s.side} /></td>
+      <td className={tdClass}>
+        <span className="flex flex-wrap gap-1.5"><SideTag side={s.side} /><GradeTag grade={s.grade} symbol={row.symbol} /></span>
+      </td>
       <td className={`${tdClass} tabular-nums`}>{px(s.entry, row.symbol)}</td>
       <td className={`${tdClass} tabular-nums text-loss-ink`}>{px(s.stop, row.symbol)}</td>
       <td className={`${tdClass} tabular-nums text-gain-ink`}>{px(s.target, row.symbol)}</td>
@@ -283,11 +302,13 @@ export default function SignalsBoard() {
               ? `Checked at ${clock.format(data.asOf)} · rechecks every minute while this page is open`
               : query.isError
                 ? "Couldn't reach the scanner. Retrying every minute."
-                : "First check: downloading 6 months of candles for each market…"}
+                : "First check: downloading up to 2 years of candles for each market. This takes a few minutes…"}
           </p>
           {data && (
             <p className="mt-0.5 max-w-[80ch] text-xs leading-relaxed text-fog">
-              Only {qualifiedCount} of {data.rows.length} strategy and market pairs send signals. Each one, backtested over up to{" "}
+              Only {qualifiedCount} of {data.rows.length} strategy and market pairs send signals. Each one, backtested at your real CoinDCX fee
+              ({(data.feeRate * 100).toFixed(3)}% per side; currency pairs at {(data.costs.forex.feeRate * 100).toFixed(2)}% per side for spread and commission
+              with {data.costs.forex.leverage}× leverage, indices at {(data.costs.index.feeRate * 100).toFixed(2)}% with {data.costs.index.leverage}×) over up to{" "}
               {data.historyDays / 365} years (at least {Math.round(data.rule.minDays / 30)} months), took {data.rule.minTrades}+ trades,
               made {data.rule.minAnnualReturnPct}%+ a year with a profit factor of {data.rule.minProfitFactor}+, beat holding the market,
               made money in both halves of the period and never fell more than {data.rule.maxDrawdownPct}%.
@@ -295,16 +316,20 @@ export default function SignalsBoard() {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Segmented
-            label="Market"
-            size="sm"
-            value={market}
-            onChange={setMarket}
-            options={[
-              { value: "all", label: "All" },
-              ...(data?.symbols ?? []).map((s) => ({ value: s, label: marketOf(s).label })),
-            ]}
-          />
+          <SelectInput aria-label="Market" value={market} onChange={(e) => setMarket(e.target.value)} className="w-auto py-1.5 text-[13px]">
+            <option value="all">All markets</option>
+            {[
+              { label: "Crypto and metals", symbols: (data?.symbols ?? []).filter((s) => assetClass(s) === "crypto") },
+              { label: "Currency pairs", symbols: (data?.symbols ?? []).filter(isForex) },
+              { label: "Indices", symbols: (data?.symbols ?? []).filter(isIndex) },
+            ].map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.symbols.map((s) => (
+                  <option key={s} value={s}>{marketOf(s).label}</option>
+                ))}
+              </optgroup>
+            ))}
+          </SelectInput>
           <Button size="sm" variant={notify ? "primary" : "secondary"} onClick={toggleNotify} aria-pressed={notify}>
             {notify ? <Bell size={14} aria-hidden="true" /> : <BellOff size={14} aria-hidden="true" />}
             {notify ? "Alerts on" : "Alert me"}

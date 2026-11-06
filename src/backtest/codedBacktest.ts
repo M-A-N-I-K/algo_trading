@@ -16,6 +16,9 @@ export interface CodedBacktestOptions {
   minRiskRewardRatio?: number;
   feeRate?: number;
   slippagePercent?: number;
+  // Notional cap as a multiple of equity (default 1, no leverage). A
+  // positionSizePercent above 1 needs this raised to take effect.
+  maxLeverage?: number;
 }
 
 export function toExecutionSettings(options: CodedBacktestOptions): ExecutionSettings {
@@ -25,6 +28,7 @@ export function toExecutionSettings(options: CodedBacktestOptions): ExecutionSet
     slippagePercent: options.slippagePercent,
     sizing: { type: "EQUITY_PERCENT", percent: (options.positionSizePercent ?? 1) * 100 },
     minRiskReward: options.minRiskRewardRatio,
+    maxLeverage: options.maxLeverage,
     guardrails: options.maxRiskPercent !== undefined ? { maxRiskPerTradePercent: options.maxRiskPercent * 100 } : undefined,
   };
 }

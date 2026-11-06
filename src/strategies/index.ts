@@ -7,3 +7,5 @@ export * from "./extremeOrderBlockStrategy";
 export * from "./perfectEntryStrategy";
 export * from "./liquiditySweepStrategy";
 export * from "./liquidityReversalStrategy";
+export * from "./liquidityReversalMtfStrategy";
+export * from "./topDownStrategy";

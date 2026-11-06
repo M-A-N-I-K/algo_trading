@@ -2,6 +2,7 @@
 // User.hiddenKpiCards (the column predates the redesign; it now holds
 // section keys). The P&L bridge at the top is always shown.
 export const DASHBOARD_SECTIONS = [
+  { key: "plan", label: "This week's plan" },
   { key: "livePulse", label: "Live pulse" },
   { key: "equity", label: "Equity and drawdown" },
   { key: "ratios", label: "Key ratios" },

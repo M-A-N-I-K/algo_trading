@@ -7,6 +7,8 @@ import { macdSmaAtrGuide } from "./macdSmaAtr";
 import { perfectEntryGuide } from "./perfectEntry";
 import { liquiditySweepGuide } from "./liquiditySweep";
 import { liquidityReversalGuide } from "./liquidityReversal";
+import { liquidityReversalMtfGuide } from "./liquidityReversalMtf";
+import { topDownGuide } from "./topDown";
 
 export type { StrategyGuide, GuideStep, GuideDiagram, GuideBacktestRow, DiagramTone } from "./types";
 
@@ -20,6 +22,8 @@ export const STRATEGY_GUIDES: StrategyGuide[] = [
   perfectEntryGuide,
   liquiditySweepGuide,
   liquidityReversalGuide,
+  liquidityReversalMtfGuide,
+  topDownGuide,
   smartMoneyConceptsGuide,
 ];
 

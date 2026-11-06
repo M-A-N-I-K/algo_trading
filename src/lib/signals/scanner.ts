@@ -4,6 +4,7 @@ import { fetchCandlestickHistory, intervalToMs } from "@/backtest/fetchHistory";
 import { getCandleSticks } from "@/tools/getCandlesticks";
 import { CODED_STRATEGIES, HIGHER_TIMEFRAME } from "@/strategies/registry";
 import { scanStrategy, type SignalRow } from "./scan";
+import { locationGrade } from "@/lib/plan/weeklyPlan";
 
 // Server-side signal scanner for the Signals page. Only strategies that
 // pass QUALIFY_RULE (src/lib/signals/scan.ts) on a market send signals. Every request refreshes
@@ -12,7 +13,31 @@ import { scanStrategy, type SignalRow } from "./scan";
 // Everything lives in memory: the first request after the server starts
 // downloads the full history (about 30 seconds), later ones are quick.
 
-export const SIGNAL_SYMBOLS = ["XAUUSDT", "XAGUSDT", "BTCUSDT", "ETHUSDT"] as const;
+export const SIGNAL_SYMBOLS = [
+  "XAUUSDT",
+  "XAGUSDT",
+  "BTCUSDT",
+  "ETHUSDT",
+  "XRPUSDT",
+  "SOLUSDT",
+  "AVAXUSDT",
+  "DOGEUSDT",
+  "ADAUSDT",
+  "SUIUSDT",
+  "NEARUSDT",
+  "AAVEUSDT",
+  // Currency pairs, from Yahoo Finance (src/lib/markets/yahoo.ts).
+  "EURUSD",
+  "GBPUSD",
+  "USDJPY",
+  "AUDUSD",
+  "USDCAD",
+  "USDCHF",
+  "NZDUSD",
+  // Index futures (Nasdaq 100, S&P 500), also from Yahoo Finance.
+  "NAS100",
+  "SPX500",
+] as const;
 export const SIGNAL_HISTORY_DAYS = Number(process.env.SIGNAL_HISTORY_DAYS) || 730;
 
 const DAY_MS = 24 * 60 * 60_000;
@@ -41,6 +66,8 @@ interface CacheState {
   series: Map<string, OHLC[]>;
   rows: Map<string, { stamp: string; row: SignalRow | null }>;
   inFlight: Promise<SignalScan> | null;
+  // Series downloads in progress, so the plan and the scan share one.
+  loading?: Map<string, Promise<OHLC[]>>;
 }
 
 // On globalThis so dev-mode module reloads don't throw the history away.
@@ -49,7 +76,36 @@ const state: CacheState = (g.__signalScanner ??= { series: new Map(), rows: new 
 
 const closedOnly = (candles: OHLC[], now: number) => candles.filter((c) => c.closeTime < now);
 
-async function refreshSeries(symbol: string, interval: string, now: number): Promise<OHLC[]> {
+function refreshSeries(symbol: string, interval: string, now: number): Promise<OHLC[]> {
+  const key = `${symbol}:${interval}`;
+  const loading = (state.loading ??= new Map());
+  let p = loading.get(key);
+  if (!p) {
+    p = fetchSeries(symbol, interval, now).finally(() => loading.delete(key));
+    loading.set(key, p);
+  }
+  return p;
+}
+
+// The cached closed candles for each symbol on one interval, topped up with
+// any that have closed since. Shared with the weekly plan.
+export async function loadSeries(interval: string, now = Date.now()): Promise<{ series: Map<string, OHLC[]>; errors: string[] }> {
+  const series = new Map<string, OHLC[]>();
+  const errors: string[] = [];
+  await Promise.all(
+    SIGNAL_SYMBOLS.map(async (symbol) => {
+      try {
+        series.set(symbol, await refreshSeries(symbol, interval, now));
+      } catch (e) {
+        errors.push(`${symbol} ${interval}: ${e instanceof Error ? e.message : String(e)}`);
+        series.set(symbol, state.series.get(`${symbol}:${interval}`) ?? []);
+      }
+    }),
+  );
+  return { series, errors };
+}
+
+async function fetchSeries(symbol: string, interval: string, now: number): Promise<OHLC[]> {
   const key = `${symbol}:${interval}`;
   const step = intervalToMs(interval);
   const bars = Math.ceil((SIGNAL_HISTORY_DAYS * DAY_MS) / step);
@@ -95,6 +151,7 @@ async function scan(): Promise<SignalScan> {
     if (htf) intervals.add(htf);
   }
 
+  intervals.add("1h"); // for grading signals
   const errors: string[] = [];
   const series = new Map<string, OHLC[]>();
   await Promise.all(
@@ -135,12 +192,19 @@ async function scan(): Promise<SignalScan> {
         }
         state.rows.set(id, { stamp: row?.qualified ? candleStamp : dayStamp, row });
       }
-      // Signals only ever leave the server for qualified strategies.
-      if (row) rows.push(row.qualified ? row : { ...row, signal: null });
+      // Signals only ever leave the server for qualified strategies, each
+      // graded by where it sits in the previous week's range.
+      if (row) rows.push(row.qualified ? withGrade(row, series.get(`${symbol}:1h`) ?? []) : { ...row, signal: null });
     }
   }
 
   return { asOf: now, symbols: SIGNAL_SYMBOLS, historyDays: SIGNAL_HISTORY_DAYS, rows, errors };
+}
+
+function withGrade(row: SignalRow, h1: OHLC[]): SignalRow {
+  const s = row.signal;
+  if (!s) return row;
+  return { ...row, signal: { ...s, grade: locationGrade(row.symbol, s.side, s.entry, s.signalTime, h1) } };
 }
 
 // Concurrent requests (two tabs, a slow first load) share one scan.
