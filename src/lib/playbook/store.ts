@@ -1,7 +1,7 @@
 import type { PlaybookTrade } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { appError } from "@/lib/errors";
-import { lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_ACCOUNT, PLAYBOOK_RULES, PLAYBOOK_SETUPS, setupById } from "./config";
+import { lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_ACCOUNT, PLAYBOOK_RULES, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "./config";
 import { accountStatus, adherence, hardFailures, preTradeChecks, scorecard, usdPerUnitMove, type Check, type JournalEntry } from "./rules";
 
 // Database side of the playbook journal: loading entries, opening a trade
@@ -40,16 +40,35 @@ export async function loadEntries(userId: string): Promise<JournalEntry[]> {
   return rows.map(toEntry);
 }
 
+/** The prop account as this user has it: the firm's rules plus their P&L from before the playbook. */
+export async function loadAccount(userId: string): Promise<PlaybookAccount> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { playbookPriorPnl: true } });
+  return { ...PLAYBOOK_ACCOUNT, priorPnl: user?.playbookPriorPnl ?? 0 };
+}
+
+/**
+ * Matches the playbook's balance to the platform's: the difference between
+ * the balance entered and the playbook's own closed P&L is P&L from before
+ * the playbook (or from trades not logged here).
+ */
+export async function setPlatformBalance(userId: string, body: Body): Promise<void> {
+  const balance = num(body, "balance")!;
+  if (balance <= 0) throw appError("INVALID_INPUT", "Enter the balance your platform shows.");
+  const closed = await prisma.playbookTrade.aggregate({ where: { userId, status: "CLOSED" }, _sum: { pnl: true } });
+  const priorPnl = balance - PLAYBOOK_ACCOUNT.size - (closed._sum.pnl ?? 0);
+  await prisma.user.update({ where: { id: userId }, data: { playbookPriorPnl: Math.round(priorPnl * 100) / 100 } });
+}
+
 export async function playbookView(userId: string, now = Date.now()) {
-  const entries = await loadEntries(userId);
+  const [entries, account] = await Promise.all([loadEntries(userId), loadAccount(userId)]);
   return {
     asOf: now,
-    account: PLAYBOOK_ACCOUNT,
+    account,
     rules: PLAYBOOK_RULES,
     setups: PLAYBOOK_SETUPS,
     manualChecks: MANUAL_CHECKS,
     mistakes: MISTAKES,
-    status: accountStatus(entries, now),
+    status: accountStatus(entries, now, account),
     open: entries.filter((e) => e.status === "OPEN"),
     closed: entries.filter((e) => e.status === "CLOSED"),
     scorecard: scorecard(entries),
@@ -109,10 +128,11 @@ export async function openTrade(userId: string, body: Body, now = Date.now()): P
   const quantity = lots !== null && lots > 0 ? lots * lotUnits(setup.symbol) : (riskInput ?? 0) / perUnitRisk;
   const riskAmount = quantity * perUnitRisk;
 
-  const entries = await loadEntries(userId);
+  const [entries, account] = await Promise.all([loadEntries(userId), loadAccount(userId)]);
   const checks = preTradeChecks(
     { setupId: setup.id, side, grade, entry, stop, target, riskAmount, signalEntry: num(body, "signalEntry", false), time: entryTime },
     entries,
+    account,
   );
   const ticked = Array.isArray(body.manualChecks) ? new Set((body.manualChecks as unknown[]).map(String)) : new Set<string>();
   for (const m of MANUAL_CHECKS) {

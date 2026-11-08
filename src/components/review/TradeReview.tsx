@@ -139,7 +139,7 @@ export default function TradeReview() {
               </ol>
               <p className="mt-3 text-xs text-mist">
                 Size each trade on the <Link href="/risk" className="underline underline-offset-4">Position size</Link> page, and only take setups
-                from the <Link href="/signals" className="underline underline-offset-4">Signals</Link> page while you rebuild.
+                from the <Link href="/playbook" className="underline underline-offset-4">Playbook</Link> while you rebuild.
               </p>
             </Panel>
           )}
