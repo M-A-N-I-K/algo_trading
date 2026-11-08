@@ -56,6 +56,7 @@ model User {
   backtests       Backtest[]
   backtestRuns    BacktestRun[]
   walletTransactions CoindcxWalletTransaction[]
+  playbookTrades  PlaybookTrade[]
 
   @@map("users")
 }
@@ -438,4 +439,44 @@ model BacktestRun {
 
   @@index([userId, createdAt])
   @@map("backtest_runs")
+}
+
+// A trade taken from the playbook (src/lib/playbook): one of the backtested
+// strategy/market setups, sized and checked against the prop firm's rules
+// before entry, then closed with the platform's real P&L. Open trades live
+// here too, so the pre-trade checks can count open risk and free slots.
+model PlaybookTrade {
+  id             String    @id @default(uuid())
+  userId         String
+  setupId        String    // "<strategy>:<symbol>:<interval>", as in PLAYBOOK_SETUPS
+  symbol         String
+  strategy       String
+  interval       String
+  side           String    // LONG or SHORT
+  grade          String?   // A or B: where entry sat in last week's range
+  status         String    @default("OPEN") // OPEN or CLOSED
+  entryTime      DateTime
+  entryPrice     Float
+  stopLoss       Float
+  takeProfit     Float?
+  quantity       Float     // coins, ounces or units of the base currency
+  lots           Float?
+  riskAmount     Float     // $ lost if the stop is hit
+  checks         Json      // the pre-trade checks as they stood at entry
+  rulesFollowed  Boolean   // no rule broken and every manual check ticked
+  overrideReason String    @default("") // why it was taken anyway
+  exitTime       DateTime?
+  exitPrice      Float?
+  pnl            Float?    // $ from the platform: spread, commission and swap included
+  rMultiple      Float?    // pnl / riskAmount
+  exitReason     String?   // stop, target, breakeven or manual
+  mistakes       String[]  @default([])
+  notes          String    @default("")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("playbook_trades")
 }

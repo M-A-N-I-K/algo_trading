@@ -5,6 +5,7 @@ import { getCandleSticks } from "@/tools/getCandlesticks";
 import { CODED_STRATEGIES, HIGHER_TIMEFRAME } from "@/strategies/registry";
 import { scanStrategy, type SignalRow } from "./scan";
 import { locationGrade } from "@/lib/plan/weeklyPlan";
+import { PLAYBOOK_SETUP_IDS } from "@/lib/playbook/config";
 
 // Server-side signal scanner for the Signals page. Only strategies that
 // pass QUALIFY_RULE (src/lib/signals/scan.ts) on a market send signals. Every request refreshes
@@ -138,6 +139,9 @@ export interface SignalScan {
   symbols: readonly string[];
   historyDays: number;
   rows: SignalRow[];
+  // The playbook's setups with their latest signal whether or not they pass
+  // QUALIFY_RULE: they were picked at prop-firm costs, not CoinDCX's.
+  playbook: SignalRow[];
   errors: string[];
 }
 
@@ -168,6 +172,7 @@ async function scan(): Promise<SignalScan> {
   );
 
   const rows: SignalRow[] = [];
+  const playbook: SignalRow[] = [];
   for (const symbol of SIGNAL_SYMBOLS) {
     for (const { strategyKey, interval } of targets) {
       const candles = series.get(`${symbol}:${interval}`) ?? [];
@@ -190,15 +195,16 @@ async function scan(): Promise<SignalScan> {
           errors.push(`${id}: ${e instanceof Error ? e.message : String(e)}`);
           row = null;
         }
-        state.rows.set(id, { stamp: row?.qualified ? candleStamp : dayStamp, row });
+        state.rows.set(id, { stamp: row?.qualified || PLAYBOOK_SETUP_IDS.has(id) ? candleStamp : dayStamp, row });
       }
       // Signals only ever leave the server for qualified strategies, each
       // graded by where it sits in the previous week's range.
       if (row) rows.push(row.qualified ? withGrade(row, series.get(`${symbol}:1h`) ?? []) : { ...row, signal: null });
+      if (row && PLAYBOOK_SETUP_IDS.has(id)) playbook.push(withGrade(row, series.get(`${symbol}:1h`) ?? []));
     }
   }
 
-  return { asOf: now, symbols: SIGNAL_SYMBOLS, historyDays: SIGNAL_HISTORY_DAYS, rows, errors };
+  return { asOf: now, symbols: SIGNAL_SYMBOLS, historyDays: SIGNAL_HISTORY_DAYS, rows, playbook, errors };
 }
 
 function withGrade(row: SignalRow, h1: OHLC[]): SignalRow {
