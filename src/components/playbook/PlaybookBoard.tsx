@@ -186,7 +186,7 @@ function OpenTrades({ trades, onClose }: { trades: JournalEntry[]; onClose: (t: 
       {trades.length === 0 ? (
         <EmptyState>No open trades.</EmptyState>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className={tableClass}>
             <thead>
               <tr><th className={thClass}>Market</th><th className={thClass}>Setup</th><th className={thClass}>Entry</th><th className={thClass}>Stop</th><th className={thClass}>Target</th><th className={thClass}>Risk</th><th className={thClass}>Opened</th><th className={thClass}><span className="sr-only">Actions</span></th></tr>
@@ -225,7 +225,7 @@ function History({ trades, onEdit }: { trades: JournalEntry[]; onEdit: (t: Journ
       {trades.length === 0 ? (
         <EmptyState>Nothing closed yet. Every closed trade lands here with its R, and feeds the scorecard.</EmptyState>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className={tableClass}>
             <thead>
               <tr><th className={thClass}>Closed</th><th className={thClass}>Market</th><th className={thClass}>Setup</th><th className={thClass}>Result</th><th className={thClass}>P&L</th><th className={thClass}>Exit</th><th className={thClass}>Discipline</th><th className={thClass}><span className="sr-only">Actions</span></th></tr>
@@ -276,7 +276,7 @@ function Scorecard({ view }: { view: PlaybookView }) {
       title="Setup scorecard"
       note="Your live results next to the backtest, in R (profit ÷ amount risked). A setup gets 25 trades before it can be paused: losing streaks of 5 to 7 happened in every backtest and aren't a reason to quit."
     >
-      <div className="overflow-x-auto">
+      <div className="relative overflow-x-auto">
         <table className={tableClass}>
           <thead>
             <tr>
@@ -396,10 +396,8 @@ export default function PlaybookBoard() {
       <AccountPanel view={view} />
       <SignalsPanel onPlan={setPlan} freeSlots={Math.max(0, view.rules.maxOpen - view.status.openCount)} />
       <OpenTrades trades={view.open} onClose={setClosing} />
-      <div className="grid gap-6 xl:grid-cols-[1fr_2fr]">
-        <Discipline view={view} />
-        <Scorecard view={view} />
-      </div>
+      <Discipline view={view} />
+      <Scorecard view={view} />
       <History trades={view.closed} onEdit={setClosing} />
       <RulesPanel view={view} />
       <PlanTradeDialog open={plan !== null} defaults={plan ?? {}} entries={entries} onClose={() => setPlan(null)} />
