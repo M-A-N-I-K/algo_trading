@@ -17,6 +17,7 @@ import {
   ShieldHalf,
   RefreshCw,
   Settings,
+  Target,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -30,6 +31,10 @@ interface SidebarProps {
 
 // Grouped by what the trader is doing, not by how the app is built.
 const NAV_GROUPS: { title: string; items: { href: string; label: string; icon: LucideIcon }[] }[] = [
+  {
+    title: "Trade",
+    items: [{ href: "/playbook", label: "Playbook", icon: Target }],
+  },
   {
     title: "Review",
     items: [
