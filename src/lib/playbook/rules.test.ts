@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PLAYBOOK_SETUPS, setupById } from "./config";
+import { PLAYBOOK_ACCOUNT, PLAYBOOK_SETUPS, setupById } from "./config";
 import {
   accountStatus,
   adherence,
@@ -146,6 +146,19 @@ describe("account status", () => {
     expect(s.openRisk).toBe(25);
     expect(s.roomToFloor).toBe(645);
     expect(s.dailyStopHit).toBe(false);
+  });
+  it("starts from the platform balance when there was P&L before the playbook", () => {
+    // $4,850 on the platform after a $150 loss: the floor stays at $4,400.
+    const account = { ...PLAYBOOK_ACCOUNT, priorPnl: -150 };
+    const s = accountStatus([entry({ riskAmount: 25 })], NOON, account);
+    expect(s.balance).toBe(4850);
+    expect(s.floor).toBe(4400);
+    expect(s.roomToFloor).toBe(425);
+    expect(s.toTarget).toBe(650);
+    expect(s.firmDailyLimit).toBeCloseTo(194);
+    // A loss that touches $4,400 now is $450 away, not $600.
+    expect(status(preTradeChecks(plan({ riskAmount: 25 }), [closed(-425, Date.UTC(2026, 10, 2))], account), "floor")).toBe("fail");
+    expect(status(preTradeChecks(plan({ riskAmount: 25 }), [closed(-425, Date.UTC(2026, 10, 2))]), "floor")).toBe("pass");
   });
   it("stops the day at −2% and flags the target", () => {
     expect(accountStatus([closed(-100)], NOON).dailyStopHit).toBe(true);

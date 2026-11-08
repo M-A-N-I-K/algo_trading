@@ -50,6 +50,11 @@ model User {
   coindcxBalance         Float?
   coindcxBalanceSyncedAt DateTime?
 
+  // P&L on the prop account before trades were logged in the playbook, so
+  // the playbook's balance matches the platform's. Set from the playbook
+  // page by entering the platform balance.
+  playbookPriorPnl Float @default(0)
+
   tradingAccounts TradingAccount[]
   riskProfiles    RiskProfile[]
   strategies      Strategy[]

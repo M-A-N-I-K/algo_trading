@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, CircleAlert, CircleX } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button, Callout, Field, Segmented, SelectInput, TextArea, TextInput, money, signedNumber, toneClass } from "@/components/kit";
-import { lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_SETUPS, setupById } from "@/lib/playbook/config";
+import { lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "@/lib/playbook/config";
 import { hardFailures, pnlUsd, preTradeChecks, riskBudget, sizePosition, usdPerUnitMove, type Check, type Grade, type JournalEntry, type Side } from "@/lib/playbook/rules";
 import { fmtPrice } from "@/lib/plan/weeklyPlan";
 import { cn } from "@/lib/utils";
@@ -70,18 +70,18 @@ export interface PlanDefaults {
   signalEntry?: number | null;
 }
 
-export function PlanTradeDialog({ open, onClose, defaults, entries }: { open: boolean; onClose: () => void; defaults: PlanDefaults; entries: JournalEntry[] }) {
+export function PlanTradeDialog({ open, onClose, defaults, entries, account }: { open: boolean; onClose: () => void; defaults: PlanDefaults; entries: JournalEntry[]; account: PlaybookAccount }) {
   // Remount the form whenever it opens with new defaults.
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className={dialogClass}>
-        {open && <PlanTradeForm key={JSON.stringify(defaults)} defaults={defaults} entries={entries} onDone={onClose} />}
+        {open && <PlanTradeForm key={JSON.stringify(defaults)} defaults={defaults} entries={entries} account={account} onDone={onClose} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function PlanTradeForm({ defaults, entries, onDone }: { defaults: PlanDefaults; entries: JournalEntry[]; onDone: () => void }) {
+function PlanTradeForm({ defaults, entries, account, onDone }: { defaults: PlanDefaults; entries: JournalEntry[]; account: PlaybookAccount; onDone: () => void }) {
   const refresh = useRefresh();
   const [setupId, setSetupId] = useState(defaults.setupId ?? PLAYBOOK_SETUPS[0].id);
   const [side, setSide] = useState<Side>(defaults.side ?? "LONG");
@@ -96,7 +96,7 @@ function PlanTradeForm({ defaults, entries, onDone }: { defaults: PlanDefaults; 
 
   const setup = setupById(setupId)!;
   const g: Grade | null = grade === "none" ? null : grade;
-  const budget = riskBudget(setup.symbol, g);
+  const budget = riskBudget(setup.symbol, g, account);
   const e = n(entry), s = n(stop), t = n(target);
   const suggested = Number.isFinite(e) && Number.isFinite(s) ? sizePosition(setup.symbol, e, s, budget.amount) : null;
   const [lotsText, setLotsText] = useState<string | null>(null); // null = follow the suggestion
@@ -108,10 +108,11 @@ function PlanTradeForm({ defaults, entries, onDone }: { defaults: PlanDefaults; 
     const auto = preTradeChecks(
       { setupId, side, grade: g, entry: e, stop: s, target: Number.isFinite(t) ? t : null, riskAmount, signalEntry: defaults.signalEntry ?? null, time: fromLocalInput(time) },
       entries,
+      account,
     );
     const manual: Check[] = MANUAL_CHECKS.map((m) => ({ id: m.id, label: m.label, status: ticked.has(m.id) ? "pass" : "fail", detail: ticked.has(m.id) ? "Ticked" : "Not ticked yet", hard: true }));
     return [...auto, ...manual];
-  }, [setupId, side, g, e, s, t, riskAmount, defaults.signalEntry, time, entries, ticked]);
+  }, [setupId, side, g, e, s, t, riskAmount, defaults.signalEntry, time, entries, account, ticked]);
   const broken = hardFailures(checks);
 
   const save = useMutation({

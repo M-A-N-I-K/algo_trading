@@ -102,7 +102,7 @@ export default function WeeklyPlanBoard() {
         Updated {timeFmt.format(data.asOf)}, every 5 minutes.
       </p>
 
-      <Panel title="This week's read" note="Across every market on the Signals page.">
+      <Panel title="This week's read" note="Across every market the app scans.">
         <ul className="flex list-disc flex-col gap-1.5 pl-4 text-sm leading-relaxed text-paper marker:text-mist">
           {data.summary.map((s) => (
             <li key={s}>{s}</li>
@@ -111,8 +111,8 @@ export default function WeeklyPlanBoard() {
       </Panel>
 
       <Callout title="How to use this">
-        Take entries only from the <Link href="/signals" className="underline underline-offset-4">Signals</Link> page, then size them by grade.{" "}
-        <span className="text-paper">A-grade</span>: a long below last week&apos;s midpoint or a short above it, so take it at full size (1% risk).{" "}
+        Take entries only from the <Link href="/playbook" className="underline underline-offset-4">Playbook</Link>, which grades and sizes each signal for you.{" "}
+        <span className="text-paper">A-grade</span>: a long below last week&apos;s midpoint or a short above it, so take it at full size (0.5% risk on the prop account).{" "}
         <span className="text-paper">B-grade</span>: the opposite, so take it at half size. Over 2 years of backtests the A-grade trades made a profit factor of 2.10 against 1.44
         for B-grade, in both halves of the window. On currency pairs B-grade trades lost money outright (profit factor 0.72), so skip them there. The weekly and daily trends are shown for context only: waiting for them to agree made the same trades worse.
       </Callout>

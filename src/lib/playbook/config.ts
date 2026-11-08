@@ -20,6 +20,9 @@ export interface PlaybookAccount {
   dailyLossPct: number; // of the day's opening balance
   targetPct: number; // profit target of the current phase
   timeZone: string; // the firm's day boundary (00:00 platform time)
+  // P&L made on the platform before trades were logged here, so the balance
+  // matches the platform's. Set per user from the page (User.playbookPriorPnl).
+  priorPnl: number;
 }
 
 export const PLAYBOOK_ACCOUNT: PlaybookAccount = {
@@ -30,6 +33,7 @@ export const PLAYBOOK_ACCOUNT: PlaybookAccount = {
   targetPct: 10,
   // Platform time is UTC+2 in winter and UTC+3 in summer, the EU switch dates.
   timeZone: "Europe/Athens",
+  priorPnl: 0,
 };
 
 export const PLAYBOOK_RULES = {

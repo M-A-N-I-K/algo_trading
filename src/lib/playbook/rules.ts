@@ -70,8 +70,9 @@ export function minutesFromRollover(ms: number, timeZone = PLAYBOOK_ACCOUNT.time
 
 export interface AccountStatus {
   size: number;
-  balance: number; // starting size plus closed playbook P&L
-  closedPnl: number;
+  balance: number; // starting size + P&L before the playbook + closed playbook P&L
+  priorPnl: number; // P&L on the platform before trades were logged here
+  closedPnl: number; // closed playbook P&L
   floor: number; // equity may never touch this
   roomToFloor: number; // balance − open risk − floor
   today: string;
@@ -103,7 +104,7 @@ export function accountStatus(entries: JournalEntry[], now: number, account: Pla
       if (e.exitTime !== null && platformDay(e.exitTime, account.timeZone) === today) todayPnl += e.pnl;
     }
   }
-  const balance = account.size + closedPnl;
+  const balance = account.size + account.priorPnl + closedPnl;
   const dayOpenBalance = balance - todayPnl;
   const floor = account.size * (1 - account.maxLossPct / 100);
   const ownDailyStop = (account.size * rules.dailyStopPct) / 100;
@@ -111,6 +112,7 @@ export function accountStatus(entries: JournalEntry[], now: number, account: Pla
   return {
     size: account.size,
     balance,
+    priorPnl: account.priorPnl,
     closedPnl,
     floor,
     roomToFloor: balance - openRisk - floor,

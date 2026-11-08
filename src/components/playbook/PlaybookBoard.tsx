@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
-import { Button, Callout, EmptyState, Panel, Stat, Tag, money, signedNumber, tableClass, tdClass, thClass, toneClass } from "@/components/kit";
+import { Button, Callout, EmptyState, Field, Panel, Stat, Tag, TextInput, money, signedNumber, tableClass, tdClass, thClass, toneClass } from "@/components/kit";
 import { fetchJson } from "@/lib/apiClient";
 import { setupById } from "@/lib/playbook/config";
 import type { JournalEntry, RankedSignal, SetupVerdict } from "@/lib/playbook/rules";
@@ -44,19 +44,61 @@ function GradeTag({ grade }: { grade: "A" | "B" | null | undefined }) {
 
 /* ---------- account ---------- */
 
+// Sets the balance to what the platform shows, so the floor, daily limit and
+// target use the real number. Closed balance: open trades aren't included.
+function BalanceEditor({ current, onDone }: { current: number; onDone: () => void }) {
+  const qc = useQueryClient();
+  const [value, setValue] = useState(current.toFixed(2));
+  const save = useMutation({
+    mutationFn: () => fetchJson<PlaybookView>("/api/playbook", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ balance: Number(value) }) }),
+    onSuccess: async (view) => {
+      qc.setQueryData(PLAYBOOK_KEY, view);
+      await qc.invalidateQueries({ queryKey: PLAYBOOK_SIGNALS_KEY });
+      onDone();
+    },
+  });
+  const n = Number(value);
+  return (
+    <form
+      className="mt-5 flex flex-col gap-3 rounded-[10px] border border-rule bg-ink/40 p-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        save.mutate();
+      }}
+    >
+      <Field label="Balance on your platform ($)" htmlFor="pb-balance" hint="The closed balance FundingPips shows, without open trades. Trades you log here are added on top from now on.">
+        <TextInput id="pb-balance" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} className="sm:max-w-48" />
+      </Field>
+      {save.error && <p className="text-[13px] text-loss-ink">{save.error.message}</p>}
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" variant="primary" disabled={!(n > 0) || save.isPending}>{save.isPending ? "Saving…" : "Save balance"}</Button>
+        <Button size="sm" variant="ghost" onClick={onDone}>Cancel</Button>
+      </div>
+    </form>
+  );
+}
+
 function AccountPanel({ view }: { view: PlaybookView }) {
   const s = view.status;
+  const [editing, setEditing] = useState(false);
   const room = s.roomToFloor;
   const floorSpan = s.size - s.floor;
   const todayLeft = s.ownDailyStop + s.todayPnl;
+  const sinceStart = s.balance - s.size;
   return (
     <Panel
       title={view.account.name}
-      note={`$${s.size.toLocaleString()} account. Equity may never touch ${usd(s.floor)} (12% below the start, it never moves) or lose ${view.account.dailyLossPct}% in a day. Counts only trades logged here.`}
+      note={`$${s.size.toLocaleString()} account. Equity may never touch ${usd(s.floor)} (12% below the start, it never moves) or lose ${view.account.dailyLossPct}% in a day.`}
+      aside={!editing && <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>Match platform balance</Button>}
     >
       <div className="grid grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-5">
         <div>
-          <Stat label="Balance" value={usd(s.balance)} note={`${money(s.closedPnl)} closed`} tone={toneClass(s.closedPnl) === "text-fog" ? undefined : toneClass(s.closedPnl)} />
+          <Stat
+            label="Balance"
+            value={usd(s.balance)}
+            note={`${money(sinceStart)} since the start${s.priorPnl !== 0 ? ` (${money(s.priorPnl)} before the playbook)` : ""}`}
+            tone={toneClass(sinceStart) === "text-fog" ? undefined : toneClass(sinceStart)}
+          />
         </div>
         <div>
           <Stat label="Room to the floor" value={usd(room)} note="If every open trade hits its stop" tone={room < floorSpan * 0.4 ? "text-loss-ink" : undefined} />
@@ -75,6 +117,7 @@ function AccountPanel({ view }: { view: PlaybookView }) {
           <Meter value={s.balance - s.size} max={s.targetBalance - s.size} tone="gain" />
         </div>
       </div>
+      {editing && <BalanceEditor current={s.balance} onDone={() => setEditing(false)} />}
       {s.dailyStopHit && (
         <Callout tone="critical" title="Daily stop hit" className="mt-5">
           You&apos;re down {usd(-s.todayPnl)} today. No more trades until the firm&apos;s day resets at 00:00 platform time.
@@ -400,7 +443,7 @@ export default function PlaybookBoard() {
       <Scorecard view={view} />
       <History trades={view.closed} onEdit={setClosing} />
       <RulesPanel view={view} />
-      <PlanTradeDialog open={plan !== null} defaults={plan ?? {}} entries={entries} onClose={() => setPlan(null)} />
+      <PlanTradeDialog open={plan !== null} defaults={plan ?? {}} entries={entries} account={view.account} onClose={() => setPlan(null)} />
       <CloseTradeDialog trade={closing} onClose={() => setClosing(null)} />
     </div>
   );
