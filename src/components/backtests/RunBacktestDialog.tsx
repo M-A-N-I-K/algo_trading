@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Callout, Field, TextInput } from "@/components/kit";
+import { coveredByPlatform } from "@/lib/costs/fundingpips";
 
 const DAY_MS = 86_400_000;
 const isoDate = (ms: number) => new Date(ms).toISOString().slice(0, 10);
@@ -23,7 +24,10 @@ export default function RunBacktestDialog({ strategyId, version, symbol, timefra
   const [from, setFrom] = useState(isoDate(today - 90 * DAY_MS));
   const [to, setTo] = useState(isoDate(today));
   const [capital, setCapital] = useState("10000");
-  const [feePct, setFeePct] = useState("0.04");
+  // Blank = the FundingPips account's real costs (commission measured from
+  // the MT5 report, plus spread), worked out on the server for this market.
+  const platformCosts = coveredByPlatform(symbol);
+  const [feePct, setFeePct] = useState(platformCosts ? "" : "0.04");
   const [slippagePct, setSlippagePct] = useState("0.02");
   const [leverage, setLeverage] = useState("1");
   const [minRr, setMinRr] = useState("");
@@ -44,7 +48,7 @@ export default function RunBacktestDialog({ strategyId, version, symbol, timefra
           to: new Date(`${to}T23:59:59Z`).toISOString(),
           execution: {
             initialCapital: Number(capital),
-            feeRate: Number(feePct) / 100,
+            feeRate: feePct.trim() === "" ? undefined : Number(feePct) / 100,
             slippagePercent: Number(slippagePct) / 100,
             maxLeverage: Number(leverage),
             minRiskReward: minRr ? Number(minRr) : undefined,
@@ -94,8 +98,16 @@ export default function RunBacktestDialog({ strategyId, version, symbol, timefra
           <Field label="Max leverage" htmlFor="bt-leverage">
             <TextInput id="bt-leverage" type="number" min="1" step="any" value={leverage} onChange={(e) => setLeverage(e.target.value)} />
           </Field>
-          <Field label="Fee per side (%)" htmlFor="bt-fee">
-            <TextInput id="bt-fee" type="number" min="0" step="any" value={feePct} onChange={(e) => setFeePct(e.target.value)} />
+          <Field label="Fee per side (%)" htmlFor="bt-fee" hint={platformCosts ? "Blank uses your FundingPips costs: measured commission plus spread." : undefined}>
+            <TextInput
+              id="bt-fee"
+              type="number"
+              min="0"
+              step="any"
+              placeholder={platformCosts ? "FundingPips costs" : undefined}
+              value={feePct}
+              onChange={(e) => setFeePct(e.target.value)}
+            />
           </Field>
           <Field label="Slippage (%)" htmlFor="bt-slippage">
             <TextInput id="bt-slippage" type="number" min="0" step="any" value={slippagePct} onChange={(e) => setSlippagePct(e.target.value)} />

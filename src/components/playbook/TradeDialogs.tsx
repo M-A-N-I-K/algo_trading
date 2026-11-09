@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button, Callout, Field, Segmented, SelectInput, TextArea, TextInput, money, signedNumber, toneClass } from "@/components/kit";
 import { lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "@/lib/playbook/config";
 import { hardFailures, pnlUsd, preTradeChecks, riskBudget, sizePosition, usdPerUnitMove, type Check, type Grade, type JournalEntry, type Side } from "@/lib/playbook/rules";
+import { roundTripCostPerUnitUsd } from "@/lib/costs/fundingpips";
 import { fmtPrice } from "@/lib/plan/weeklyPlan";
 import { cn } from "@/lib/utils";
 
@@ -98,10 +99,16 @@ function PlanTradeForm({ defaults, entries, account, onDone }: { defaults: PlanD
   const g: Grade | null = grade === "none" ? null : grade;
   const budget = riskBudget(setup.symbol, g, account);
   const e = n(entry), s = n(stop), t = n(target);
-  const suggested = Number.isFinite(e) && Number.isFinite(s) ? sizePosition(setup.symbol, e, s, budget.amount) : null;
+  // Commission (measured from the MT5 report) and spread for the round trip, per unit.
+  const costPerUnit = Number.isFinite(e) && e > 0 ? roundTripCostPerUnitUsd(setup.symbol, e).total : 0;
+  const suggested = Number.isFinite(e) && Number.isFinite(s) ? sizePosition(setup.symbol, e, s, budget.amount, costPerUnit) : null;
   const [lotsText, setLotsText] = useState<string | null>(null); // null = follow the suggestion
   const lots = lotsText === null ? (suggested?.lots ?? NaN) : n(lotsText);
-  const riskAmount = Number.isFinite(lots) && Number.isFinite(e) && Number.isFinite(s) ? lots * lotUnits(setup.symbol) * Math.abs(e - s) * usdPerUnitMove(setup.symbol, s) : 0;
+  // $ lost if the stop is hit, commission and spread included.
+  const riskAmount =
+    Number.isFinite(lots) && Number.isFinite(e) && Number.isFinite(s)
+      ? lots * lotUnits(setup.symbol) * (Math.abs(e - s) * usdPerUnitMove(setup.symbol, s) + costPerUnit)
+      : 0;
 
   const checks = useMemo(() => {
     if (!Number.isFinite(e) || !Number.isFinite(s)) return [];
@@ -178,7 +185,7 @@ function PlanTradeForm({ defaults, entries, account, onDone }: { defaults: PlanD
           htmlFor="pb-lots"
           hint={
             suggested
-              ? `Plan: ${budget.riskPct}% = ${money(budget.amount, { sign: false })}. ${suggested.lots} lot risks ${money(suggested.riskAtLots, { sign: false })}${suggested.belowMinLot ? ", more than the plan: the stop is too tight for the smallest lot" : ""}. 1 lot = ${lotUnits(setup.symbol).toLocaleString()} ${setup.symbol.startsWith("XA") ? "oz" : setup.symbol.startsWith("BTC") || setup.symbol.startsWith("ETH") ? "coin" : "units"}.`
+              ? `Plan: ${budget.riskPct}% = ${money(budget.amount, { sign: false })}. ${suggested.lots} lot risks ${money(suggested.riskAtLots, { sign: false })}, of which ${money(suggested.costAtLots, { sign: false })} is commission and spread${suggested.belowMinLot ? ", more than the plan: the stop is too tight for the smallest lot" : ""}. 1 lot = ${lotUnits(setup.symbol).toLocaleString()} ${setup.symbol.startsWith("XA") ? "oz" : setup.symbol.startsWith("BTC") || setup.symbol.startsWith("ETH") ? "coin" : "units"}.`
               : "Enter entry and stop to size it."
           }
         >

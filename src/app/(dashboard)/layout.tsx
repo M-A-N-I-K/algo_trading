@@ -25,7 +25,7 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   "/markets": { title: "Markets", subtitle: "Live bias, zones, volatility and upcoming events for crypto and commodities." },
   "/guides": { title: "Guides", subtitle: "Step-by-step playbooks for trading each strategy by hand." },
   "/risk": { title: "Position size", subtitle: "Size a trade from your stop, lot size and costs." },
-  "/import": { title: "Sync", subtitle: "Pull closed trades, fees and funding from CoinDCX." },
+  "/import": { title: "Sync", subtitle: "Import your MT5 trade history (FundingPips), or pull trades from CoinDCX." },
   "/settings": { title: "Settings", subtitle: "Account size, loss limits and dashboard preferences." },
 };
 

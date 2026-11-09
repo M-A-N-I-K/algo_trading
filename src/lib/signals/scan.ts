@@ -4,6 +4,7 @@ import { createCodedStrategy } from "@/strategies/registry";
 import type { Strategy } from "@/types/strategy";
 import type { Side } from "@/domain/backtesting";
 import { assetClass, type AssetClass } from "@/lib/markets/yahoo";
+import { coveredByPlatform, feeRatePerSide } from "@/lib/costs/fundingpips";
 
 // One strategy on one market: how it did over the cached history, and what
 // it's saying now. Pure: candles in, row out, so it can be tested offline.
@@ -39,16 +40,22 @@ export const RECENT_MS = 3 * 24 * 60 * 60_000;
 //   the Nasdaq 100 and 0.5 on the S&P (≈0.005%), rounded up to 0.01% per
 //   side. They move roughly a third as much as crypto: judged at 5×.
 // The 2% risk cap still applies to every trade with a stop.
+//
+// Markets the FundingPips account trades (BTC, ETH, gold, silver, currency
+// pairs, Nasdaq 100, S&P 500) are charged that account's real costs instead:
+// commission measured from the user's MT5 report plus spread, at the latest
+// price (src/lib/costs/fundingpips.ts). The table below covers the rest.
 export const MARKET_COSTS: Record<AssetClass, { feeRate: number; leverage: number }> = {
   crypto: { feeRate: 0.00059, leverage: 1 },
   forex: { feeRate: 0.0001, leverage: 10 },
   index: { feeRate: 0.0001, leverage: 5 },
 };
 export const SIGNAL_FEE_RATE = MARKET_COSTS.crypto.feeRate;
-export const feeRateFor = (symbol: string) => MARKET_COSTS[assetClass(symbol)].feeRate;
-const settingsFor = (symbol: string) => {
-  const { feeRate, leverage } = MARKET_COSTS[assetClass(symbol)];
-  return { initialBalance: 10_000, positionSizePercent: leverage, maxLeverage: leverage, maxRiskPercent: 0.02, feeRate };
+export const feeRateFor = (symbol: string, price?: number) =>
+  price !== undefined && price > 0 && coveredByPlatform(symbol) ? feeRatePerSide(symbol, price) : MARKET_COSTS[assetClass(symbol)].feeRate;
+const settingsFor = (symbol: string, price: number) => {
+  const { leverage } = MARKET_COSTS[assetClass(symbol)];
+  return { initialBalance: 10_000, positionSizePercent: leverage, maxLeverage: leverage, maxRiskPercent: 0.02, feeRate: feeRateFor(symbol, price) };
 };
 
 export type SignalStatus = "new" | "open" | "target" | "stop" | "closed";
@@ -161,7 +168,7 @@ export function scanStrategy(input: {
     name: strategy.name,
     generateSignals: () => signals,
     ...(targets && { getTradeTargets: () => targets }),
-  }, settingsFor(symbol));
+  }, settingsFor(symbol, candles[candles.length - 1].close));
 
   const m = result.metrics;
   const stats: BacktestStats = {
