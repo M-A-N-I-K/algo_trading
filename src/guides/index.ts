@@ -10,6 +10,7 @@ import { liquidityReversalGuide } from "./liquidityReversal";
 import { liquidityReversalMtfGuide } from "./liquidityReversalMtf";
 import { topDownGuide } from "./topDown";
 import { nyOpenFvgGuide } from "./nyOpenFvg";
+import { vwapGuide } from "./vwap";
 
 export type { StrategyGuide, GuideStep, GuideDiagram, GuideBacktestRow, DiagramTone } from "./types";
 
@@ -26,6 +27,7 @@ export const STRATEGY_GUIDES: StrategyGuide[] = [
   liquidityReversalMtfGuide,
   topDownGuide,
   nyOpenFvgGuide,
+  vwapGuide,
   smartMoneyConceptsGuide,
 ];
 

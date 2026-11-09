@@ -12,6 +12,7 @@ import {
   createLiquidityReversalMtfStrategy,
   createTopDownStrategy,
   createNyOpenFvgStrategy,
+  createVwapStrategy,
 } from "./index";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each factory takes its own options shape
@@ -32,6 +33,7 @@ export const CODED_STRATEGIES: Record<string, StrategyFactory> = {
   "liquidity-reversal-mtf": createLiquidityReversalMtfStrategy,
   "top-down": createTopDownStrategy,
   "ny-open-fvg": createNyOpenFvgStrategy,
+  vwap: createVwapStrategy,
 };
 
 // Strategies whose bias comes from a real higher-timeframe series, fetched
