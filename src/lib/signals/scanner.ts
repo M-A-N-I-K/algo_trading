@@ -49,10 +49,17 @@ const DAY_MS = 24 * 60 * 60_000;
 // on that one; those reading a higher timeframe only run below it.
 export const SIGNAL_INTERVALS = ["15m", "1h", "4h"] as const;
 
+// Execution timeframes too fine to scan live: two years of 1m candles is
+// about a million per market, over 10,000 Binance requests across the
+// markets, which trips Binance's rate limit (6,000 weight a minute) and
+// fills memory. Strategies that trade on these are backtest-only.
+export const UNSCANNED_INTERVALS: ReadonlySet<string> = new Set(["1m"]);
+
 export function scanTargets(): { strategyKey: string; interval: string }[] {
   const out: { strategyKey: string; interval: string }[] = [];
   for (const strategyKey of Object.keys(CODED_STRATEGIES)) {
     const htf = HIGHER_TIMEFRAME[strategyKey];
+    if (htf?.executionInterval && UNSCANNED_INTERVALS.has(htf.executionInterval)) continue;
     const intervals = htf?.executionInterval
       ? [htf.executionInterval]
       : SIGNAL_INTERVALS.filter((i) => !htf || intervalToMs(i) < intervalToMs(htf.interval));
