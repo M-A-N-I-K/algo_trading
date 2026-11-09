@@ -42,3 +42,16 @@ The swings depend on the price feed, so compare on the same feed the backtest us
 | 2026-10-26 18:00 | SELL | 4021.33 | 4035.12 | 3986.13 |
 
 Small differences in stops are expected for the first candles of a chart (ATR warm-up). On FundingPips' own XAUUSD feed, which closes at weekends, the levels will differ slightly from Binance's 24/7 contract.
+
+## Liquidity Sweep checkpoints
+
+`liquidity-sweep-checkpoints.pine` does the same for `src/strategies/liquiditySweepStrategy.ts`, the Playbook's top ETH 1h setup:
+
+| Label | Checkpoint | Rule |
+|---|---|---|
+| **1 Uptrend / Downtrend leg** | Trend | A close beyond the latest swing starts a leg. The most adverse candle since that swing is the protected level (dotted line), and that candle is the zone (box). A close through the protected level flips the trend. A close beyond the leg's last swing high (low) starts a new leg. |
+| **2 Equal lows / highs** | Liquidity | Two swing lows (highs) inside the leg within 0.1 × ATR. |
+| **3 Sweep** | Liquidity taken | A wick through the level. |
+| **4 BUY / SELL** | Entry | Price reaches the zone, then a candle closes back beyond the zone's far edge. Stop = protected level ∓ 0.1 × ATR. Target = the leg's extreme, taken only if it pays at least 2R. One trade per leg. |
+
+Install it the same way as above. Each indicator is a separate script, so add both if you want both.
