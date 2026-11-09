@@ -9,3 +9,4 @@ export * from "./liquiditySweepStrategy";
 export * from "./liquidityReversalStrategy";
 export * from "./liquidityReversalMtfStrategy";
 export * from "./topDownStrategy";
+export * from "./nyOpenFvgStrategy";
