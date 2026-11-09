@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Settings,
   Target,
+  FileCode,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -32,7 +33,10 @@ interface SidebarProps {
 const NAV_GROUPS: { title: string; items: { href: string; label: string; icon: LucideIcon }[] }[] = [
   {
     title: "Trade",
-    items: [{ href: "/playbook", label: "Playbook", icon: Target }],
+    items: [
+      { href: "/playbook", label: "Playbook", icon: Target },
+      { href: "/indicators", label: "Indicators", icon: FileCode },
+    ],
   },
   {
     title: "Review",
