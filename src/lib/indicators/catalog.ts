@@ -9,10 +9,26 @@ export interface IndicatorInfo {
   strategy: string; // registry key
   guide: string; // /guides/<slug>
   bestOn: string;
+  backtest?: string; // plain-English result, same settings as the research runs
   steps: { label: string; text: string }[];
 }
 
 export const INDICATORS: IndicatorInfo[] = [
+  {
+    id: "liquidity-reversal-mtf",
+    file: "liquidity-reversal-mtf-checkpoints.pine",
+    title: "Liquidity Reversal MTF checkpoints (1h setup, 5m entry)",
+    strategy: "liquidity-reversal-mtf",
+    guide: "/guides/liquidity-reversal-mtf",
+    bestOn: "ETHUSD on a 5m chart (it builds the 1h setup itself)",
+    backtest:
+      "The only lower-timeframe strategy that made money on ETH: 21 trades in 2 years (about one every 5 weeks), 52% won, +0.87R per trade, profit factor 2.68. Closing every trade by 21:00 UTC, as the funded account forces, it still made profit factor 3.08 on 17 trades. Trades last about a day, because the target is a 1h swing.",
+    steps: [
+      { label: "1–4 on 1h", text: "The Liquidity Reversal setup on 1h candles: equal lows, sweep, a 1h close above the last swing high, then the 1h demand zone." },
+      { label: "5 Pullback", text: "A 5m candle dips into the 1h zone. The indicator tracks the lowest 5m low of that dip." },
+      { label: "6 Buy", text: "A 5m candle closes above the last 5m swing high formed between the 1h shift and that low. Stop under the 1h sweep low (not the 5m low), target the nearest untouched 1h swing high paying at least 2R. One trade per zone; the zone dies after 24 hours or on a close below the sweep low." },
+    ],
+  },
   {
     id: "liquidity-reversal",
     file: "liquidity-reversal-checkpoints.pine",

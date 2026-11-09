@@ -55,3 +55,21 @@ Small differences in stops are expected for the first candles of a chart (ATR wa
 | **4 BUY / SELL** | Entry | Price reaches the zone, then a candle closes back beyond the zone's far edge. Stop = protected level ∓ 0.1 × ATR. Target = the leg's extreme, taken only if it pays at least 2R. One trade per leg. |
 
 Install it the same way as above. Each indicator is a separate script, so add both if you want both.
+
+## Liquidity Reversal MTF checkpoints (1h setup, 5m entry)
+
+`liquidity-reversal-mtf-checkpoints.pine` ports `src/strategies/liquidityReversalMtfStrategy.ts`, the only lower-timeframe strategy that made money on ETH in testing (2 years: 21 trades, 52% won, +0.87R per trade, profit factor 2.68; 3.08 with a forced 21:00 UTC daily close).
+
+Put it on a **5m** chart. It builds the 1h candles from the chart's bars and runs the 1h Liquidity Reversal rules on them (labels 1–4, prefixed "1h"), then marks the 5m pullback into the 1h zone (5) and the entry (6) when a 5m candle closes above the last 5m swing high formed between the 1h shift and the pullback low. The stop stays under the 1h sweep low and the target is the nearest untouched 1h swing high paying at least 2R. One trade per zone. The zone dies on a close below the sweep low or 24 hours after the shift.
+
+It needs enough 5m history to build the 1h setup: about 5,000 bars (17 days) on TradingView's free plan, more on paid plans.
+
+App signals on BINANCE:ETHUSDT.P to compare (UTC):
+
+| Candle open (UTC) | Side | Entry (close) | Stop | Target |
+|---|---|---|---|---|
+| 2026-07-30 13:35 | SELL | 1918.90 | 1937.50 | 1872.00 |
+| 2026-08-02 17:20 | BUY | 1870.40 | 1821.07 | 1977.99 |
+| 2026-09-27 23:25 | BUY | 2685.36 | 2663.76 | 2743.00 |
+
+The indicator only sees the history TradingView loads, so a setup that formed before the first loaded bar won't appear. Use Bar Replay to check older dates.
