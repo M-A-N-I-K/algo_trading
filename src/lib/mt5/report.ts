@@ -85,17 +85,28 @@ function rows(html: string): string[][] {
     // Search cells inside this row's text only, so no search runs past it.
     const rowLower = lower.slice(trBody + 1, trClose);
     const rowHtml = html.slice(trBody + 1, trClose);
+    // Each search result is kept and only refreshed once the scan passes it,
+    // and a tag that isn't there (Infinity) is never searched for again, so
+    // the row is scanned a bounded number of times however many cells it has.
+    const at = (i: number) => (i === -1 ? Infinity : i);
+    const nextAt = (cur: number, from: number, find: (from: number) => number) => (cur >= from ? cur : at(find(from)));
+    const findTd = (f: number) => findOpen(rowLower, "td", f);
+    const findTh = (f: number) => findOpen(rowLower, "th", f);
+    const findTdEnd = (f: number) => rowLower.indexOf("</td", f);
+    const findThEnd = (f: number) => rowLower.indexOf("</th", f);
+    let td = -1, th = -1, tdEnd = -1, thEnd = -1;
     const cells: string[] = [];
     let c = 0;
     for (;;) {
-      const td = findOpen(rowLower, "td", c);
-      const th = findOpen(rowLower, "th", c);
-      const open = td === -1 ? th : th === -1 ? td : Math.min(td, th);
-      if (open === -1) break;
+      td = nextAt(td, c, findTd);
+      th = nextAt(th, c, findTh);
+      const open = Math.min(td, th);
+      if (open === Infinity) break;
       const body = rowLower.indexOf(">", open);
       if (body === -1) break;
-      const ends = [rowLower.indexOf("</td", body), rowLower.indexOf("</th", body)].filter((x) => x !== -1);
-      const end = ends.length ? Math.min(...ends) : rowLower.length; // unclosed cell: runs to the row's end
+      tdEnd = nextAt(tdEnd, body, findTdEnd);
+      thEnd = nextAt(thEnd, body, findThEnd);
+      const end = Math.min(tdEnd, thEnd, rowLower.length); // unclosed cell: runs to the row's end
       cells.push(text(rowHtml.slice(body + 1, end)));
       c = end + 1;
     }
