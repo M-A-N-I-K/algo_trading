@@ -15,7 +15,7 @@
 // Shorts are the mirror image (equal highs, supply zone), computed on flipped prices like the app.
 // Everything is calculated on CLOSED candles only, so nothing repaints.
 // Built for the 1h chart (the timeframe the strategy was backtested on).
-indicator("Liquidity Reversal checkpoints", shorttitle = "LR checkpoints", overlay = true, max_bars_back = 1000, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 200)
+indicator("Liquidity Reversal checkpoints", shorttitle = "LR checkpoints", overlay = true, max_bars_back = 5000, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 200)
 
 // ─── Inputs: defaults match the backtest. Change them only to experiment. ───
 grpR       = "Rules (keep defaults to match the backtest)"

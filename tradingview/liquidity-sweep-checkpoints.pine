@@ -1,0 +1,270 @@
+//@version=6
+// Liquidity Sweep checkpoints
+//
+// Marks every checkpoint of the app's Liquidity Sweep strategy, using the same
+// rules and defaults as src/strategies/liquiditySweepStrategy.ts.
+//
+//   (1) Trend leg     a close beyond the latest swing starts a leg; the most adverse candle
+//                     since that swing is the PROTECTED level, and that candle is the ZONE
+//   (2) Equal lows    two swing lows inside the leg within 0.1 x ATR (shorts: equal highs)
+//   (3) Sweep         a wick trades below the equal lows
+//   (4) Entry         price trades into the zone, then a candle closes back above the zone top
+//                     stop = protected low - 0.1 x ATR, target = the leg's high, only if >= 2R
+//                     one trade per leg
+//
+// A close below the protected low flips the trend; a close above the leg's last swing high
+// starts a new leg (break of structure). Closed candles only, nothing repaints.
+// Backtested on 1h (ETH 1h is the Playbook's top setup).
+indicator("Liquidity Sweep checkpoints", shorttitle = "LS checkpoints", overlay = true, max_bars_back = 5000, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 200)
+
+grpR       = "Rules (keep defaults to match the backtest)"
+k          = input.int(3, "Swing lookback (candles each side)", minval = 1, group = grpR)
+atrLen     = input.int(14, "ATR length", minval = 1, group = grpR)
+eqTol      = input.float(0.1, "Equal lows tolerance (x ATR)", minval = 0, step = 0.05, group = grpR)
+stopBuf    = input.float(0.1, "Stop buffer (x ATR)", minval = 0, step = 0.05, group = grpR)
+minRr      = input.float(2.0, "Minimum reward : risk", minval = 0.5, step = 0.5, group = grpR)
+
+grpS       = "Show"
+showLegs   = input.bool(true, "Trend leg labels", group = grpS)
+showSwings = input.bool(false, "Swing points", group = grpS)
+showSkip   = input.bool(true, "Skipped entries (under 2R)", group = grpS)
+showPanel  = input.bool(true, "Checkpoint panel", group = grpS)
+tradeLen   = input.int(24, "Entry / stop / target line length (candles)", minval = 1, group = grpS)
+
+colLong  = color.new(#26a69a, 0)
+colShort = color.new(#ef5350, 0)
+colPoolL = color.new(#42a5f5, 0)
+colPoolS = color.new(#ffa726, 0)
+colMuted = color.new(#9e9e9e, 0)
+
+type Swing
+    float price   // actual price
+    int   idx
+
+type Pool
+    float level   // signed: the lower of the equal lows
+    int   createdAt
+    bool  swept = false
+    line  ln
+
+type St
+    int          d = 0          // 1 uptrend, -1 downtrend, 0 not started
+    int          protectedIdx = -1
+    float        protectedPrice = na   // signed
+    float        bosPrice = na         // signed
+    int          bosIdx = -1
+    float        extreme = na          // signed: leg high, the target
+    float        zoneTop = na          // signed
+    array<Pool>  pools
+    array<Swing> poolSwings
+    bool         swept = false
+    bool         touched = false
+    bool         done = false
+    box          zone
+    line         protLine
+    bool         evSweep = false
+    bool         evLeg = false
+    bool         evEntry = false
+    float        entry = na
+    float        stop = na
+    float        target = na
+
+// Signed prices: for d = -1 the chart is read upside down, so one code path serves both.
+fav(int j, int d) => d == 1 ? high[bar_index - j] : -low[bar_index - j]
+adv(int j, int d) => d == 1 ? low[bar_index - j] : -high[bar_index - j]
+scl(int j, int d) => d * close[bar_index - j]
+fmt(float x) => str.tostring(x, format.mintick)
+
+isSwing(int r, bool isHigh) =>
+    bool ok = true
+    float pivot = isHigh ? high[bar_index - r] : low[bar_index - r]
+    for j = r - k to r + k
+        if j != r
+            float v = isHigh ? high[bar_index - j] : low[bar_index - j]
+            if (isHigh and v >= pivot) or (not isHigh and v <= pivot)
+                ok := false
+                break
+    ok
+
+var array<Swing> highs = array.new<Swing>()
+var array<Swing> lows  = array.new<Swing>()
+var St state = St.new(pools = array.new<Pool>(), poolSwings = array.new<Swing>())
+
+// A new adverse swing inside the leg: pair it with every earlier one.
+addPoolSwing(St st, Swing s, int dir, int t, float atrNow) =>
+    float tol = eqTol * atrNow
+    bool isLong = dir == 1
+    for o in st.poolSwings
+        if not na(tol) and math.abs(o.price - s.price) <= tol
+            float level = math.min(dir * o.price, dir * s.price)
+            color c = isLong ? colPoolL : colPoolS
+            line ln = line.new(o.idx, dir * level, t, dir * level, color = c, style = line.style_dashed, width = 2, extend = extend.right)
+            label.new(s.idx, dir * level, isLong ? "2 Equal lows" : "2 Equal highs", color = color.new(c, 100), textcolor = c, style = isLong ? label.style_label_up : label.style_label_down, size = size.small, tooltip = "Gap " + fmt(math.abs(o.price - s.price)) + ", allowed " + fmt(tol))
+            st.pools.push(Pool.new(level, t, false, ln))
+    st.poolSwings.push(s)
+
+closeDrawings(St st, int t) =>
+    if not na(st.zone)
+        st.zone.set_right(t)
+        st.zone.set_extend(extend.none)
+    if not na(st.protLine)
+        st.protLine.set_x2(t)
+        st.protLine.set_extend(extend.none)
+    for p in st.pools
+        if not p.swept and not na(p.ln)
+            p.ln.set_x2(t)
+            p.ln.set_extend(extend.none)
+
+// Start a leg in direction dir: the protected level is the most adverse point in (from, t].
+startLeg(St st, int dir, int from, int t, float atrNow, string why) =>
+    closeDrawings(st, t)
+    int p = from + 1
+    for j = from + 1 to t
+        if adv(j, dir) < adv(p, dir)
+            p := j
+    st.d := dir
+    st.protectedIdx   := p
+    st.protectedPrice := adv(p, dir)
+    st.zoneTop        := fav(p, dir)
+    st.bosPrice       := na
+    st.bosIdx         := -1
+    float ex = na
+    for j = p to t
+        ex := na(ex) ? fav(j, dir) : math.max(ex, fav(j, dir))
+    st.extreme := ex
+    st.pools.clear()
+    st.poolSwings.clear()
+    st.swept   := false
+    st.touched := false
+    st.done    := false
+    st.evLeg   := true
+    bool isLong = dir == 1
+    color c = isLong ? colLong : colShort
+    st.zone := box.new(p, high[bar_index - p], t, low[bar_index - p], border_color = c, bgcolor = color.new(c, 85), extend = extend.right, text = "Zone", text_color = c, text_size = size.small, text_halign = text.align_left, text_valign = isLong ? text.align_bottom : text.align_top)
+    st.protLine := line.new(p, dir * st.protectedPrice, t, dir * st.protectedPrice, color = color.new(c, 40), style = line.style_dotted, extend = extend.right)
+    if showLegs
+        label.new(t, isLong ? low : high, (isLong ? "1 Uptrend leg" : "1 Downtrend leg") + " (" + why + ")", color = color.new(c, 100), textcolor = c, style = isLong ? label.style_label_up : label.style_label_down, size = size.tiny, tooltip = "Protected " + (isLong ? "low " : "high ") + fmt(dir * st.protectedPrice) + ". A close beyond it flips the trend.")
+    array<Swing> adverse = isLong ? lows : highs
+    for s in adverse
+        if s.idx > from and s.idx != p and dir * s.price > st.protectedPrice
+            addPoolSwing(st, s, dir, t, atrNow)
+
+drawEntry(St st, int t) =>
+    bool isLong = st.d == 1
+    color c = isLong ? colLong : colShort
+    float e = st.d * st.entry
+    float sp = st.d * st.stop
+    float tp = st.d * st.target
+    float rr = (st.target - st.entry) / (st.entry - st.stop)
+    label.new(t, isLong ? low : high, (isLong ? "4 BUY " : "4 SELL ") + fmt(e) + "\nSL " + fmt(sp) + "  TP " + fmt(tp) + "\n" + str.tostring(rr, "#.0") + "R", color = c, textcolor = color.white, style = isLong ? label.style_label_up : label.style_label_down, size = size.small)
+    line.new(t, e, t + tradeLen, e, color = colMuted, style = line.style_dashed)
+    line.new(t, sp, t + tradeLen, sp, color = colShort, width = 2)
+    line.new(t, tp, t + tradeLen, tp, color = colLong, width = 2)
+
+float atrNow = ta.atr(atrLen)
+bool newSwH = false
+bool newSwL = false
+
+if barstate.isconfirmed
+    int t = bar_index
+    state.evSweep := false
+    state.evLeg   := false
+    state.evEntry := false
+    int r = t - k
+    Swing newHigh = na
+    Swing newLow  = na
+    if r >= k
+        if isSwing(r, true)
+            newHigh := Swing.new(high[bar_index - r], r)
+            highs.push(newHigh)
+            newSwH := true
+        if isSwing(r, false)
+            newLow := Swing.new(low[bar_index - r], r)
+            lows.push(newLow)
+            newSwL := true
+    while highs.size() > 400
+        highs.shift()
+    while lows.size() > 400
+        lows.shift()
+
+    if state.d == 0
+        Swing h = highs.size() > 0 ? highs.last() : na
+        Swing l = lows.size() > 0 ? lows.last() : na
+        if not na(h) and close > h.price
+            startLeg(state, 1, h.idx, t, atrNow, "first break")
+        else if not na(l) and close < l.price
+            startLeg(state, -1, l.idx, t, atrNow, "first break")
+    else
+        int d = state.d
+        Swing favSwing = d == 1 ? newHigh : newLow
+        Swing advSwing = d == 1 ? newLow : newHigh
+        if not na(favSwing) and favSwing.idx > state.protectedIdx and (na(state.bosPrice) or d * favSwing.price > state.bosPrice)
+            state.bosPrice := d * favSwing.price
+            state.bosIdx   := favSwing.idx
+        if not na(advSwing) and advSwing.idx > state.protectedIdx and d * advSwing.price > state.protectedPrice
+            addPoolSwing(state, advSwing, d, t, atrNow)
+
+        if scl(t, d) < state.protectedPrice
+            startLeg(state, d == 1 ? -1 : 1, state.protectedIdx - 1, t, atrNow, "trend flip")
+        else if not na(state.bosPrice) and scl(t, d) > state.bosPrice
+            startLeg(state, d, state.bosIdx, t, atrNow, "break of structure")
+        else
+            state.extreme := math.max(state.extreme, fav(t, d))
+            if not state.done
+                for p in state.pools
+                    if not p.swept and p.createdAt < t and adv(t, d) < p.level
+                        p.swept := true
+                        state.swept := true
+                        state.evSweep := true
+                        if not na(p.ln)
+                            p.ln.set_x2(t)
+                            p.ln.set_extend(extend.none)
+                        color c = d == 1 ? colLong : colShort
+                        label.new(t, d == 1 ? low : high, "3 Sweep", color = color.new(c, 100), textcolor = c, style = d == 1 ? label.style_label_up : label.style_label_down, size = size.small, tooltip = "Equal " + (d == 1 ? "lows " : "highs ") + fmt(d * p.level) + " taken. Now wait for price to reach the zone and close back " + (d == 1 ? "above " : "below ") + fmt(d * state.zoneTop) + ".")
+                if state.swept
+                    if adv(t, d) <= state.zoneTop
+                        state.touched := true
+                    if state.touched and scl(t, d) > state.zoneTop
+                        state.done := true   // one trade per leg
+                        float buffer = stopBuf > 0 and not na(atrNow) ? stopBuf * atrNow : 0.0
+                        float e  = scl(t, d)
+                        float sp = state.protectedPrice - buffer
+                        float risk = e - sp
+                        float rr = risk > 0 ? (state.extreme - e) / risk : na
+                        if risk > 0 and not na(rr) and rr >= minRr
+                            state.evEntry := true
+                            state.entry   := e
+                            state.stop    := sp
+                            state.target  := state.extreme
+                            drawEntry(state, t)
+                            alert(syminfo.ticker + " LS " + (d == 1 ? "BUY " : "SELL ") + fmt(d * e) + " SL " + fmt(d * sp) + " TP " + fmt(d * state.extreme), alert.freq_once_per_bar_close)
+                        else if showSkip
+                            label.new(t, d == 1 ? low : high, "x only " + (na(rr) ? "-" : str.tostring(rr, "#.0")) + "R: skipped", color = color.new(colMuted, 100), textcolor = colMuted, style = d == 1 ? label.style_label_up : label.style_label_down, size = size.tiny, tooltip = "Entry candle closed but the leg's " + (d == 1 ? "high" : "low") + " pays under " + str.tostring(minRr) + "R. The app skips it, and this leg is done.")
+
+bool confirmed = barstate.isconfirmed
+alertcondition(confirmed and state.evSweep and state.d == 1, "3 Long: equal lows swept", "{{ticker}}: equal lows swept in an uptrend. Wait for the demand zone.")
+alertcondition(confirmed and state.evSweep and state.d == -1, "3 Short: equal highs swept", "{{ticker}}: equal highs swept in a downtrend. Wait for the supply zone.")
+alertcondition(confirmed and state.evEntry and state.d == 1, "4 Long entry", "{{ticker}}: Liquidity Sweep BUY at {{close}}")
+alertcondition(confirmed and state.evEntry and state.d == -1, "4 Short entry", "{{ticker}}: Liquidity Sweep SELL at {{close}}")
+
+plotshape(showSwings and confirmed and newSwH, "Swing high", shape.triangledown, location.abovebar, colMuted, offset = -k, size = size.tiny)
+plotshape(showSwings and confirmed and newSwL, "Swing low", shape.triangleup, location.belowbar, colMuted, offset = -k, size = size.tiny)
+
+var table panel = table.new(position.top_right, 2, 4, bgcolor = color.new(#131722, 10), border_color = color.new(colMuted, 60), border_width = 1)
+if showPanel and barstate.islast
+    int d = state.d
+    string trend = d == 1 ? "Uptrend" : d == -1 ? "Downtrend" : "Waiting for the first break"
+    string zone = d == 0 ? "-" : fmt(low[bar_index - state.protectedIdx]) + " - " + fmt(high[bar_index - state.protectedIdx])
+    int open_ = 0
+    for p in state.pools
+        if not p.swept
+            open_ += 1
+    string nextStep = d == 0 ? "Wait for a close beyond the last swing" : state.done ? "This leg's trade is done. Wait for a new leg" : not state.swept ? "Step 2-3: wait for a wick " + (d == 1 ? "below " : "above ") + "equal " + (d == 1 ? "lows" : "highs") + " (" + str.tostring(open_) + " open)" : not state.touched ? "Step 4: swept. Wait for price to reach the zone" : "Step 4: in the zone. Enter on a close " + (d == 1 ? "above " : "below ") + fmt(d * state.zoneTop)
+    table.cell(panel, 0, 0, "LS checkpoints", text_color = color.white, text_size = size.small)
+    table.cell(panel, 1, 0, timeframe.period == "60" ? "1h chart" : "Backtested on 1h; this is " + timeframe.period, text_color = timeframe.period == "60" ? colMuted : colPoolS, text_size = size.small)
+    table.cell(panel, 0, 1, "Trend", text_color = colMuted, text_size = size.small)
+    table.cell(panel, 1, 1, trend + (d == 0 ? "" : ". Flips on a close " + (d == 1 ? "below " : "above ") + fmt(d * state.protectedPrice)), text_color = d == 1 ? colLong : d == -1 ? colShort : color.white, text_size = size.small, text_halign = text.align_left)
+    table.cell(panel, 0, 2, "Zone / target", text_color = colMuted, text_size = size.small)
+    table.cell(panel, 1, 2, d == 0 ? "-" : zone + "   target " + fmt(d * state.extreme), text_color = color.white, text_size = size.small, text_halign = text.align_left)
+    table.cell(panel, 0, 3, "Next", text_color = colMuted, text_size = size.small)
+    table.cell(panel, 1, 3, nextStep, text_color = color.white, text_size = size.small, text_halign = text.align_left)
