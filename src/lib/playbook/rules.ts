@@ -4,7 +4,6 @@ import {
   lotUnits,
   MISTAKES,
   PLAYBOOK_ACCOUNT,
-  PLAYBOOK_RULES,
   PLAYBOOK_SETUPS,
   setupById,
   type PlaybookAccount,
@@ -17,10 +16,10 @@ import {
 
 export type Side = "LONG" | "SHORT";
 export type Grade = "A" | "B";
-type Rules = typeof PLAYBOOK_RULES;
 
 export interface JournalEntry {
   id: string;
+  accountId: string;
   setupId: string;
   symbol: string;
   side: Side;
@@ -85,14 +84,17 @@ export interface AccountStatus {
   worstCaseToday: number; // todayPnl − openRisk
   targetBalance: number;
   toTarget: number;
-  dailyStopHit: boolean;
+  lossesToday: number; // losing trades closed today, platform time
+  dailyStopHit: boolean; // own daily stop reached, or too many losses today
   targetReached: boolean;
 }
 
-export function accountStatus(entries: JournalEntry[], now: number, account: PlaybookAccount = PLAYBOOK_ACCOUNT, rules: Rules = PLAYBOOK_RULES): AccountStatus {
+export function accountStatus(entries: JournalEntry[], now: number, account: PlaybookAccount = PLAYBOOK_ACCOUNT): AccountStatus {
+  const rules = account.rules;
   const today = platformDay(now, account.timeZone);
   let closedPnl = 0;
   let todayPnl = 0;
+  let lossesToday = 0;
   let openCount = 0;
   let openRisk = 0;
   for (const e of entries) {
@@ -101,7 +103,10 @@ export function accountStatus(entries: JournalEntry[], now: number, account: Pla
       openRisk += e.riskAmount;
     } else if (e.pnl !== null) {
       closedPnl += e.pnl;
-      if (e.exitTime !== null && platformDay(e.exitTime, account.timeZone) === today) todayPnl += e.pnl;
+      if (e.exitTime !== null && platformDay(e.exitTime, account.timeZone) === today) {
+        todayPnl += e.pnl;
+        if (e.pnl < 0 && e.exitReason !== "breakeven") lossesToday++; // costs on a breakeven exit aren't a loss
+      }
     }
   }
   const balance = account.size + account.priorPnl + closedPnl;
@@ -126,18 +131,25 @@ export function accountStatus(entries: JournalEntry[], now: number, account: Pla
     worstCaseToday: todayPnl - openRisk,
     targetBalance,
     toTarget: targetBalance - balance,
-    dailyStopHit: todayPnl <= -ownDailyStop,
+    lossesToday,
+    dailyStopHit: todayPnl <= -ownDailyStop || lossesToday >= rules.maxLossesPerDay,
     targetReached: balance >= targetBalance,
   };
 }
 
 /* ---------- sizing ---------- */
 
-/** What the plan lets this trade risk, from its grade. */
-export function riskBudget(symbol: string, grade: Grade | null, account: PlaybookAccount = PLAYBOOK_ACCOUNT, rules: Rules = PLAYBOOK_RULES) {
+/** What the plan lets this trade risk, from its grade. `skip` says why the account doesn't take it. */
+export function riskBudget(symbol: string, grade: Grade | null, account: PlaybookAccount = PLAYBOOK_ACCOUNT) {
+  const rules = account.rules;
   const full = grade === "A";
-  const riskPct = full ? rules.riskPctA : rules.riskPctB;
-  const skip = grade === "B" && rules.skipBOnForex && isForex(symbol) ? "B-grade currency trades lost money in the backtest (profit factor 0.72)" : null;
+  const riskPct = full ? rules.riskPctA : (rules.riskPctB ?? 0);
+  const skip =
+    !full && rules.riskPctB === null
+      ? `This account takes A-grade trades only (${grade === "B" ? "this one is B-grade" : "this one has no grade"})`
+      : grade === "B" && rules.skipBOnForex && isForex(symbol)
+        ? "B-grade currency trades lost money in the backtest (profit factor 0.72)"
+        : null;
   return { riskPct, amount: (account.size * riskPct) / 100, skip };
 }
 
@@ -222,7 +234,13 @@ export interface TradePlan {
 
 const usd = (n: number) => `${n < 0 ? "−" : ""}$${Math.abs(n).toFixed(2)}`;
 
-export function preTradeChecks(plan: TradePlan, entries: JournalEntry[], account: PlaybookAccount = PLAYBOOK_ACCOUNT, rules: Rules = PLAYBOOK_RULES): Check[] {
+/**
+ * The checks for one trade on one account. `entries` are that account's
+ * trades; `stoppedElsewhere` names other accounts that hit their daily stop
+ * today (a bad day on one is a reason to stop on all).
+ */
+export function preTradeChecks(plan: TradePlan, entries: JournalEntry[], account: PlaybookAccount = PLAYBOOK_ACCOUNT, stoppedElsewhere: string[] = []): Check[] {
+  const rules = account.rules;
   const checks: Check[] = [];
   const add = (id: string, label: string, ok: boolean | "warn", detail: string, hard = true) =>
     checks.push({ id, label, status: ok === "warn" ? "warn" : ok ? "pass" : "fail", detail, hard });
@@ -231,7 +249,7 @@ export function preTradeChecks(plan: TradePlan, entries: JournalEntry[], account
   const symbol = setup?.symbol ?? "";
   add("setup", "A playbook setup", Boolean(setup), setup ? `${setup.strategyName} on ${setup.platformSymbol} ${setup.interval}` : "This strategy and market aren't in the playbook.");
 
-  const budget = riskBudget(symbol, plan.grade, account, rules);
+  const budget = riskBudget(symbol, plan.grade, account);
   if (budget.skip) add("grade", "Grade", false, budget.skip);
   else if (plan.grade === "A") add("grade", "Grade", true, `A-grade: full size, ${rules.riskPctA}% risk`);
   else add("grade", "Grade", "warn", `${plan.grade === "B" ? "B-grade" : "No grade"}: half size, ${rules.riskPctB}% risk`, false);
@@ -259,12 +277,27 @@ export function preTradeChecks(plan: TradePlan, entries: JournalEntry[], account
     else add("overlap", "Not doubling up", true, `No open trade is the same bet (${keys[0]})`);
   }
 
-  const status = accountStatus(entries, plan.time, account, rules);
-  add("daily-stop", "Above your daily stop", !status.dailyStopHit, `${usd(status.todayPnl)} today; you stop at ${usd(-status.ownDailyStop)}`);
+  const status = accountStatus(entries, plan.time, account);
+  const lossesLeft = rules.maxLossesPerDay - status.lossesToday;
+  add(
+    "daily-stop",
+    "Not stopped for the day",
+    !status.dailyStopHit,
+    status.lossesToday >= rules.maxLossesPerDay
+      ? `${status.lossesToday} losing trades today; you stop after ${rules.maxLossesPerDay}`
+      : `${usd(status.todayPnl)} today, ${lossesLeft} loss${lossesLeft === 1 ? "" : "es"} left; you stop at ${usd(-status.ownDailyStop)} or after ${rules.maxLossesPerDay} losses`,
+  );
+  if (stoppedElsewhere.length > 0) add("linked-stop", "Other accounts still trading", false, `${stoppedElsewhere.join(" and ")} hit the daily stop today: stop on every account until the reset.`);
   const worstDay = status.worstCaseToday - plan.riskAmount;
-  add("firm-daily", "Can't breach the daily limit", worstDay > -status.firmDailyLimit, `If every open trade and this one hit their stops: ${usd(worstDay)} today, limit ${usd(-status.firmDailyLimit)}`);
+  add(
+    "own-daily",
+    "Stays inside your daily stop",
+    worstDay >= -status.ownDailyStop * rules.riskTolerance,
+    `If every open trade and this one hit their stops: ${usd(worstDay)} today, your stop ${usd(-status.ownDailyStop)}`,
+  );
+  add("firm-daily", "Can't breach the daily limit", worstDay > -status.firmDailyLimit, `Worst case ${usd(worstDay)} today, the firm's limit ${usd(-status.firmDailyLimit)}`);
   const worstEquity = status.balance - status.openRisk - plan.riskAmount;
-  add("floor", "Can't breach the 12% floor", worstEquity > status.floor, `Worst case equity ${usd(worstEquity)}, floor ${usd(status.floor)}`);
+  add("floor", `Can't breach the ${account.maxLossPct}% floor`, worstEquity > status.floor, `Worst case equity ${usd(worstEquity)}, floor ${usd(status.floor)}`);
 
   if (plan.signalEntry && stopOk) {
     const offR = ((plan.entry - plan.signalEntry) * d) / Math.abs(plan.signalEntry - plan.stop);
@@ -298,7 +331,7 @@ export interface RankedSignal {
 }
 
 /** New and running signals for playbook setups, best first: A before B, then by the setup's average R. */
-export function rankSignals(rows: SignalInput[], entries: JournalEntry[], now: number, account: PlaybookAccount = PLAYBOOK_ACCOUNT, rules: Rules = PLAYBOOK_RULES): RankedSignal[] {
+export function rankSignals(rows: SignalInput[], entries: JournalEntry[], now: number, account: PlaybookAccount = PLAYBOOK_ACCOUNT, stoppedElsewhere: string[] = []): RankedSignal[] {
   const out: RankedSignal[] = [];
   for (const row of rows) {
     const s = row.signal;
@@ -310,10 +343,10 @@ export function rankSignals(rows: SignalInput[], entries: JournalEntry[], now: n
     let sizing: Sizing | null = null;
     let checks: Check[] = [];
     if (s.stop !== null) {
-      const budget = riskBudget(setup.symbol, grade, account, rules);
+      const budget = riskBudget(setup.symbol, grade, account);
       sizing = sizePosition(setup.symbol, entry, s.stop, budget.amount);
       plan = { setupId: setup.id, side: s.side, grade, entry, stop: s.stop, target: s.target, riskAmount: sizing?.riskAtLots ?? budget.amount, signalEntry: s.entry, time: now };
-      checks = preTradeChecks(plan, entries, account, rules);
+      checks = preTradeChecks(plan, entries, account, stoppedElsewhere);
     }
     out.push({ setup, signal: s, plan, sizing, checks, takeable: plan !== null && hardFailures(checks).length === 0 });
   }

@@ -50,10 +50,14 @@ model User {
   coindcxBalance         Float?
   coindcxBalanceSyncedAt DateTime?
 
-  // P&L on the prop account before trades were logged in the playbook, so
-  // the playbook's balance matches the platform's. Set from the playbook
-  // page by entering the platform balance.
-  playbookPriorPnl Float @default(0)
+  // P&L on each prop account before trades were logged in the playbook, so
+  // the playbook's balance matches the platform's: { "<account id>": $ }.
+  // Account ids are in PLAYBOOK_ACCOUNTS (src/lib/playbook/config.ts). Set
+  // from the playbook page by entering the platform balance.
+  playbookPriorPnls Json @default("{}")
+  // Legacy: the same for the single $5k account the playbook had before it
+  // had accounts. No longer read.
+  playbookPriorPnl  Float @default(0)
 
   tradingAccounts TradingAccount[]
   riskProfiles    RiskProfile[]
@@ -454,6 +458,7 @@ model BacktestRun {
 model PlaybookTrade {
   id             String    @id @default(uuid())
   userId         String
+  accountId      String    @default("flex-10k") // which prop account, as in PLAYBOOK_ACCOUNTS
   setupId        String    // "<strategy>:<symbol>:<interval>", as in PLAYBOOK_SETUPS
   symbol         String
   strategy       String
@@ -484,6 +489,7 @@ model PlaybookTrade {
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
+  @@index([userId, accountId, status])
   @@map("playbook_trades")
 }
 

@@ -11,6 +11,8 @@ import { roundTripCostPerUnitUsd } from "@/lib/costs/fundingpips";
 import { fmtPrice } from "@/lib/plan/weeklyPlan";
 import { cn } from "@/lib/utils";
 
+// Prefixes: each account's view and signals sit under [...KEY, accountId], so
+// invalidating a prefix refreshes every account.
 export const PLAYBOOK_KEY = ["playbook"] as const;
 export const PLAYBOOK_SIGNALS_KEY = ["playbook-signals"] as const;
 
@@ -71,18 +73,18 @@ export interface PlanDefaults {
   signalEntry?: number | null;
 }
 
-export function PlanTradeDialog({ open, onClose, defaults, entries, account }: { open: boolean; onClose: () => void; defaults: PlanDefaults; entries: JournalEntry[]; account: PlaybookAccount }) {
+export function PlanTradeDialog({ open, onClose, defaults, entries, account, stoppedElsewhere }: { open: boolean; onClose: () => void; defaults: PlanDefaults; entries: JournalEntry[]; account: PlaybookAccount; stoppedElsewhere: string[] }) {
   // Remount the form whenever it opens with new defaults.
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className={dialogClass}>
-        {open && <PlanTradeForm key={JSON.stringify(defaults)} defaults={defaults} entries={entries} account={account} onDone={onClose} />}
+        {open && <PlanTradeForm key={`${account.id}:${JSON.stringify(defaults)}`} defaults={defaults} entries={entries} account={account} stoppedElsewhere={stoppedElsewhere} onDone={onClose} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function PlanTradeForm({ defaults, entries, account, onDone }: { defaults: PlanDefaults; entries: JournalEntry[]; account: PlaybookAccount; onDone: () => void }) {
+function PlanTradeForm({ defaults, entries, account, stoppedElsewhere, onDone }: { defaults: PlanDefaults; entries: JournalEntry[]; account: PlaybookAccount; stoppedElsewhere: string[]; onDone: () => void }) {
   const refresh = useRefresh();
   const [setupId, setSetupId] = useState(defaults.setupId ?? PLAYBOOK_SETUPS[0].id);
   const [side, setSide] = useState<Side>(defaults.side ?? "LONG");
@@ -116,15 +118,17 @@ function PlanTradeForm({ defaults, entries, account, onDone }: { defaults: PlanD
       { setupId, side, grade: g, entry: e, stop: s, target: Number.isFinite(t) ? t : null, riskAmount, signalEntry: defaults.signalEntry ?? null, time: fromLocalInput(time) },
       entries,
       account,
+      stoppedElsewhere,
     );
     const manual: Check[] = MANUAL_CHECKS.map((m) => ({ id: m.id, label: m.label, status: ticked.has(m.id) ? "pass" : "fail", detail: ticked.has(m.id) ? "Ticked" : "Not ticked yet", hard: true }));
     return [...auto, ...manual];
-  }, [setupId, side, g, e, s, t, riskAmount, defaults.signalEntry, time, entries, account, ticked]);
+  }, [setupId, side, g, e, s, t, riskAmount, defaults.signalEntry, time, entries, account, stoppedElsewhere, ticked]);
   const broken = hardFailures(checks);
 
   const save = useMutation({
     mutationFn: () =>
       send("/api/playbook/trades", "POST", {
+        accountId: account.id,
         setupId,
         side,
         grade: g,
@@ -151,7 +155,7 @@ function PlanTradeForm({ defaults, entries, account, onDone }: { defaults: PlanD
   return (
     <div className="flex flex-col gap-5">
       <DialogHeader>
-        <DialogTitle className={titleClass}>Plan a trade</DialogTitle>
+        <DialogTitle className={titleClass}>Plan a trade · {account.name}</DialogTitle>
         <p className="text-[13px] text-fog">Every rule is checked as you type. A trade that breaks one can still be logged with a reason, and it&apos;s marked as a rule break.</p>
       </DialogHeader>
 
@@ -184,7 +188,9 @@ function PlanTradeForm({ defaults, entries, account, onDone }: { defaults: PlanD
           label="Lots"
           htmlFor="pb-lots"
           hint={
-            suggested
+            budget.skip
+              ? `${budget.skip}: the plan sizes it at nothing.`
+              : suggested
               ? `Plan: ${budget.riskPct}% = ${money(budget.amount, { sign: false })}. ${suggested.lots} lot risks ${money(suggested.riskAtLots, { sign: false })}, of which ${money(suggested.costAtLots, { sign: false })} is commission and spread${suggested.belowMinLot ? ", more than the plan: the stop is too tight for the smallest lot" : ""}. 1 lot = ${lotUnits(setup.symbol).toLocaleString()} ${setup.symbol.startsWith("XA") ? "oz" : setup.symbol.startsWith("BTC") || setup.symbol.startsWith("ETH") ? "coin" : "units"}.`
               : "Enter entry and stop to size it."
           }

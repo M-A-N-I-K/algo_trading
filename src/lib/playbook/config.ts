@@ -1,4 +1,4 @@
-// The playbook: the only setups this account trades, and the rules around
+// The playbook: the only setups these accounts trade, and the rules around
 // them. Every number here comes from a backtest, not from opinion:
 //
 // - Setups: the strategy/market pairs that held up over 2 years (Nov 2024 to
@@ -9,11 +9,27 @@
 // - Rules: replaying those trades as one $5,000 account, at 0.5% risk and at
 //   most 4 trades open, the worst drawdown was 6% and no Monday start in 100
 //   touched the 4% daily or 12% total loss limit, even counting every open
-//   trade as stopped out. At 1% risk half the starts hit the daily limit.
+//   trade as stopped out. At 1% risk with 4 open, half the starts hit the
+//   daily limit, so the accounts below that risk more cap open trades at 2
+//   and require that closed losses plus open risk stay inside the own daily
+//   stop.
 // - Grades (src/lib/plan/weeklyPlan.ts): A-grade trades made profit factor
 //   2.10 against 1.44 for B-grade; on currency pairs B-grade lost (0.72).
 
+export interface PlaybookRules {
+  riskPctA: number; // % of the starting balance on an A-grade trade
+  riskPctB: number | null; // B-grade or ungraded trades; null = take A-grade only
+  maxOpen: number; // trades open at once
+  dailyStopPct: number; // own daily stop, % of the starting balance: half the firm's limit
+  maxLossesPerDay: number; // stop for the day after this many losing trades
+  skipBOnForex: boolean; // B-grade currency trades lost money in the backtest
+  riskTolerance: number; // rounding to a lot size may add up to 5%
+  chaseR: number; // entering more than this many R from the signal is chasing
+  rolloverMinutes: number; // either side of 00:00 platform time, spreads widen
+}
+
 export interface PlaybookAccount {
+  id: string; // stored on each PlaybookTrade
   name: string;
   size: number; // starting balance, $
   maxLossPct: number; // static: equity may never touch size × (1 − this)
@@ -21,31 +37,55 @@ export interface PlaybookAccount {
   targetPct: number; // profit target of the current phase
   timeZone: string; // the firm's day boundary (00:00 platform time)
   // P&L made on the platform before trades were logged here, so the balance
-  // matches the platform's. Set per user from the page (User.playbookPriorPnl).
+  // matches the platform's. Set per user from the page (User.playbookPriorPnls).
   priorPnl: number;
+  rules: PlaybookRules;
 }
 
-export const PLAYBOOK_ACCOUNT: PlaybookAccount = {
-  name: "FundingPips 2-Step Flex",
-  size: 5000,
-  maxLossPct: 12,
-  dailyLossPct: 4,
-  targetPct: 10,
-  // Platform time is UTC+2 in winter and UTC+3 in summer, the EU switch dates.
-  timeZone: "Europe/Athens",
-  priorPnl: 0,
+const SHARED_RULES = {
+  maxOpen: 2,
+  maxLossesPerDay: 2,
+  skipBOnForex: true,
+  riskTolerance: 1.05,
+  chaseR: 0.25,
+  rolloverMinutes: 30,
 };
 
-export const PLAYBOOK_RULES = {
-  riskPctA: 0.5, // % of the starting balance on an A-grade trade
-  riskPctB: 0.25, // half size on B-grade, or when there's no grade
-  maxOpen: 4, // trades open at once
-  dailyStopPct: 2, // own daily stop: half the firm's limit
-  skipBOnForex: true, // B-grade currency trades lost money in the backtest
-  riskTolerance: 1.05, // rounding to a lot size may add up to 5%
-  chaseR: 0.25, // entering more than this many R from the signal is chasing
-  rolloverMinutes: 30, // either side of 00:00 platform time, spreads widen
-} as const;
+// Platform time is UTC+2 in winter and UTC+3 in summer, the EU switch dates.
+const FUNDINGPIPS_TZ = "Europe/Athens";
+
+// Limits as the FundingPips dashboard shows them (10 Nov 2026). Risk sizes
+// from a Monte Carlo of the setups' baselines: by 30 Nov, Flex at 1% passes
+// about 46% of the time and Pro at 0.75% about 57%, each with a breach
+// chance of 5% or less (half that pass rate if live trading earns half the
+// backtest's edge). The Pro's static loss is only 8R, so it skips B-grade.
+export const PLAYBOOK_ACCOUNTS: readonly PlaybookAccount[] = [
+  {
+    id: "flex-10k",
+    name: "FundingPips $10k 2-Step Flex",
+    size: 10_000,
+    maxLossPct: 12,
+    dailyLossPct: 4,
+    targetPct: 10,
+    timeZone: FUNDINGPIPS_TZ,
+    priorPnl: 0,
+    rules: { ...SHARED_RULES, riskPctA: 1, riskPctB: 0.5, dailyStopPct: 2 },
+  },
+  {
+    id: "pro-5k",
+    name: "FundingPips $5k 2-Step Pro",
+    size: 5_000,
+    maxLossPct: 6,
+    dailyLossPct: 3,
+    targetPct: 6,
+    timeZone: FUNDINGPIPS_TZ,
+    priorPnl: 0,
+    rules: { ...SHARED_RULES, riskPctA: 0.75, riskPctB: null, dailyStopPct: 1.5 },
+  },
+];
+
+export const PLAYBOOK_ACCOUNT = PLAYBOOK_ACCOUNTS[0];
+export const accountById = (id: string | null | undefined) => PLAYBOOK_ACCOUNTS.find((a) => a.id === id);
 
 export interface SetupBaseline {
   trades: number;

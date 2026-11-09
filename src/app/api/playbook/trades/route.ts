@@ -3,7 +3,8 @@ import { authChallengeResponse, authenticateRequest } from "@/lib/auth";
 import { toErrorResponse } from "@/lib/errors";
 import { openTrade } from "@/lib/playbook/store";
 
-// POST /api/playbook/trades → log a trade taken from the playbook. The
+// POST /api/playbook/trades { accountId, ... } → log a trade taken from the
+// playbook on that account. The
 // checks are rerun on the server. 201 with the trade when logged; 422 with
 // the checks when a rule would break and no override reason is given.
 export async function POST(request: NextRequest) {

@@ -1,8 +1,8 @@
 import type { PlaybookTrade } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { appError } from "@/lib/errors";
-import { lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_ACCOUNT, PLAYBOOK_RULES, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "./config";
-import { accountStatus, adherence, hardFailures, preTradeChecks, scorecard, usdPerUnitMove, type Check, type JournalEntry } from "./rules";
+import { accountById, lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "./config";
+import { accountStatus, adherence, hardFailures, preTradeChecks, scorecard, usdPerUnitMove, type AccountStatus, type Check, type JournalEntry } from "./rules";
 
 // Database side of the playbook journal: loading entries, opening a trade
 // after checking it, closing it with the platform's P&L. The rules
@@ -11,6 +11,7 @@ import { accountStatus, adherence, hardFailures, preTradeChecks, scorecard, usdP
 export function toEntry(t: PlaybookTrade): JournalEntry {
   return {
     id: t.id,
+    accountId: t.accountId,
     setupId: t.setupId,
     symbol: t.symbol,
     side: t.side === "SHORT" ? "SHORT" : "LONG",
@@ -35,36 +36,86 @@ export function toEntry(t: PlaybookTrade): JournalEntry {
   };
 }
 
+/** One of the playbook's accounts by id; the first when no id is given. */
+export function pickAccount(id: unknown): PlaybookAccount {
+  if (id === undefined || id === null || id === "") return PLAYBOOK_ACCOUNTS[0];
+  const account = accountById(String(id));
+  if (!account) throw appError("INVALID_INPUT", `Unknown account. Use one of: ${PLAYBOOK_ACCOUNTS.map((a) => a.id).join(", ")}.`);
+  return account;
+}
+
+/** Every trade this user logged, on every account, newest first. */
 export async function loadEntries(userId: string): Promise<JournalEntry[]> {
   const rows = await prisma.playbookTrade.findMany({ where: { userId }, orderBy: { entryTime: "desc" } });
   return rows.map(toEntry);
 }
 
-/** The prop account as this user has it: the firm's rules plus their P&L from before the playbook. */
-export async function loadAccount(userId: string): Promise<PlaybookAccount> {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { playbookPriorPnl: true } });
-  return { ...PLAYBOOK_ACCOUNT, priorPnl: user?.playbookPriorPnl ?? 0 };
+const priorPnlsOf = (v: unknown): Record<string, number> =>
+  v && typeof v === "object" && !Array.isArray(v)
+    ? Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([, x]) => typeof x === "number" && Number.isFinite(x)) as [string, number][])
+    : {};
+
+/** Every prop account as this user has it: the firm's rules plus their P&L from before the playbook. */
+export async function loadAccounts(userId: string): Promise<PlaybookAccount[]> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { playbookPriorPnls: true } });
+  const prior = priorPnlsOf(user?.playbookPriorPnls);
+  return PLAYBOOK_ACCOUNTS.map((a) => ({ ...a, priorPnl: prior[a.id] ?? 0 }));
+}
+
+export interface AccountsState {
+  accounts: PlaybookAccount[];
+  entries: Map<string, JournalEntry[]>; // by account id
+  statuses: Map<string, AccountStatus>;
+}
+
+/** Every account with its trades and status, so one account's checks can see the others. */
+export async function loadAccountsState(userId: string, now = Date.now()): Promise<AccountsState> {
+  const [all, accounts] = await Promise.all([loadEntries(userId), loadAccounts(userId)]);
+  const entries = new Map(accounts.map((a) => [a.id, all.filter((e) => e.accountId === a.id)]));
+  const statuses = new Map(accounts.map((a) => [a.id, accountStatus(entries.get(a.id)!, now, a)]));
+  return { accounts, entries, statuses };
+}
+
+/** Names of the other accounts that hit their daily stop today. */
+export function stoppedElsewhere(state: AccountsState, accountId: string): string[] {
+  return state.accounts.filter((a) => a.id !== accountId && state.statuses.get(a.id)?.dailyStopHit).map((a) => a.name);
+}
+
+/** One account's slice of the state. */
+export function forAccount(state: AccountsState, accountId: string) {
+  const account = state.accounts.find((a) => a.id === accountId)!;
+  return { account, entries: state.entries.get(accountId) ?? [], stoppedElsewhere: stoppedElsewhere(state, accountId) };
 }
 
 /**
  * Matches the playbook's balance to the platform's: the difference between
- * the balance entered and the playbook's own closed P&L is P&L from before
- * the playbook (or from trades not logged here).
+ * the balance entered and the account's own closed P&L here is P&L from
+ * before the playbook (or from trades not logged here).
  */
-export async function setPlatformBalance(userId: string, body: Body): Promise<void> {
+export async function setPlatformBalance(userId: string, body: Body): Promise<PlaybookAccount> {
+  const account = pickAccount(body.accountId);
   const balance = num(body, "balance")!;
   if (balance <= 0) throw appError("INVALID_INPUT", "Enter the balance your platform shows.");
-  const closed = await prisma.playbookTrade.aggregate({ where: { userId, status: "CLOSED" }, _sum: { pnl: true } });
-  const priorPnl = balance - PLAYBOOK_ACCOUNT.size - (closed._sum.pnl ?? 0);
-  await prisma.user.update({ where: { id: userId }, data: { playbookPriorPnl: Math.round(priorPnl * 100) / 100 } });
+  const [closed, user] = await Promise.all([
+    prisma.playbookTrade.aggregate({ where: { userId, accountId: account.id, status: "CLOSED" }, _sum: { pnl: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { playbookPriorPnls: true } }),
+  ]);
+  const priorPnl = Math.round((balance - account.size - (closed._sum.pnl ?? 0)) * 100) / 100;
+  const prior = { ...priorPnlsOf(user?.playbookPriorPnls), [account.id]: priorPnl };
+  await prisma.user.update({ where: { id: userId }, data: { playbookPriorPnls: prior } });
+  return account;
 }
 
-export async function playbookView(userId: string, now = Date.now()) {
-  const [entries, account] = await Promise.all([loadEntries(userId), loadAccount(userId)]);
+export async function playbookView(userId: string, accountId: string, now = Date.now()) {
+  const state = await loadAccountsState(userId, now);
+  const { account, entries, stoppedElsewhere: stopped } = forAccount(state, accountId);
   return {
     asOf: now,
     account,
-    rules: PLAYBOOK_RULES,
+    rules: account.rules,
+    // Every account, for the switcher.
+    accounts: state.accounts.map((a) => ({ account: a, status: state.statuses.get(a.id)! })),
+    stoppedElsewhere: stopped,
     setups: PLAYBOOK_SETUPS,
     manualChecks: MANUAL_CHECKS,
     mistakes: MISTAKES,
@@ -111,6 +162,7 @@ export interface OpenResult {
  * happened), but it's marked as a rule break.
  */
 export async function openTrade(userId: string, body: Body, now = Date.now()): Promise<OpenResult> {
+  const accountId = pickAccount(body.accountId).id;
   const setup = setupById(str(body, "setupId"));
   if (!setup) throw appError("INVALID_INPUT", "Pick one of the playbook setups.");
   const side = str(body, "side") === "SHORT" ? "SHORT" : "LONG";
@@ -128,11 +180,12 @@ export async function openTrade(userId: string, body: Body, now = Date.now()): P
   const quantity = lots !== null && lots > 0 ? lots * lotUnits(setup.symbol) : (riskInput ?? 0) / perUnitRisk;
   const riskAmount = quantity * perUnitRisk;
 
-  const [entries, account] = await Promise.all([loadEntries(userId), loadAccount(userId)]);
+  const { account, entries, stoppedElsewhere: stopped } = forAccount(await loadAccountsState(userId, entryTime), accountId);
   const checks = preTradeChecks(
     { setupId: setup.id, side, grade, entry, stop, target, riskAmount, signalEntry: num(body, "signalEntry", false), time: entryTime },
     entries,
     account,
+    stopped,
   );
   const ticked = Array.isArray(body.manualChecks) ? new Set((body.manualChecks as unknown[]).map(String)) : new Set<string>();
   for (const m of MANUAL_CHECKS) {
@@ -146,6 +199,7 @@ export async function openTrade(userId: string, body: Body, now = Date.now()): P
   const created = await prisma.playbookTrade.create({
     data: {
       userId,
+      accountId,
       setupId: setup.id,
       symbol: setup.symbol,
       strategy: setup.strategy,

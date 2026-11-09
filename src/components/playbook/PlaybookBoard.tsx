@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { Button, Callout, EmptyState, Field, Panel, Stat, Tag, TextInput, money, signedNumber, tableClass, tdClass, thClass, toneClass } from "@/components/kit";
 import { fetchJson } from "@/lib/apiClient";
-import { setupById } from "@/lib/playbook/config";
+import { PLAYBOOK_ACCOUNTS, setupById } from "@/lib/playbook/config";
 import type { JournalEntry, RankedSignal, SetupVerdict } from "@/lib/playbook/rules";
 import type { PlaybookView } from "@/lib/playbook/store";
 import { fmtPrice } from "@/lib/plan/weeklyPlan";
@@ -46,13 +46,15 @@ function GradeTag({ grade }: { grade: "A" | "B" | null | undefined }) {
 
 // Sets the balance to what the platform shows, so the floor, daily limit and
 // target use the real number. Closed balance: open trades aren't included.
-function BalanceEditor({ current, onDone }: { current: number; onDone: () => void }) {
+function BalanceEditor({ accountId, current, onDone }: { accountId: string; current: number; onDone: () => void }) {
   const qc = useQueryClient();
   const [value, setValue] = useState(current.toFixed(2));
   const save = useMutation({
-    mutationFn: () => fetchJson<PlaybookView>("/api/playbook", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ balance: Number(value) }) }),
+    mutationFn: () => fetchJson<PlaybookView>("/api/playbook", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountId, balance: Number(value) }) }),
     onSuccess: async (view) => {
-      qc.setQueryData(PLAYBOOK_KEY, view);
+      qc.setQueryData([...PLAYBOOK_KEY, accountId], view);
+      // Other accounts' views show this one in the switcher.
+      await qc.invalidateQueries({ queryKey: PLAYBOOK_KEY, predicate: (q) => q.queryKey[1] !== accountId });
       await qc.invalidateQueries({ queryKey: PLAYBOOK_SIGNALS_KEY });
       onDone();
     },
@@ -78,6 +80,43 @@ function BalanceEditor({ current, onDone }: { current: number; onDone: () => voi
   );
 }
 
+function AccountSwitcher({ view, onSelect }: { view: PlaybookView; onSelect: (id: string) => void }) {
+  return (
+    <div role="tablist" aria-label="Prop account" className="grid gap-3 sm:grid-cols-2">
+      {view.accounts.map(({ account, status }) => {
+        const active = account.id === view.account.id;
+        const since = status.balance - status.size;
+        return (
+          <button
+            key={account.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onSelect(account.id)}
+            className={cn(
+              "flex min-w-0 flex-col gap-1.5 rounded-[10px] border p-4 text-left transition-colors",
+              active ? "border-signal bg-deck" : "border-rule bg-ink/40 hover:border-mist",
+            )}
+          >
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-display text-[15px] font-semibold text-paper">{account.name}</span>
+              {status.targetReached ? <Tag tone="gain">Target reached</Tag> : status.dailyStopHit ? <Tag tone="loss">Stopped today</Tag> : status.openCount > 0 ? <Tag tone="signal">{status.openCount} open</Tag> : null}
+            </span>
+            <span className="flex flex-wrap gap-x-4 gap-y-0.5 text-[13px] tabular-nums">
+              <span className="text-paper">{usd(status.balance)}</span>
+              <span className={toneClass(since)}>{money(since)} total</span>
+              <span className={toneClass(status.todayPnl)}>{money(status.todayPnl)} today</span>
+            </span>
+            <span className="text-xs text-mist">
+              {account.rules.riskPctA}% ({usd((account.size * account.rules.riskPctA) / 100)}) a trade · stop at {money(-status.ownDailyStop)} a day · floor {usd(status.floor)}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function AccountPanel({ view }: { view: PlaybookView }) {
   const s = view.status;
   const [editing, setEditing] = useState(false);
@@ -88,7 +127,7 @@ function AccountPanel({ view }: { view: PlaybookView }) {
   return (
     <Panel
       title={view.account.name}
-      note={`$${s.size.toLocaleString()} account. Equity may never touch ${usd(s.floor)} (12% below the start, it never moves) or lose ${view.account.dailyLossPct}% in a day.`}
+      note={`$${s.size.toLocaleString()} account. Equity may never touch ${usd(s.floor)} (${view.account.maxLossPct}% below the start, it never moves) or lose ${view.account.dailyLossPct}% in a day.`}
       aside={!editing && <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>Match platform balance</Button>}
     >
       <div className="grid grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-5">
@@ -117,10 +156,15 @@ function AccountPanel({ view }: { view: PlaybookView }) {
           <Meter value={s.balance - s.size} max={s.targetBalance - s.size} tone="gain" />
         </div>
       </div>
-      {editing && <BalanceEditor current={s.balance} onDone={() => setEditing(false)} />}
+      {editing && <BalanceEditor accountId={view.account.id} current={s.balance} onDone={() => setEditing(false)} />}
       {s.dailyStopHit && (
         <Callout tone="critical" title="Daily stop hit" className="mt-5">
-          You&apos;re down {usd(-s.todayPnl)} today. No more trades until the firm&apos;s day resets at 00:00 platform time.
+          {s.lossesToday >= view.rules.maxLossesPerDay ? `${s.lossesToday} losing trades today` : `You're down ${usd(-s.todayPnl)} today`}. No more trades on any account until the firm&apos;s day resets at 00:00 platform time.
+        </Callout>
+      )}
+      {!s.dailyStopHit && view.stoppedElsewhere.length > 0 && (
+        <Callout tone="critical" title="Stopped on another account" className="mt-5">
+          {view.stoppedElsewhere.join(" and ")} hit the daily stop today. A bad day on one account is a reason to stop on all of them until the reset.
         </Callout>
       )}
       {s.targetReached && (
@@ -182,10 +226,10 @@ function SignalCard({ item, rank, onPlan }: { item: RankedSignal; rank: number; 
   );
 }
 
-function SignalsPanel({ onPlan, freeSlots }: { onPlan: (d: PlanDefaults) => void; freeSlots: number }) {
+function SignalsPanel({ accountId, onPlan, freeSlots }: { accountId: string; onPlan: (d: PlanDefaults) => void; freeSlots: number }) {
   const { data, error, isLoading } = useQuery({
-    queryKey: PLAYBOOK_SIGNALS_KEY,
-    queryFn: () => fetchJson<SignalsResponse>("/api/playbook/signals"),
+    queryKey: [...PLAYBOOK_SIGNALS_KEY, accountId],
+    queryFn: () => fetchJson<SignalsResponse>(`/api/playbook/signals?account=${encodeURIComponent(accountId)}`),
     refetchInterval: 60_000,
   });
   const fresh = data?.signals.filter((x) => x.signal.status === "new") ?? [];
@@ -399,9 +443,16 @@ function RulesPanel({ view }: { view: PlaybookView }) {
     <Panel title="The rules" note="Set from a replay of two years of these 13 setups as one account. See the Guides page for how to trade each strategy.">
       <ul className="flex list-disc flex-col gap-1.5 pl-4 text-[13px] leading-relaxed text-paper marker:text-mist">
         <li>Only the 13 setups on this page. A chart that looks good elsewhere is not a trade.</li>
-        <li>Risk {k.riskPctA}% ({usd((view.account.size * k.riskPctA) / 100)}) on A-grade, {k.riskPctB}% on B-grade. Skip B-grade currency trades: they lost money in the backtest.</li>
+        {k.riskPctB === null ? (
+          <li>Risk {k.riskPctA}% ({usd((view.account.size * k.riskPctA) / 100)}) on A-grade trades only. Skip B-grade and ungraded signals: with {view.account.maxLossPct}% of total room, this account can&apos;t afford the weaker trades.</li>
+        ) : (
+          <li>Risk {k.riskPctA}% ({usd((view.account.size * k.riskPctA) / 100)}) on A-grade, {k.riskPctB}% ({usd((view.account.size * k.riskPctB) / 100)}) on B-grade. Skip B-grade currency trades: they lost money in the backtest.</li>
+        )}
+        <li>Take only trades with the strategy&apos;s own target: at least 2 : 1 reward to risk (1.5 : 1 on MACD gold).</li>
         <li>At most {k.maxOpen} trades open. BTC and ETH in the same direction are one bet, so are gold and silver, and so are currency pairs that bet the same way on the dollar.</li>
-        <li>Stop for the day at {money(-(view.account.size * k.dailyStopPct) / 100)}. The firm&apos;s limit is {view.account.dailyLossPct}%, and open trades count toward it.</li>
+        <li>Stop for the day at {money(-(view.account.size * k.dailyStopPct) / 100)} or after {k.maxLossesPerDay} losing trades, whichever comes first. Today&apos;s losses plus the risk on open trades must never pass that stop. The firm&apos;s limit is {view.account.dailyLossPct}%, and open trades count toward it.</li>
+        <li>If any account hits its daily stop, stop trading every account until the reset.</li>
+        <li>Never raise risk to catch up when you&apos;re behind.</li>
         <li>Leave stops and targets where the strategy puts them. Moving them makes your results stop matching the backtest.</li>
         <li>No trades within 30 minutes of high-impact news or of the daily rollover (00:00 platform time).</li>
         <li>Judge a setup after 25 trades, not after a losing streak.</li>
@@ -415,11 +466,28 @@ function RulesPanel({ view }: { view: PlaybookView }) {
 
 /* ---------- page ---------- */
 
+const ACCOUNT_STORAGE_KEY = "playbook-account";
+
 export default function PlaybookBoard() {
+  const [accountId, setAccountId] = useState<string>(PLAYBOOK_ACCOUNTS[0].id);
+  // Remember the last account picked on this browser.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(ACCOUNT_STORAGE_KEY);
+      if (saved && PLAYBOOK_ACCOUNTS.some((a) => a.id === saved)) setAccountId(saved);
+    } catch {}
+  }, []);
+  const selectAccount = (id: string) => {
+    setAccountId(id);
+    try {
+      localStorage.setItem(ACCOUNT_STORAGE_KEY, id);
+    } catch {}
+  };
   const { data: view, error, isLoading } = useQuery({
-    queryKey: PLAYBOOK_KEY,
-    queryFn: () => fetchJson<PlaybookView>("/api/playbook"),
+    queryKey: [...PLAYBOOK_KEY, accountId],
+    queryFn: () => fetchJson<PlaybookView>(`/api/playbook?account=${encodeURIComponent(accountId)}`),
     refetchInterval: 60_000,
+    placeholderData: (prev) => prev,
   });
   const [plan, setPlan] = useState<PlanDefaults | null>(null);
   const [closing, setClosing] = useState<JournalEntry | null>(null);
@@ -436,14 +504,15 @@ export default function PlaybookBoard() {
         </p>
         <Button variant="primary" onClick={() => setPlan({})}><Plus size={16} aria-hidden="true" /> Plan a trade</Button>
       </div>
+      <AccountSwitcher view={view} onSelect={selectAccount} />
       <AccountPanel view={view} />
-      <SignalsPanel onPlan={setPlan} freeSlots={Math.max(0, view.rules.maxOpen - view.status.openCount)} />
+      <SignalsPanel accountId={view.account.id} onPlan={setPlan} freeSlots={Math.max(0, view.rules.maxOpen - view.status.openCount)} />
       <OpenTrades trades={view.open} onClose={setClosing} />
       <Discipline view={view} />
       <Scorecard view={view} />
       <History trades={view.closed} onEdit={setClosing} />
       <RulesPanel view={view} />
-      <PlanTradeDialog open={plan !== null} defaults={plan ?? {}} entries={entries} account={view.account} onClose={() => setPlan(null)} />
+      <PlanTradeDialog open={plan !== null} defaults={plan ?? {}} entries={entries} account={view.account} stoppedElsewhere={view.stoppedElsewhere} onClose={() => setPlan(null)} />
       <CloseTradeDialog trade={closing} onClose={() => setClosing(null)} />
     </div>
   );

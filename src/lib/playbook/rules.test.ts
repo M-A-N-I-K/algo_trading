@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { PLAYBOOK_ACCOUNT, PLAYBOOK_SETUPS, setupById } from "./config";
+import { accountById, PLAYBOOK_ACCOUNT, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "./config";
 import {
-  accountStatus,
+  accountStatus as accountStatusOn,
   adherence,
   exposureKeys,
   hardFailures,
@@ -9,14 +9,32 @@ import {
   minutesFromRollover,
   platformDay,
   pnlUsd,
-  preTradeChecks,
-  rankSignals,
-  riskBudget,
+  preTradeChecks as preTradeChecksOn,
+  rankSignals as rankSignalsOn,
+  riskBudget as riskBudgetOn,
   rStats,
   sizePosition,
   type JournalEntry,
   type TradePlan,
 } from "./rules";
+
+// Most tests run on a fixed $5k account at 0.5% risk with 4 slots, so the
+// numbers below don't move when the real accounts' sizes change. The real
+// accounts have their own tests at the end.
+const ACCOUNT: PlaybookAccount = {
+  ...PLAYBOOK_ACCOUNT,
+  id: "test",
+  name: "Test $5k",
+  size: 5000,
+  maxLossPct: 12,
+  dailyLossPct: 4,
+  targetPct: 10,
+  rules: { ...PLAYBOOK_ACCOUNT.rules, riskPctA: 0.5, riskPctB: 0.25, maxOpen: 4, dailyStopPct: 2, maxLossesPerDay: 99 },
+};
+const accountStatus = (e: JournalEntry[], now: number, account = ACCOUNT) => accountStatusOn(e, now, account);
+const preTradeChecks = (p: TradePlan, e: JournalEntry[], account = ACCOUNT, stopped: string[] = []) => preTradeChecksOn(p, e, account, stopped);
+const rankSignals = (rows: Parameters<typeof rankSignalsOn>[0], e: JournalEntry[], now: number, account = ACCOUNT) => rankSignalsOn(rows, e, now, account);
+const riskBudget = (symbol: string, grade: "A" | "B" | null, account = ACCOUNT) => riskBudgetOn(symbol, grade, account);
 
 // Wed 11 Nov 2026 12:00 UTC = 14:00 platform time (UTC+2 in winter).
 const NOON = Date.UTC(2026, 10, 11, 12, 0);
@@ -31,6 +49,7 @@ function entry(over: Partial<JournalEntry>): JournalEntry {
   const setup = setupById(over.setupId ?? ETH_SWEEP)!;
   return {
     id: String(++n),
+    accountId: "test",
     setupId: setup.id,
     symbol: setup.symbol,
     side: "LONG",
@@ -157,7 +176,7 @@ describe("account status", () => {
   });
   it("starts from the platform balance when there was P&L before the playbook", () => {
     // $4,850 on the platform after a $150 loss: the floor stays at $4,400.
-    const account = { ...PLAYBOOK_ACCOUNT, priorPnl: -150 };
+    const account = { ...ACCOUNT, priorPnl: -150 };
     const s = accountStatus([entry({ riskAmount: 25 })], NOON, account);
     expect(s.balance).toBe(4850);
     expect(s.floor).toBe(4400);
@@ -270,5 +289,68 @@ describe("scorecard", () => {
     expect(a.followed.trades).toBe(1);
     expect(a.broken.trades).toBe(3);
     expect(a.mistakes.map((m) => m.id)).toEqual(["moved-stop", "late-entry"]);
+  });
+});
+
+describe("the two FundingPips accounts", () => {
+  const flex = accountById("flex-10k")!;
+  const pro = accountById("pro-5k")!;
+  const flexPlan = (over: Partial<TradePlan> = {}) => plan({ riskAmount: 100, ...over });
+  const lossOn = (account: PlaybookAccount, pnl: number, over: Partial<JournalEntry> = {}) => closed(pnl, NOON - 1000, { accountId: account.id, riskAmount: Math.abs(pnl), ...over });
+
+  it("matches the limits on the FundingPips dashboards", () => {
+    expect(PLAYBOOK_ACCOUNTS.map((a) => a.id)).toEqual(["flex-10k", "pro-5k"]);
+    const f = accountStatusOn([], NOON, flex);
+    expect([f.floor, f.firmDailyLimit, f.targetBalance, f.ownDailyStop]).toEqual([8800, 400, 11000, 200]);
+    const p = accountStatusOn([], NOON, pro);
+    expect([p.floor, p.firmDailyLimit, p.targetBalance, p.ownDailyStop]).toEqual([4700, 150, 5300, 75]);
+  });
+  it("risks $100/$50 on the Flex and $37.50 A-grade only on the Pro", () => {
+    expect(riskBudgetOn("ETHUSDT", "A", flex).amount).toBe(100);
+    expect(riskBudgetOn("ETHUSDT", "B", flex).amount).toBe(50);
+    expect(riskBudgetOn("EURUSD", "B", flex).skip).toMatch(/0\.72/);
+    expect(riskBudgetOn("ETHUSDT", "A", pro).amount).toBe(37.5);
+    expect(riskBudgetOn("ETHUSDT", "B", pro).skip).toMatch(/A-grade trades only/);
+    expect(riskBudgetOn("ETHUSDT", null, pro).skip).toMatch(/A-grade trades only/);
+    expect(status(preTradeChecksOn(plan({ grade: "B", riskAmount: 18.75 }), [], pro), "grade")).toBe("fail");
+    expect(hardFailures(preTradeChecksOn(flexPlan(), [], flex))).toEqual([]);
+    expect(hardFailures(preTradeChecksOn(plan({ riskAmount: 37.5 }), [], pro))).toEqual([]);
+  });
+  it("allows 2 open trades", () => {
+    const open = [entry({ accountId: flex.id, setupId: XAU_LR, riskAmount: 100 })];
+    expect(status(preTradeChecksOn(flexPlan(), open, flex), "slots")).toBe("pass");
+    open.push(entry({ accountId: flex.id, setupId: JPY_LR, riskAmount: 100 }));
+    expect(status(preTradeChecksOn(flexPlan(), open, flex), "slots")).toBe("fail");
+  });
+  it("stops the day after 2 losses, not counting breakeven exits", () => {
+    expect(accountStatusOn([lossOn(flex, -100)], NOON, flex).dailyStopHit).toBe(false);
+    expect(accountStatusOn([lossOn(flex, -100), lossOn(pro, -2, { exitReason: "breakeven" })], NOON, flex).dailyStopHit).toBe(false);
+    const s = accountStatusOn([lossOn(flex, -40), lossOn(flex, -40)], NOON, flex);
+    expect(s.lossesToday).toBe(2);
+    expect(s.dailyStopHit).toBe(true);
+    expect(status(preTradeChecksOn(flexPlan(), [lossOn(flex, -40), lossOn(flex, -40)], flex), "daily-stop")).toBe("fail");
+  });
+  it("keeps closed losses plus open risk inside the own daily stop", () => {
+    // −$100 today and $100 open: another $100 could reach −$300, past the $200 stop.
+    const entries = [lossOn(flex, -100), entry({ accountId: flex.id, setupId: XAU_LR, riskAmount: 100 })];
+    expect(status(preTradeChecksOn(flexPlan(), entries, flex), "own-daily")).toBe("fail");
+    // Two fresh trades fit exactly: −$200 worst case, with room for lot rounding.
+    expect(status(preTradeChecksOn(flexPlan({ riskAmount: 103 }), [entry({ accountId: flex.id, setupId: XAU_LR, riskAmount: 100 })], flex), "own-daily")).toBe("pass");
+    // Pro: $37.50 open plus $37.50 new is its $75 stop.
+    expect(status(preTradeChecksOn(plan({ riskAmount: 37.5 }), [entry({ accountId: pro.id, setupId: XAU_LR, riskAmount: 37.5 })], pro), "own-daily")).toBe("pass");
+    expect(status(preTradeChecksOn(plan({ riskAmount: 37.5 }), [lossOn(pro, -37.5), entry({ accountId: pro.id, setupId: XAU_LR, riskAmount: 37.5 })], pro), "own-daily")).toBe("fail");
+  });
+  it("blocks every account when another hit its daily stop", () => {
+    const checks = preTradeChecksOn(flexPlan(), [], flex, [pro.name]);
+    expect(status(checks, "linked-stop")).toBe("fail");
+    expect(checks.find((c) => c.id === "linked-stop")?.detail).toContain(pro.name);
+    expect(preTradeChecksOn(flexPlan(), [], flex).some((c) => c.id === "linked-stop")).toBe(false);
+  });
+  it("uses the Pro's 6% floor", () => {
+    // $250 lost overall: one more $37.50 loss would leave $4,712.50, still above $4,700; $270 lost would not.
+    expect(status(preTradeChecksOn(plan({ riskAmount: 37.5 }), [closed(-250, Date.UTC(2026, 10, 2), { accountId: pro.id })], pro), "floor")).toBe("pass");
+    const checks = preTradeChecksOn(plan({ riskAmount: 37.5 }), [closed(-270, Date.UTC(2026, 10, 2), { accountId: pro.id })], pro);
+    expect(status(checks, "floor")).toBe("fail");
+    expect(checks.find((c) => c.id === "floor")?.label).toContain("6%");
   });
 });
