@@ -11,6 +11,7 @@ import {
   createLiquidityReversalStrategy,
   createLiquidityReversalMtfStrategy,
   createTopDownStrategy,
+  createNyOpenFvgStrategy,
 } from "./index";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each factory takes its own options shape
@@ -30,6 +31,7 @@ export const CODED_STRATEGIES: Record<string, StrategyFactory> = {
   "liquidity-reversal": createLiquidityReversalStrategy,
   "liquidity-reversal-mtf": createLiquidityReversalMtfStrategy,
   "top-down": createTopDownStrategy,
+  "ny-open-fvg": createNyOpenFvgStrategy,
 };
 
 // Strategies whose bias comes from a real higher-timeframe series, fetched
@@ -42,6 +44,7 @@ export const HIGHER_TIMEFRAME: Record<string, { interval: string; executionInter
   "liquidity-reversal-mtf": { interval: "1h", executionInterval: "5m" },
   // Weekly and daily bias are built from the 1h series.
   "top-down": { interval: "1h", executionInterval: "5m" },
+  "ny-open-fvg": { interval: "15m", executionInterval: "1m" },
 };
 
 export function createCodedStrategy(key: string, htfCandles?: OHLC[]): Strategy | null {
