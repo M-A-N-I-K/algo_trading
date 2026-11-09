@@ -56,11 +56,51 @@ const text = (cell: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+// Next "<tag" at or after `from` that is followed by ">", whitespace or "/"
+// (so "<tr" doesn't match "<track"). -1 when there is none.
+function findOpen(lower: string, tag: string, from: number): number {
+  let i = lower.indexOf(`<${tag}`, from);
+  while (i !== -1) {
+    const next = lower.charAt(i + tag.length + 1);
+    if (next === ">" || next === "/" || /\s/.test(next)) return i;
+    i = lower.indexOf(`<${tag}`, i + 1);
+  }
+  return -1;
+}
+
+// Rows of table cells, found with one forward scan (indexOf only), so the
+// work is linear in the file size whatever the markup. Regexes with lazy
+// bodies here went quadratic on unclosed tags.
 function rows(html: string): string[][] {
+  const lower = html.toLowerCase();
   const out: string[][] = [];
-  for (const m of html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
-    const cells = [...m[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((c) => text(c[1]));
-    if (cells.some((c) => c !== "")) out.push(cells);
+  let pos = 0;
+  for (;;) {
+    const trOpen = findOpen(lower, "tr", pos);
+    if (trOpen === -1) break;
+    const trBody = lower.indexOf(">", trOpen);
+    if (trBody === -1) break;
+    const trClose = lower.indexOf("</tr", trBody);
+    if (trClose === -1) break;
+    // Search cells inside this row's text only, so no search runs past it.
+    const rowLower = lower.slice(trBody + 1, trClose);
+    const rowHtml = html.slice(trBody + 1, trClose);
+    const cells: string[] = [];
+    let c = 0;
+    for (;;) {
+      const td = findOpen(rowLower, "td", c);
+      const th = findOpen(rowLower, "th", c);
+      const open = td === -1 ? th : th === -1 ? td : Math.min(td, th);
+      if (open === -1) break;
+      const body = rowLower.indexOf(">", open);
+      if (body === -1) break;
+      const ends = [rowLower.indexOf("</td", body), rowLower.indexOf("</th", body)].filter((x) => x !== -1);
+      const end = ends.length ? Math.min(...ends) : rowLower.length; // unclosed cell: runs to the row's end
+      cells.push(text(rowHtml.slice(body + 1, end)));
+      c = end + 1;
+    }
+    if (cells.some((x) => x !== "")) out.push(cells);
+    pos = trClose + 4;
   }
   return out;
 }

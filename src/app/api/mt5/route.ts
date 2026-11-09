@@ -4,7 +4,7 @@ import { toErrorResponse } from "@/lib/errors";
 import { decodeReport, parseMt5Report } from "@/lib/mt5/report";
 import { importReport, mt5Summary } from "@/lib/mt5/store";
 
-const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_BYTES = 2 * 1024 * 1024; // a real report is ~120 KB
 
 // GET /api/mt5 → imported MT5 positions, totals and the commission each
 // symbol was charged.
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     const form = await request.formData();
     const file = form.get("file");
     if (!(file instanceof File)) return NextResponse.json({ message: "Attach the report as 'file'." }, { status: 400 });
-    if (file.size > MAX_BYTES) return NextResponse.json({ message: "That file is larger than an MT5 report should be (5 MB)." }, { status: 413 });
+    if (file.size > MAX_BYTES) return NextResponse.json({ message: "That file is larger than an MT5 report should be (2 MB)." }, { status: 413 });
     let report;
     try {
       report = parseMt5Report(decodeReport(new Uint8Array(await file.arrayBuffer())));
