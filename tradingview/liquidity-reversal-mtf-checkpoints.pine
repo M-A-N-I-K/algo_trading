@@ -1,0 +1,460 @@
+//@version=6
+// Liquidity Reversal MTF checkpoints (1h setup, 5m entry)
+//
+// Port of src/strategies/liquidityReversalMtfStrategy.ts with the same defaults.
+// Put it on a 5m chart. It builds the 1h candles itself from the chart's bars and runs
+// the 1h Liquidity Reversal rules on them, then times the entry on the 5m candles:
+//
+//   1h (1) Equal lows    two 1h swing lows within 0.1 x 1h ATR, nothing lower between them
+//   1h (2) Sweep         a 1h wick below them
+//   1h (3) Shift         a 1h candle closes above the last 1h swing high before the sweep low
+//   1h (4) Zone          last red 1h candle at/before the sweep low: its open down to the sweep low
+//   5m (5) Pullback      a 5m candle dips into the 1h zone; its lowest 5m low is tracked
+//   5m (6) Entry         a 5m candle closes above the last 5m swing high formed between the
+//                        1h shift and that pullback low
+//   stop = 1h sweep low - 0.1 x 1h ATR (NOT the 5m low), target = nearest untouched 1h swing
+//   high paying >= 2R. One trade per zone. The zone dies on a 5m close below the 1h sweep low,
+//   on a 1h close below it, or 24 1h candles after the shift. Shorts are the mirror image.
+//
+// Closed candles only, nothing repaints. Needs a chart timeframe that divides 1 hour (5m).
+indicator("Liquidity Reversal MTF checkpoints", shorttitle = "LR MTF", overlay = true, max_bars_back = 5000, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 200)
+
+grpH      = "1h setup rules (keep defaults to match the backtest)"
+k1        = input.int(3, "1h swing lookback (candles each side)", minval = 1, group = grpH)
+atrLen    = input.int(14, "1h ATR length", minval = 1, group = grpH)
+eqTol     = input.float(0.1, "Equal lows tolerance (x 1h ATR)", minval = 0, step = 0.05, group = grpH)
+poolLook  = input.int(100, "Max 1h candles between the two lows", minval = 1, group = grpH)
+obSearch  = input.int(10, "Zone search (1h candles before sweep low)", minval = 0, group = grpH)
+stopBuf   = input.float(0.1, "Stop buffer (x 1h ATR)", minval = 0, step = 0.05, group = grpH)
+targetLook = input.int(200, "Target search (1h candles back)", minval = 1, group = grpH)
+maxSetup  = input.int(48, "1h setup expiry (1h candles)", minval = 1, group = grpH)
+grpL      = "5m entry rules"
+k5        = input.int(3, "5m swing lookback (candles each side)", minval = 1, group = grpL)
+minRr     = input.float(2.0, "Minimum reward : risk", minval = 0.5, step = 0.5, group = grpL)
+zoneBars  = input.int(24, "Zone lifetime (1h candles after the shift)", minval = 1, group = grpL)
+grpS      = "Show"
+showLong  = input.bool(true, "Long setups", group = grpS)
+showShort = input.bool(true, "Short setups", group = grpS)
+showPools = input.bool(true, "1h equal lows / highs and sweeps", group = grpS)
+showCancel = input.bool(true, "Cancelled and skipped setups", group = grpS)
+showPanel = input.bool(true, "Checkpoint panel", group = grpS)
+tradeLen  = input.int(120, "Entry / stop / target line length (chart candles)", minval = 1, group = grpS)
+
+colLong  = color.new(#26a69a, 0)
+colShort = color.new(#ef5350, 0)
+colPoolL = color.new(#42a5f5, 0)
+colPoolS = color.new(#ffa726, 0)
+colMuted = color.new(#9e9e9e, 0)
+
+// ─── 1h candles built from the chart's bars ───
+var array<float> hO   = array.new<float>()
+var array<float> hH   = array.new<float>()
+var array<float> hL   = array.new<float>()
+var array<float> hC   = array.new<float>()
+var array<float> hTR  = array.new<float>()
+var array<float> hATR = array.new<float>()
+var array<int>   hBar = array.new<int>()   // chart bar_index where each 1h candle starts
+var float curO = na
+var float curH = na
+var float curL = na
+var int   curBar = na
+var bool  started = false
+
+int  tfSec   = timeframe.in_seconds()
+bool tfOk    = tfSec < 3600 and 3600 % tfSec == 0
+bool newHour = false
+
+if barstate.isconfirmed and tfOk
+    if time % 3600000 == 0
+        started := true
+        curO := open
+        curH := high
+        curL := low
+        curBar := bar_index
+    else if started
+        curH := math.max(curH, high)
+        curL := math.min(curL, low)
+    if started and time_close % 3600000 == 0
+        int n0 = hC.size()
+        float tr = n0 == 0 ? curH - curL : math.max(curH - curL, math.abs(curH - hC.last()), math.abs(curL - hC.last()))
+        hO.push(curO)
+        hH.push(curH)
+        hL.push(curL)
+        hC.push(close)
+        hBar.push(curBar)
+        hTR.push(tr)
+        // Wilder ATR, seeded like the app: mean of TR[1..len] at index len.
+        float a = na
+        if n0 == atrLen
+            float sum = 0.0
+            for j = 1 to atrLen
+                sum += hTR.get(j)
+            a := sum / atrLen
+        else if n0 > atrLen
+            a := (hATR.last() * (atrLen - 1) + tr) / atrLen
+        hATR.push(a)
+        newHour := true
+
+// Flipped accessors: s = 1 as-is, s = -1 high/low swapped and negated (shorts).
+fH(int s, int j) => s > 0 ? hH.get(j) : -hL.get(j)
+fL(int s, int j) => s > 0 ? hL.get(j) : -hH.get(j)
+fO(int s, int j) => s * hO.get(j)
+fC(int s, int j) => s * hC.get(j)
+pH(int s) => s > 0 ? high : -low
+pL(int s) => s > 0 ? low : -high
+pC(int s) => s * close
+pHat(int s, int j) => s > 0 ? high[bar_index - j] : -low[bar_index - j]
+fmt(float x) => str.tostring(x, format.mintick)
+visible(int s) => s > 0 ? showLong : showShort
+hx(int j) => hBar.get(j)
+
+isSwingH(int s, int r, bool isHigh) =>
+    bool ok = true
+    float pivot = isHigh ? fH(s, r) : fL(s, r)
+    for j = r - k1 to r + k1
+        if j != r
+            float v = isHigh ? fH(s, j) : fL(s, j)
+            if (isHigh and v >= pivot) or (not isHigh and v <= pivot)
+                ok := false
+                break
+    ok
+
+lowestBetweenH(int s, int a, int b) =>
+    float m = na
+    if b - a > 1
+        for j = a + 1 to b - 1
+            m := na(m) ? fL(s, j) : math.min(m, fL(s, j))
+    m
+
+highestAfterH(int s, int a, int t) =>
+    float m = na
+    if t > a
+        for j = a + 1 to t
+            m := na(m) ? fH(s, j) : math.max(m, fH(s, j))
+    m
+
+type Swing
+    float price
+    int   idx
+
+type Pool
+    float level
+    int   createdAt
+    bool  swept = false
+    line  ln
+
+type Side
+    int          s
+    // 1h Liquidity Reversal scanner
+    array<Swing> highs
+    array<Swing> lows
+    array<Pool>  pools
+    int    phase   = 0
+    int    at      = 0
+    int    lowIdx  = 0
+    float  low     = na
+    float  zoneTop = na
+    bool   touched = false
+    bool   shifted = false
+    int    pendAt  = 0
+    float  pendLow = na
+    float  pendTop = na
+    // 5m entry
+    array<Swing> ltfHighs
+    bool   zOn     = false
+    float  zLow    = na
+    float  zTop    = na
+    float  zStop   = na
+    int    zHtfAt  = 0
+    int    armIdx  = 0
+    float  tLow    = na
+    int    tIdx    = -1
+    float  highSince = na
+    box    zbox
+    bool   evShift = false
+    bool   evEntry = false
+    float  entry   = na
+    float  stop    = na
+    float  target  = na
+
+method killZone(Side st, string why) =>
+    st.zOn := false
+    if not na(st.zbox)
+        st.zbox.set_right(bar_index)
+        st.zbox.set_extend(extend.none)
+    if why != "" and visible(st.s) and showCancel
+        label.new(bar_index, st.s > 0 ? low : high, "x " + why, color = color.new(colMuted, 100), textcolor = colMuted, style = st.s > 0 ? label.style_label_up : label.style_label_down, size = size.tiny)
+
+// One closed 1h candle (index t) of the 1h Liquidity Reversal state machine.
+method stepHtf(Side st, int t) =>
+    int  s      = st.s
+    bool isLong = s > 0
+    bool vis    = visible(s) and showPools
+    color cPool = isLong ? colPoolL : colPoolS
+    color cDir  = isLong ? colLong : colShort
+    float atrT  = hATR.get(t)
+    int r = t - k1
+    if r >= k1
+        if isSwingH(s, r, true)
+            st.highs.push(Swing.new(fH(s, r), r))
+        if isSwingH(s, r, false)
+            Swing sw = Swing.new(fL(s, r), r)
+            float tol = eqTol * atrT
+            int n = st.lows.size()
+            if n > 0 and not na(tol)
+                for i = n - 1 to 0
+                    Swing o = st.lows.get(i)
+                    if o.idx < r - poolLook
+                        break
+                    float level = math.min(o.price, sw.price)
+                    float lb = lowestBetweenH(s, o.idx, r)
+                    if math.abs(o.price - sw.price) <= tol and (na(lb) or lb >= level)
+                        line ln = na
+                        if vis
+                            ln := line.new(hx(o.idx), s * level, bar_index, s * level, color = cPool, style = line.style_dashed, width = 2, extend = extend.right)
+                            label.new(hx(r), s * level, isLong ? "1 1h equal lows" : "1 1h equal highs", color = color.new(cPool, 100), textcolor = cPool, style = isLong ? label.style_label_up : label.style_label_down, size = size.small)
+                        st.pools.push(Pool.new(level, t, false, ln))
+                        break
+            st.lows.push(sw)
+
+    if st.phase == 1
+        if fL(s, t) < st.low
+            st.low    := fL(s, t)
+            st.lowIdx := t
+        Swing bos = na
+        int nh = st.highs.size()
+        if nh > 0
+            for i = nh - 1 to 0
+                Swing h = st.highs.get(i)
+                if h.idx < st.lowIdx
+                    bos := h
+                    break
+        if not na(bos) and fC(s, t) > bos.price
+            float zt = fH(s, st.lowIdx)
+            int jEnd = math.max(0, st.lowIdx - obSearch)
+            for j = st.lowIdx to jEnd
+                if fC(s, j) < fO(s, j)
+                    zt := fO(s, j)
+                    break
+            st.phase   := 2
+            st.at      := t
+            st.zoneTop := zt
+            st.touched := false
+            st.shifted := true
+            st.pendAt  := t
+            st.pendLow := st.low
+            st.pendTop := zt
+            if visible(s)
+                line.new(hx(bos.idx), s * bos.price, bar_index, s * bos.price, color = cDir, style = line.style_dotted)
+                label.new(bar_index, s * bos.price, "3 1h shift", color = color.new(cDir, 100), textcolor = cDir, style = isLong ? label.style_label_down : label.style_label_up, size = size.small)
+        else if t - st.at > maxSetup
+            st.phase := 0
+    else if st.phase == 2 and t > st.at
+        if fC(s, t) < st.low or t - st.at > maxSetup
+            st.phase := 0
+        else
+            if fL(s, t) <= st.zoneTop
+                st.touched := true
+            if st.touched and fC(s, t) > st.zoneTop
+                st.phase := 0   // the 1h strategy's own entry; the MTF version ignores it
+
+    for p in st.pools
+        if not p.swept and p.createdAt < t and fL(s, t) < p.level
+            p.swept := true
+            if not na(p.ln)
+                p.ln.set_x2(bar_index)
+                p.ln.set_extend(extend.none)
+            if st.phase == 0
+                st.phase  := 1
+                st.at     := t
+                st.lowIdx := t
+                st.low    := fL(s, t)
+            else if st.phase == 1
+                st.at := t
+            if vis
+                label.new(bar_index, s * fL(s, t), "2 1h sweep", color = color.new(cDir, 100), textcolor = cDir, style = isLong ? label.style_label_up : label.style_label_down, size = size.small)
+
+    int np = st.pools.size()
+    if np > 0
+        for i = np - 1 to 0
+            if st.pools.get(i).swept
+                st.pools.remove(i)
+    while st.lows.size() > 0 and st.lows.get(0).idx < t - poolLook - k1 - 1
+        st.lows.shift()
+    while st.highs.size() > 5 and st.highs.get(0).idx < t - targetLook - 2 * maxSetup - 50
+        st.highs.shift()
+    st
+
+// One closed chart candle for one direction (port of scanLongs' loop body).
+method stepLtf(Side st, bool hourClosed) =>
+    int  s      = st.s
+    bool isLong = s > 0
+    color cDir  = isLong ? colLong : colShort
+    int  t      = bar_index
+    st.evShift := false
+    st.evEntry := false
+    int nH = hC.size()
+
+    if hourClosed
+        st.stepHtf(nH - 1)
+        st.highSince := na
+        if st.zOn and (fC(s, nH - 1) < st.zLow or (nH - 1) - st.zHtfAt > zoneBars)
+            st.killZone(fC(s, nH - 1) < st.zLow ? "zone lost (1h close)" : "zone expired")
+    if st.shifted
+        // A fresh 1h shift replaces any older zone, live from the next chart candle.
+        if st.zOn
+            st.killZone("")
+        float a = hATR.get(st.pendAt)
+        float buffer = stopBuf * a
+        st.zOn    := true
+        st.zLow   := st.pendLow
+        st.zTop   := st.pendTop
+        st.zStop  := st.pendLow - (na(buffer) ? 0.0 : buffer)
+        st.zHtfAt := st.pendAt
+        st.armIdx := t + 1
+        st.tLow   := na
+        st.tIdx   := -1
+        st.shifted := false
+        st.evShift := true
+        if visible(s)
+            st.zbox := box.new(t, math.max(s * st.zLow, s * st.zTop), t + 1, math.min(s * st.zLow, s * st.zTop), border_color = cDir, bgcolor = color.new(cDir, 85), extend = extend.right, text = "4 1h zone", text_color = cDir, text_size = size.small, text_halign = text.align_left, text_valign = isLong ? text.align_top : text.align_bottom)
+    st.highSince := na(st.highSince) ? pH(s) : math.max(st.highSince, pH(s))
+
+    int r = t - k5
+    if r >= k5
+        bool ok = true
+        float pv = pHat(s, r)
+        for j = r - k5 to r + k5
+            if j != r and pHat(s, j) >= pv
+                ok := false
+                break
+        if ok
+            st.ltfHighs.push(Swing.new(pv, r))
+            if st.ltfHighs.size() > 400
+                st.ltfHighs.shift()
+
+    if st.zOn and t >= st.armIdx
+        if pC(s) < st.zLow
+            st.killZone("cancelled (5m close beyond sweep)")
+        else
+            if pL(s) <= st.zTop and (na(st.tLow) or pL(s) < st.tLow)
+                if na(st.tLow) and visible(s)
+                    label.new(t, s * pL(s), "5 pullback", color = color.new(cDir, 100), textcolor = cDir, style = isLong ? label.style_label_up : label.style_label_down, size = size.tiny)
+                st.tLow := pL(s)
+                st.tIdx := t
+            if not na(st.tLow) and t != st.tIdx
+                Swing bos = na
+                int nl = st.ltfHighs.size()
+                if nl > 0
+                    for i = nl - 1 to 0
+                        Swing h = st.ltfHighs.get(i)
+                        if h.idx >= st.tIdx
+                            continue
+                        if h.idx >= st.armIdx
+                            bos := h
+                        break
+                if not na(bos) and pC(s) > bos.price
+                    float e = pC(s)
+                    float risk = e - st.zStop
+                    float tgt = na
+                    int lastHtf = nH - 1
+                    for h in st.highs
+                        if h.idx < lastHtf - targetLook or (not na(tgt) and h.price >= tgt)
+                            continue
+                        if risk > 0 and h.price - e >= minRr * risk and highestAfterH(s, h.idx, lastHtf) < h.price and st.highSince < h.price
+                            tgt := h.price
+                    if visible(s)
+                        line.new(bos.idx, s * bos.price, t, s * bos.price, color = cDir, style = line.style_dotted)
+                    if not na(tgt)
+                        st.evEntry := true
+                        st.entry   := e
+                        st.stop    := st.zStop
+                        st.target  := tgt
+                        st.killZone("")
+                    else
+                        st.killZone("no " + str.tostring(minRr) + "R target: skipped")
+    st
+
+drawEntry(Side st) =>
+    int  s      = st.s
+    bool isLong = s > 0
+    if visible(s)
+        color c  = isLong ? colLong : colShort
+        float e  = s * st.entry
+        float sp = s * st.stop
+        float tp = s * st.target
+        float rr = (st.target - st.entry) / (st.entry - st.stop)
+        label.new(bar_index, isLong ? low : high, (isLong ? "6 BUY " : "6 SELL ") + fmt(e) + "\nSL " + fmt(sp) + "  TP " + fmt(tp) + "\n" + str.tostring(rr, "#.0") + "R", color = c, textcolor = color.white, style = isLong ? label.style_label_up : label.style_label_down, size = size.small)
+        line.new(bar_index, e, bar_index + tradeLen, e, color = colMuted, style = line.style_dashed)
+        line.new(bar_index, sp, bar_index + tradeLen, sp, color = colShort, width = 2)
+        line.new(bar_index, tp, bar_index + tradeLen, tp, color = colLong, width = 2)
+
+var Side L = Side.new(1, array.new<Swing>(), array.new<Swing>(), array.new<Pool>(), ltfHighs = array.new<Swing>())
+var Side S = Side.new(-1, array.new<Swing>(), array.new<Swing>(), array.new<Pool>(), ltfHighs = array.new<Swing>())
+
+bool longEntry  = false
+bool shortEntry = false
+if barstate.isconfirmed and tfOk and hC.size() > 0
+    L.stepLtf(newHour)
+    S.stepLtf(newHour)
+    if L.evEntry and S.evEntry
+        if showCancel
+            label.new(bar_index, high, "x long and short on one candle: skipped", color = color.new(colMuted, 100), textcolor = colMuted, style = label.style_label_down, size = size.tiny)
+    else
+        longEntry  := L.evEntry
+        shortEntry := S.evEntry
+        if longEntry
+            drawEntry(L)
+            alert(syminfo.ticker + " LR-MTF BUY " + fmt(L.entry) + " SL " + fmt(L.stop) + " TP " + fmt(L.target), alert.freq_once_per_bar_close)
+        if shortEntry
+            drawEntry(S)
+            alert(syminfo.ticker + " LR-MTF SELL " + fmt(-S.entry) + " SL " + fmt(-S.stop) + " TP " + fmt(-S.target), alert.freq_once_per_bar_close)
+    if L.evShift
+        alert(syminfo.ticker + " LR-MTF long: 1h zone " + fmt(L.zLow) + " - " + fmt(L.zTop) + " is live. Watch 5m for a dip into it.", alert.freq_once_per_bar_close)
+    if S.evShift
+        alert(syminfo.ticker + " LR-MTF short: 1h zone " + fmt(-S.zTop) + " - " + fmt(-S.zLow) + " is live. Watch 5m for a rally into it.", alert.freq_once_per_bar_close)
+
+bool confirmed = barstate.isconfirmed
+alertcondition(confirmed and L.evShift, "1h long zone live", "{{ticker}}: 1h demand zone live. Watch the 5m chart.")
+alertcondition(confirmed and S.evShift, "1h short zone live", "{{ticker}}: 1h supply zone live. Watch the 5m chart.")
+alertcondition(longEntry, "Long entry", "{{ticker}}: LR-MTF BUY at {{close}}")
+alertcondition(shortEntry, "Short entry", "{{ticker}}: LR-MTF SELL at {{close}}")
+
+status(Side st) =>
+    int  s      = st.s
+    bool isLong = s > 0
+    string txt  = ""
+    if st.zOn
+        int left = zoneBars - (hC.size() - 1 - st.zHtfAt)
+        string zone = fmt(math.min(s * st.zLow, s * st.zTop)) + " - " + fmt(math.max(s * st.zLow, s * st.zTop))
+        if na(st.tLow)
+            txt := "1h zone " + zone + " live. Wait for a 5m candle to reach it (" + str.tostring(left) + " 1h candles left)"
+        else
+            Swing bos = na
+            int nl = st.ltfHighs.size()
+            if nl > 0
+                for i = nl - 1 to 0
+                    Swing h = st.ltfHighs.get(i)
+                    if h.idx >= st.tIdx
+                        continue
+                    if h.idx >= st.armIdx
+                        bos := h
+                    break
+            txt := "In the zone, pullback " + (isLong ? "low " : "high ") + fmt(s * st.tLow) + ". " + (na(bos) ? "Waiting for a 5m swing to form" : "Enter on a 5m close " + (isLong ? "above " : "below ") + fmt(s * bos.price)) + ". Cancel on a close " + (isLong ? "below " : "above ") + fmt(s * st.zLow)
+    else if st.phase == 1
+        txt := "1h: swept, extreme " + fmt(s * st.low) + ". Wait for a 1h close " + (isLong ? "above" : "below") + " the last 1h swing " + (isLong ? "high" : "low")
+    else
+        float best = na
+        for p in st.pools
+            best := na(best) ? p.level : math.max(best, p.level)
+        txt := na(best) ? "1h: no unswept equal " + (isLong ? "lows" : "highs") + " yet" : "1h: wait for a wick " + (isLong ? "below" : "above") + " equal " + (isLong ? "lows " : "highs ") + fmt(s * best)
+    txt
+
+var table panel = table.new(position.top_right, 2, 3, bgcolor = color.new(#131722, 10), border_color = color.new(colMuted, 60), border_width = 1)
+if showPanel and barstate.islast
+    table.cell(panel, 0, 0, "LR MTF", text_color = color.white, text_size = size.small)
+    table.cell(panel, 1, 0, not tfOk ? "Use a 5m chart: the timeframe must divide 1 hour" : timeframe.period == "5" ? "5m chart, " + str.tostring(hC.size()) + " 1h candles built" : "Backtested on 5m; this is " + timeframe.period, text_color = not tfOk ? colShort : timeframe.period == "5" ? colMuted : colPoolS, text_size = size.small)
+    table.cell(panel, 0, 1, "Long", text_color = colLong, text_size = size.small)
+    table.cell(panel, 1, 1, showLong and tfOk ? status(L) : "-", text_color = color.white, text_size = size.small, text_halign = text.align_left)
+    table.cell(panel, 0, 2, "Short", text_color = colShort, text_size = size.small)
+    table.cell(panel, 1, 2, showShort and tfOk ? status(S) : "-", text_color = color.white, text_size = size.small, text_halign = text.align_left)

@@ -20,7 +20,7 @@ export default async function IndicatorsPage() {
           <li>Click <span className="text-paper">Copy script</span> below.</li>
           <li>In TradingView, open <span className="text-paper">Pine Editor</span> at the bottom of the chart, then Open → New indicator.</li>
           <li>Select everything in the editor, paste over it, click <span className="text-paper">Save</span>, then <span className="text-paper">Add to chart</span>.</li>
-          <li>Use the <span className="text-paper">1h</span> timeframe. The panel at the top right says what to wait for next.</li>
+          <li>Use the chart timeframe each card names: <span className="text-paper">5m</span> for the MTF one, <span className="text-paper">1h</span> for the others. The panel at the top right says what to wait for next.</li>
         </ol>
       </Callout>
 

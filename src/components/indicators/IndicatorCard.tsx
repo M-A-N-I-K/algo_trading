@@ -60,6 +60,7 @@ export default function IndicatorCard({ info, code }: { info: IndicatorInfo; cod
         </div>
       }
     >
+      {info.backtest && <p className="mb-4 max-w-[80ch] text-sm leading-relaxed text-paper">{info.backtest}</p>}
       <ol className="flex flex-col gap-2">
         {info.steps.map((s) => (
           <li key={s.label} className="flex flex-col gap-1 text-sm sm:flex-row sm:gap-3">
