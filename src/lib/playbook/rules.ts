@@ -155,20 +155,27 @@ export function pnlUsd(symbol: string, side: Side, units: number, entry: number,
 export interface Sizing {
   units: number; // exact size for the risk
   lots: number; // rounded down to 0.01 lot
-  riskAtLots: number; // $ actually at risk with the rounded lots
+  riskAtLots: number; // $ lost at the stop with the rounded lots, costs included
+  costAtLots: number; // $ of that which is commission and spread
   belowMinLot: boolean; // even 0.01 lot risks more than the budget
 }
 
-export function sizePosition(symbol: string, entry: number, stop: number, riskAmount: number): Sizing | null {
+/**
+ * Size so that a stopped-out trade loses `riskAmount` in all: the stop
+ * distance plus `costPerUnitUsd`, the round trip's commission and spread per
+ * unit (see roundTripCostPerUnitUsd in src/lib/costs/fundingpips.ts).
+ */
+export function sizePosition(symbol: string, entry: number, stop: number, riskAmount: number, costPerUnitUsd = 0): Sizing | null {
   const distance = Math.abs(entry - stop);
   if (!(distance > 0) || !(riskAmount > 0)) return null;
-  const perUnit = distance * usdPerUnitMove(symbol, stop);
+  const perUnit = distance * usdPerUnitMove(symbol, stop) + Math.max(0, costPerUnitUsd);
   const units = riskAmount / perUnit;
   const unitsPerLot = lotUnits(symbol);
   const lots = Math.floor((units / unitsPerLot) * 100 + 1e-9) / 100;
   const belowMinLot = lots < 0.01;
   const usedLots = belowMinLot ? 0.01 : lots;
-  return { units, lots: usedLots, riskAtLots: usedLots * unitsPerLot * perUnit, belowMinLot };
+  const usedUnits = usedLots * unitsPerLot;
+  return { units, lots: usedLots, riskAtLots: usedUnits * perUnit, costAtLots: usedUnits * Math.max(0, costPerUnitUsd), belowMinLot };
 }
 
 /* ---------- correlation ---------- */

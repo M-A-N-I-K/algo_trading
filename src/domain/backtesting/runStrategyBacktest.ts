@@ -7,6 +7,7 @@ import { simulate } from "./simulate";
 import { fromStrategyDefinition } from "./sources/strategyDefinition";
 import { sampleEvenly, StoredBacktestMetrics, toStoredMetrics } from "./metrics";
 import { BacktestConfigError, RoundTrip } from "./types";
+import { coveredByPlatform, feeRatePerSide } from "@/lib/costs/fundingpips";
 
 // Runs a backtest of one saved Strategy Builder version and stores it.
 //
@@ -168,6 +169,14 @@ export async function runStrategyBacktest(
     configuration.candleCount = inRange;
     configuration.warmupBars = actualWarmup;
     if (inRange === 0) throw new Error(`No candles for ${instrument.symbol} ${timeframe} between ${configuration.range.from} and ${configuration.range.to}.`);
+
+    // No fee given for a market the FundingPips account trades: charge its
+    // real round-trip cost (measured commission + spread) at the period's
+    // median price, and record the rate used in the stored configuration.
+    if (request.execution?.feeRate === undefined && coveredByPlatform(instrument.symbol)) {
+      const closes = ohlc.slice(actualWarmup).map((c) => c.close).sort((a, b) => a - b);
+      execution.feeRate = feeRatePerSide(instrument.symbol, closes[Math.floor(closes.length / 2)]);
+    }
 
     const result = simulate(ohlc, source, {
       initialCapital: execution.initialCapital,

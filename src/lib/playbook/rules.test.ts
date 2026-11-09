@@ -120,6 +120,14 @@ describe("sizing", () => {
     expect(s.belowMinLot).toBe(true);
     expect(s.riskAtLots).toBeCloseTo(50);
   });
+  it("counts commission and spread inside the risk", () => {
+    // $25 over a $10 stop plus $0.35/oz costs = 2.415 oz → 0.02 lot, $20.70 lost at the stop.
+    const s = sizePosition("XAUUSDT", 4000, 3990, 25, 0.35)!;
+    expect(s.units).toBeCloseTo(25 / 10.35);
+    expect(s.lots).toBe(0.02);
+    expect(s.riskAtLots).toBeCloseTo(20.7);
+    expect(s.costAtLots).toBeCloseTo(0.7);
+  });
   it("rejects a zero stop distance", () => {
     expect(sizePosition("ETHUSDT", 100, 100, 25)).toBeNull();
   });
