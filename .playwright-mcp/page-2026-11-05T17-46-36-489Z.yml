@@ -1,6 +1,0 @@
-- generic [active] [ref=f7e1]:
-  - generic [ref=f7e16]:
-    - heading "Syncing Authentications" [level=4] [ref=f7e17]
-    - generic [ref=f7e18]: Checking local session keys...
-  - button "Open Next.js Dev Tools" [ref=f7e26] [cursor=pointer]
-  - alert [ref=f7e30]

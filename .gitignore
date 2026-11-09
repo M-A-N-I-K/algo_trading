@@ -36,3 +36,4 @@ next-env.d.ts
 
 # editor / tooling
 .claude
+.playwright-mcp/
