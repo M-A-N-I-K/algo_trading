@@ -14,6 +14,8 @@
 //
 // A close below the protected low flips the trend; a close above the leg's last swing high
 // starts a new leg (break of structure). Closed candles only, nothing repaints.
+// Alerts fire at every stage (1, 2, 3, price in the zone, 4 or skipped): add one
+// "Any alert() function call" alert for all of them with prices.
 // Backtested on 1h (ETH 1h is the Playbook's top setup).
 indicator("Liquidity Sweep checkpoints", shorttitle = "LS checkpoints", overlay = true, max_bars_back = 5000, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 200)
 
@@ -62,9 +64,17 @@ type St
     bool         done = false
     box          zone
     line         protLine
-    bool         evSweep = false
+    // What happened on this bar, for the alerts (reset every closed bar).
     bool         evLeg = false
+    string       evWhy = ""
+    bool         evPool = false
+    float        poolLevel = na        // signed: the newest equal lows
+    bool         evSweep = false
+    float        sweepLevel = na       // signed
+    bool         evTouch = false
     bool         evEntry = false
+    bool         evSkip = false
+    float        skipRr = na
     float        entry = na
     float        stop = na
     float        target = na
@@ -101,6 +111,8 @@ addPoolSwing(St st, Swing s, int dir, int t, float atrNow) =>
             line ln = line.new(o.idx, dir * level, t, dir * level, color = c, style = line.style_dashed, width = 2, extend = extend.right)
             label.new(s.idx, dir * level, isLong ? "2 Equal lows" : "2 Equal highs", color = color.new(c, 100), textcolor = c, style = isLong ? label.style_label_up : label.style_label_down, size = size.small, tooltip = "Gap " + fmt(math.abs(o.price - s.price)) + ", allowed " + fmt(tol))
             st.pools.push(Pool.new(level, t, false, ln))
+            st.evPool    := true
+            st.poolLevel := level
     st.poolSwings.push(s)
 
 closeDrawings(St st, int t) =>
@@ -138,6 +150,7 @@ startLeg(St st, int dir, int from, int t, float atrNow, string why) =>
     st.touched := false
     st.done    := false
     st.evLeg   := true
+    st.evWhy   := why
     bool isLong = dir == 1
     color c = isLong ? colLong : colShort
     st.zone := box.new(p, high[bar_index - p], t, low[bar_index - p], border_color = c, bgcolor = color.new(c, 85), extend = extend.right, text = "Zone", text_color = c, text_size = size.small, text_halign = text.align_left, text_valign = isLong ? text.align_bottom : text.align_top)
@@ -167,9 +180,12 @@ bool newSwL = false
 
 if barstate.isconfirmed
     int t = bar_index
-    state.evSweep := false
     state.evLeg   := false
+    state.evPool  := false
+    state.evSweep := false
+    state.evTouch := false
     state.evEntry := false
+    state.evSkip  := false
     int r = t - k
     Swing newHigh = na
     Swing newLow  = na
@@ -216,14 +232,16 @@ if barstate.isconfirmed
                         p.swept := true
                         state.swept := true
                         state.evSweep := true
+                        state.sweepLevel := p.level
                         if not na(p.ln)
                             p.ln.set_x2(t)
                             p.ln.set_extend(extend.none)
                         color c = d == 1 ? colLong : colShort
                         label.new(t, d == 1 ? low : high, "3 Sweep", color = color.new(c, 100), textcolor = c, style = d == 1 ? label.style_label_up : label.style_label_down, size = size.small, tooltip = "Equal " + (d == 1 ? "lows " : "highs ") + fmt(d * p.level) + " taken. Now wait for price to reach the zone and close back " + (d == 1 ? "above " : "below ") + fmt(d * state.zoneTop) + ".")
                 if state.swept
-                    if adv(t, d) <= state.zoneTop
+                    if adv(t, d) <= state.zoneTop and not state.touched
                         state.touched := true
+                        state.evTouch := true
                     if state.touched and scl(t, d) > state.zoneTop
                         state.done := true   // one trade per leg
                         float buffer = stopBuf > 0 and not na(atrNow) ? stopBuf * atrNow : 0.0
@@ -237,15 +255,51 @@ if barstate.isconfirmed
                             state.stop    := sp
                             state.target  := state.extreme
                             drawEntry(state, t)
-                            alert(syminfo.ticker + " LS " + (d == 1 ? "BUY " : "SELL ") + fmt(d * e) + " SL " + fmt(d * sp) + " TP " + fmt(d * state.extreme), alert.freq_once_per_bar_close)
-                        else if showSkip
+                        else
+                            state.evSkip := true
+                            state.skipRr := rr
+                        if state.evSkip and showSkip
                             label.new(t, d == 1 ? low : high, "x only " + (na(rr) ? "-" : str.tostring(rr, "#.0")) + "R: skipped", color = color.new(colMuted, 100), textcolor = colMuted, style = d == 1 ? label.style_label_up : label.style_label_down, size = size.tiny, tooltip = "Entry candle closed but the leg's " + (d == 1 ? "high" : "low") + " pays under " + str.tostring(minRr) + "R. The app skips it, and this leg is done.")
 
+// Alerts. One "Any alert() function call" alert sends every stage below with
+// exact prices, all stages of one candle in one message. Or pick single
+// stages from the alertcondition list underneath.
+if barstate.isconfirmed and state.d != 0
+    int d = state.d
+    bool isLong = d == 1
+    string lows_ = isLong ? "lows" : "highs"
+    string tag = syminfo.ticker + " " + timeframe.period + " LS"
+    array<string> msgs = array.new<string>()
+    if state.evLeg
+        msgs.push(tag + " 1/4: " + (isLong ? "uptrend" : "downtrend") + " leg started (" + state.evWhy + "). Protected " + (isLong ? "low " : "high ") + fmt(d * state.protectedPrice) + ", zone top " + fmt(d * state.zoneTop) + ", target " + fmt(d * state.extreme) + ". Next: equal " + lows_ + " inside the leg.")
+    if state.evPool
+        msgs.push(tag + " 2/4: equal " + lows_ + " at " + fmt(d * state.poolLevel) + ". Next: a wick " + (isLong ? "below " : "above ") + "them (the sweep).")
+    if state.evSweep
+        msgs.push(tag + " 3/4: equal " + lows_ + " " + fmt(d * state.sweepLevel) + " swept. Next: price back to the zone (top " + fmt(d * state.zoneTop) + ").")
+    if state.evTouch and not state.evEntry and not state.evSkip
+        msgs.push(tag + " 4a: price is in the zone. Entry on a close " + (isLong ? "above " : "below ") + fmt(d * state.zoneTop) + " if target " + fmt(d * state.extreme) + " pays " + str.tostring(minRr) + "R.")
+    if state.evEntry
+        msgs.push(tag + " 4/4 " + (isLong ? "BUY " : "SELL ") + fmt(d * state.entry) + " SL " + fmt(d * state.stop) + " TP " + fmt(d * state.target) + " (" + str.tostring((state.target - state.entry) / (state.entry - state.stop), "#.0") + "R)")
+    if state.evSkip
+        msgs.push(tag + " 4/4 skipped: target pays only " + (na(state.skipRr) ? "-" : str.tostring(state.skipRr, "#.0")) + "R (needs " + str.tostring(minRr) + "R). No trade; this leg is done.")
+    if msgs.size() > 0
+        alert(msgs.join("\n"), alert.freq_once_per_bar_close)
+
 bool confirmed = barstate.isconfirmed
-alertcondition(confirmed and state.evSweep and state.d == 1, "3 Long: equal lows swept", "{{ticker}}: equal lows swept in an uptrend. Wait for the demand zone.")
-alertcondition(confirmed and state.evSweep and state.d == -1, "3 Short: equal highs swept", "{{ticker}}: equal highs swept in a downtrend. Wait for the supply zone.")
-alertcondition(confirmed and state.evEntry and state.d == 1, "4 Long entry", "{{ticker}}: Liquidity Sweep BUY at {{close}}")
-alertcondition(confirmed and state.evEntry and state.d == -1, "4 Short entry", "{{ticker}}: Liquidity Sweep SELL at {{close}}")
+bool isUp = state.d == 1
+bool isDown = state.d == -1
+alertcondition(confirmed and state.evLeg and isUp, "1 Long: uptrend leg started", "{{ticker}} {{interval}}: Liquidity Sweep uptrend leg started. Watch for equal lows.")
+alertcondition(confirmed and state.evLeg and isDown, "1 Short: downtrend leg started", "{{ticker}} {{interval}}: Liquidity Sweep downtrend leg started. Watch for equal highs.")
+alertcondition(confirmed and state.evPool and isUp, "2 Long: equal lows formed", "{{ticker}} {{interval}}: equal lows formed in an uptrend. Wait for the sweep.")
+alertcondition(confirmed and state.evPool and isDown, "2 Short: equal highs formed", "{{ticker}} {{interval}}: equal highs formed in a downtrend. Wait for the sweep.")
+alertcondition(confirmed and state.evSweep and isUp, "3 Long: equal lows swept", "{{ticker}} {{interval}}: equal lows swept in an uptrend. Wait for the demand zone.")
+alertcondition(confirmed and state.evSweep and isDown, "3 Short: equal highs swept", "{{ticker}} {{interval}}: equal highs swept in a downtrend. Wait for the supply zone.")
+alertcondition(confirmed and state.evTouch and isUp, "4a Long: price in demand zone", "{{ticker}} {{interval}}: price reached the demand zone. Entry comes on a close above the zone top.")
+alertcondition(confirmed and state.evTouch and isDown, "4a Short: price in supply zone", "{{ticker}} {{interval}}: price reached the supply zone. Entry comes on a close below the zone bottom.")
+alertcondition(confirmed and state.evEntry and isUp, "4 Long entry", "{{ticker}} {{interval}}: Liquidity Sweep BUY at {{close}}")
+alertcondition(confirmed and state.evEntry and isDown, "4 Short entry", "{{ticker}} {{interval}}: Liquidity Sweep SELL at {{close}}")
+alertcondition(confirmed and state.evSkip, "4 Entry skipped (under 2R)", "{{ticker}} {{interval}}: entry candle closed but the target pays under 2R. No trade.")
+alertcondition(confirmed and (state.evLeg or state.evPool or state.evSweep or state.evTouch or state.evEntry or state.evSkip), "Any checkpoint", "{{ticker}} {{interval}}: a Liquidity Sweep checkpoint was hit. Check the chart.")
 
 plotshape(showSwings and confirmed and newSwH, "Swing high", shape.triangledown, location.abovebar, colMuted, offset = -k, size = size.tiny)
 plotshape(showSwings and confirmed and newSwL, "Swing low", shape.triangleup, location.belowbar, colMuted, offset = -k, size = size.tiny)

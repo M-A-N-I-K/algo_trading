@@ -56,6 +56,25 @@ Small differences in stops are expected for the first candles of a chart (ATR wa
 
 Install it the same way as above. Each indicator is a separate script, so add both if you want both.
 
+### Alerts at every stage
+
+Every checkpoint can alert you, on the candle close where it happens:
+
+| Stage | Alert message (from "Any alert() function call") |
+|---|---|
+| 1 | `ETHUSD 60 LS 1/4: uptrend leg started (break of structure). Protected low …, zone top …, target …` |
+| 2 | `… LS 2/4: equal lows at …. Next: a wick below them (the sweep).` |
+| 3 | `… LS 3/4: equal lows … swept. Next: price back to the zone (top …).` |
+| 4a | `… LS 4a: price is in the zone. Entry on a close above … if target … pays 2R.` |
+| 4 | `… LS 4/4 BUY … SL … TP … (2.4R)`, or `4/4 skipped: target pays only 1.3R` |
+
+Two ways to set it up (right-click the chart → **Add alert**, Condition = **LS checkpoints**):
+
+- **Any alert() function call**: one alert for every stage, with exact prices. Stages that happen on the same candle arrive in one message. This is the one to use.
+- A single named condition, if you only want some stages: **1 Long: uptrend leg started**, **2 Long: equal lows formed**, **3 Long: equal lows swept**, **4a Long: price in demand zone**, **4 Long entry**, **4 Entry skipped (under 2R)**, the Short versions, or **Any checkpoint**. Set these to fire **Once Per Bar Close**.
+
+TradingView's free plan allows only a few active alerts at once, so one "Any alert() function call" alert per chart is the cheapest way to cover everything.
+
 ## Liquidity Reversal MTF checkpoints (1h setup, 5m entry)
 
 `liquidity-reversal-mtf-checkpoints.pine` ports `src/strategies/liquidityReversalMtfStrategy.ts`, the only lower-timeframe strategy that made money on ETH in testing (2 years: 21 trades, 52% won, +0.87R per trade, profit factor 2.68; 3.08 with a forced 21:00 UTC daily close).

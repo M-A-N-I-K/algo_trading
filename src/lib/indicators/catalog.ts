@@ -56,6 +56,7 @@ export const INDICATORS: IndicatorInfo[] = [
       { label: "2 Equal lows", text: "Two swing lows inside the leg within 0.1 × ATR." },
       { label: "3 Sweep", text: "A wick trades below them." },
       { label: "4 Buy", text: "Price reaches the zone, then a candle closes back above it. Stop under the protected low, target the leg's high, only if it pays at least 2R. One trade per leg." },
+      { label: "Alerts", text: "Every stage alerts on its candle close: leg started, equal lows formed, sweep, price in the zone, entry (or skipped under 2R). Use one “Any alert() function call” alert for all of them with prices." },
     ],
   },
 ];
