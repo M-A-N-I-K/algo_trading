@@ -10,8 +10,10 @@
 //   platform's own bars (MT5 export, Jan 2025 – Nov 2026, 97 weeks) at its
 //   measured costs: every scannable strategy/timeframe on both markets,
 //   48 pairs, 3 new setups passed (EUR/USD Liquidity Reversal 1h passed too).
-//   "MT5 4h" setups passed on 4h exports from May 2020 (6.5 years, 340 weeks):
-//   NAS100 SMC 4h, PF 3.82 over the last 22 months, fell to 1.04 there.
+//   "MT5 6.5y" setups passed on 1h and 4h exports from May 2020 (340 weeks),
+//   which also overrule the 22-month test: NAS100 SMC 1h (PF 1.10, first half
+//   lost) and EUR/USD SMC 1h (PF 1.16, first half lost) were taken out again,
+//   and NAS100 SMC 4h (PF 3.82 over 22 months) fell to 1.04 there.
 // - Rules: replaying those trades as one $5,000 account, at 0.5% risk and at
 //   most 4 trades open, the worst drawdown was 6% and no Monday start in 100
 //   touched the 4% daily or 12% total loss limit, even counting every open
@@ -132,21 +134,23 @@ export const PLAYBOOK_SETUPS: PlaybookSetup[] = [
   setup("XAUUSDT", "XAUUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 23, winRatePct: 39.1, avgR: 0.78, profitFactor: 2.14, perWeek: 0.54, maxDrawdownR: 4.4, maxLossStreak: 4, weeks: 42 }),
   setup("BTCUSDT", "BTCUSD", "smc", "Smart Money Concepts", "4h", { trades: 29, winRatePct: 37.9, avgR: 0.75, profitFactor: 2.14, perWeek: 0.29, maxDrawdownR: 5.3, maxLossStreak: 5, weeks: 100 }),
   setup("USDJPY", "USDJPY", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 39, winRatePct: 43.6, avgR: 0.67, profitFactor: 2.07, perWeek: 0.39, maxDrawdownR: 6.6, maxLossStreak: 6, weeks: 101 }),
+  // MT5 6.5y. A 20% win rate that lives on big winners: the top 5 trades make
+  // more than the total, losing runs of 10 are normal, and 2025 lost 11.1R.
+  setup("NAS100", "NDX100", "perfect-entry", "Perfect Entry", "1h", { trades: 79, winRatePct: 20.3, avgR: 0.6, profitFactor: 1.74, perWeek: 0.23, maxDrawdownR: 13.6, maxLossStreak: 10, weeks: 340 }),
   // MT5: profit only +6.6R in the second half (+37.1R in the first), so watch it.
   setup("EURUSD", "EURUSD", "liquidity-sweep", "Liquidity Sweep", "15m", { trades: 79, winRatePct: 31.6, avgR: 0.55, profitFactor: 1.76, perWeek: 0.81, maxDrawdownR: 10.6, maxLossStreak: 10, weeks: 97 }),
   setup("XAGUSDT", "XAGUSD", "smc", "Smart Money Concepts", "1h", { trades: 41, winRatePct: 36.6, avgR: 0.52, profitFactor: 1.78, perWeek: 1.0, maxDrawdownR: 5.2, maxLossStreak: 5, weeks: 41 }),
-  setup("EURUSD", "EURUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 25, winRatePct: 40, avgR: 0.39, profitFactor: 1.58, perWeek: 0.24, maxDrawdownR: 8.1, maxLossStreak: 7, weeks: 103 }),
-  // MT5.
-  setup("EURUSD", "EURUSD", "smc", "Smart Money Concepts", "1h", { trades: 51, winRatePct: 35.3, avgR: 0.37, profitFactor: 1.56, perWeek: 0.53, maxDrawdownR: 8.1, maxLossStreak: 8, weeks: 97 }),
   setup("BTCUSDT", "BTCUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 45, winRatePct: 37.8, avgR: 0.29, profitFactor: 1.42, perWeek: 0.45, maxDrawdownR: 6.7, maxLossStreak: 6, weeks: 99 }),
   setup("BTCUSDT", "BTCUSD", "liquidity-reversal-mtf", "Liquidity Reversal MTF", "5m", { trades: 25, winRatePct: 40, avgR: 0.28, profitFactor: 1.41, perWeek: 0.26, maxDrawdownR: 3.5, maxLossStreak: 3, weeks: 98 }),
   setup("BTCUSDT", "BTCUSD", "session-london-bos", "Session London BOS", "1h", { trades: 84, winRatePct: 44, avgR: 0.27, profitFactor: 1.46, perWeek: 0.81, maxDrawdownR: 5.4, maxLossStreak: 5, weeks: 104 }),
-  // MT5 4h. Rare (one signal every 2 months) and nearly flat in the first half
+  // MT5 6.5y, 4h. Rare (one signal every 2 months) and nearly flat in the first half
   // (+0.3R, then +10.0R), so judge it on the scorecard before sizing up.
   setup("NAS100", "NDX100", "macd-200ema-sr", "MACD + 200 EMA + S/R", "4h", { trades: 40, winRatePct: 50, avgR: 0.26, profitFactor: 1.51, perWeek: 0.12, maxDrawdownR: 6.1, maxLossStreak: 6, weeks: 340 }),
-  // MT5.
-  setup("NAS100", "NDX100", "smc", "Smart Money Concepts", "1h", { trades: 59, winRatePct: 30.5, avgR: 0.22, profitFactor: 1.32, perWeek: 0.61, maxDrawdownR: 11.1, maxLossStreak: 9, weeks: 97 }),
   setup("GBPUSD", "GBPUSD", "smc", "Smart Money Concepts", "1h", { trades: 52, winRatePct: 30.8, avgR: 0.21, profitFactor: 1.29, perWeek: 0.54, maxDrawdownR: 7.4, maxLossStreak: 7, weeks: 97 }),
+  // MT5 6.5y baseline: an original setup whose profit factor fell from 1.58
+  // (2 years of Yahoo data) to 1.23 on the platform's bars since 2020. Still
+  // profitable in both halves and 6 of 7 years, so it stays, ranked lower.
+  setup("EURUSD", "EURUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 124, winRatePct: 30.6, avgR: 0.17, profitFactor: 1.23, perWeek: 0.36, maxDrawdownR: 14.6, maxLossStreak: 10, weeks: 341 }),
   setup("ETHUSDT", "ETHUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 46, winRatePct: 34.8, avgR: 0.17, profitFactor: 1.25, perWeek: 0.45, maxDrawdownR: 5.4, maxLossStreak: 5, weeks: 103 }),
   setup("XAUUSDT", "XAUUSD", "macd-200ema-sr", "MACD + 200 EMA + S/R", "1h", { trades: 28, winRatePct: 46.4, avgR: 0.12, profitFactor: 1.21, perWeek: 0.64, maxDrawdownR: 4.9, maxLossStreak: 3, weeks: 44 }),
 ];

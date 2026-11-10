@@ -44,6 +44,7 @@ const XAU_LR = "liquidity-reversal:XAUUSDT:1h";
 const JPY_LR = "liquidity-reversal:USDJPY:1h";
 const EUR_LR = "liquidity-reversal:EURUSD:1h";
 const XAU_MACD = "macd-200ema-sr:XAUUSDT:1h";
+const EUR_SWEEP = "liquidity-sweep:EURUSD:15m";
 
 let n = 0;
 function entry(over: Partial<JournalEntry>): JournalEntry {
@@ -94,9 +95,9 @@ const plan = (over: Partial<TradePlan> = {}): TradePlan => ({
 const status = (checks: ReturnType<typeof preTradeChecks>, id: string) => checks.find((c) => c.id === id)?.status;
 
 describe("playbook config", () => {
-  it("has 17 unique setups that the registry knows", () => {
-    expect(PLAYBOOK_SETUPS).toHaveLength(17);
-    expect(new Set(PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(17);
+  it("has 16 unique setups that the registry knows", () => {
+    expect(PLAYBOOK_SETUPS).toHaveLength(16);
+    expect(new Set(PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(16);
     for (const s of PLAYBOOK_SETUPS) expect(s.id).toBe(`${s.strategy}:${s.symbol}:${s.interval}`);
   });
 });
@@ -261,8 +262,8 @@ describe("signal ranking", () => {
     return { ...x, lastClose: 1.1, signal: { ...x.signal, entry: 1.1, stop: 1.098, target: 1.106 } };
   };
   it("tiers A-grade signals by setup strength", () => {
-    const ranked = rankSignals([sig(XAU_MACD, "A"), fx(EUR_LR, "A"), sig(BTC_SMC, "A")], [], NOON);
-    expect(ranked.map((r) => [r.setup.id, r.tier])).toEqual([[BTC_SMC, "S"], [EUR_LR, "A+"], [XAU_MACD, "A"]]);
+    const ranked = rankSignals([sig(XAU_MACD, "A"), fx(EUR_SWEEP, "A"), sig(BTC_SMC, "A")], [], NOON);
+    expect(ranked.map((r) => [r.setup.id, r.tier])).toEqual([[BTC_SMC, "S"], [EUR_SWEEP, "A+"], [XAU_MACD, "A"]]);
     expect(ranked.every((r) => r.riskPct === ACCOUNT.rules.riskPctA)).toBe(true);
   });
   it("makes B-grade forex, B on an A-only account, and chasing a C with no risk", () => {
@@ -274,8 +275,8 @@ describe("signal ranking", () => {
     expect(rankSignals([late], [], NOON)[0].tier).toBe("C");
   });
   it("puts signals you can take ahead of blocked ones of a higher tier", () => {
-    const ranked = rankSignals([sig(ETH_SWEEP, "A"), fx(EUR_LR, "A")], [entry({ setupId: ETH_SWEEP })], NOON);
-    expect(ranked.map((r) => [r.setup.id, r.tier, r.takeable])).toEqual([[EUR_LR, "A+", true], [ETH_SWEEP, "S", false]]);
+    const ranked = rankSignals([sig(ETH_SWEEP, "A"), fx(EUR_SWEEP, "A")], [entry({ setupId: ETH_SWEEP })], NOON);
+    expect(ranked.map((r) => [r.setup.id, r.tier, r.takeable])).toEqual([[EUR_SWEEP, "A+", true], [ETH_SWEEP, "S", false]]);
   });
   it("sizes each signal from its grade and marks blocked ones", () => {
     const ranked = rankSignals([sig(ETH_SWEEP, "A")], [entry({ setupId: BTC_SMC })], NOON);
