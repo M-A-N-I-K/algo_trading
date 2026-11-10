@@ -1,5 +1,5 @@
 import { StrategyGuide } from "./types";
-import { BACKTEST_PERIOD, BACKTEST_SETTINGS } from "./shared";
+import { BACKTEST_PERIOD, BACKTEST_SETTINGS, NAS100_60D } from "./shared";
 
 // Matches src/strategies/extremeOrderBlockStrategy.ts with its registry
 // defaults: 1h structure and zones, 15m entries, swingLookback 5,
@@ -11,7 +11,7 @@ export const extremeOrderBlockGuide: StrategyGuide = {
   difficulty: "Intermediate",
   style: "Trend pullback",
   timeframes: "1h chart to read the trend and draw the zone, 15m chart to time the entry",
-  markets: "Liquid crypto and gold (tested on BTCUSDT and ETHUSDT)",
+  markets: "Liquid crypto and gold (tested on BTCUSDT and ETHUSDT, plus NAS100)",
   frequency: "About 1–2 trades a week per market",
   holdTime: "Hours to a few days",
   direction: "Long in an uptrend, short in a downtrend",
@@ -129,8 +129,9 @@ export const extremeOrderBlockGuide: StrategyGuide = {
     rows: [
       { symbol: "BTCUSDT", timeframe: "1h / 15m", trades: 41, winRatePct: 31.7, profitFactor: 0.89, returnPct: -1.9, maxDrawdownPct: 5.6 },
       { symbol: "ETHUSDT", timeframe: "1h / 15m", trades: 35, winRatePct: 17.1, profitFactor: 0.55, returnPct: -10.4, maxDrawdownPct: 14.7 },
+      { symbol: "NAS100", timeframe: "1h / 15m", period: NAS100_60D, trades: 4, winRatePct: 50.0, profitFactor: 2.01, returnPct: 1.0, maxDrawdownPct: 1.1 },
     ],
     verdict:
-      "Lost money on both coins in this period. Fees took about 0.2R per trade because stops are tight; before fees BTC was roughly break-even and ETH clearly negative. 35–41 trades is a small sample. Paper-trade it before risking money.",
+      "Lost money on both coins in this period. Fees took about 0.2R per trade because stops are tight; before fees BTC was roughly break-even and ETH clearly negative. 35–41 trades is a small sample. Paper-trade it before risking money. NAS100 made +1.0% over 58 days, but from 4 trades, too few to judge.",
   },
 };

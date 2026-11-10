@@ -1,5 +1,5 @@
 import { StrategyGuide } from "./types";
-import { BACKTEST_PERIOD, BACKTEST_SETTINGS } from "./shared";
+import { BACKTEST_PERIOD, BACKTEST_SETTINGS, NAS100_60D } from "./shared";
 
 // Matches src/strategies/liquidityReversalMtfStrategy.ts with its defaults:
 // the 1h setup uses the Liquidity Reversal defaults (swingLookback 3, ATR 14,
@@ -14,7 +14,7 @@ export const liquidityReversalMtfGuide: StrategyGuide = {
   difficulty: "Advanced",
   style: "Reversal after a liquidity sweep, two timeframes",
   timeframes: "Two charts: 1h to find the setup, 5m to time the entry",
-  markets: "Liquid crypto and gold (tested on BTCUSDT, ETHUSDT, XAUUSDT, XAGUSDT, XRPUSDT)",
+  markets: "Liquid crypto and gold (tested on BTCUSDT, ETHUSDT, XAUUSDT, XAGUSDT, XRPUSDT, plus NAS100)",
   frequency: "About 1 trade a month per market. Rare by design",
   holdTime: "Hours to a few days",
   direction: "Both: long after equal lows are swept, short after equal highs are swept",
@@ -142,8 +142,9 @@ export const liquidityReversalMtfGuide: StrategyGuide = {
       { symbol: "XAUUSDT", timeframe: "5m (1h setup)", trades: 6, winRatePct: 33.3, profitFactor: 1.34, returnPct: 1.0, maxDrawdownPct: 3.5 },
       { symbol: "XAGUSDT", timeframe: "5m (1h setup)", trades: 5, winRatePct: 20.0, profitFactor: 0.59, returnPct: -3.0, maxDrawdownPct: 6.0 },
       { symbol: "XRPUSDT", timeframe: "5m (1h setup)", trades: 7, winRatePct: 14.3, profitFactor: 0.56, returnPct: -4.7, maxDrawdownPct: 10.7 },
+      { symbol: "NAS100", timeframe: "5m (1h setup)", period: NAS100_60D, trades: 1, winRatePct: 100.0, profitFactor: null, returnPct: 2.9, maxDrawdownPct: 0.9 },
     ],
     verdict:
-      "Made money on BTC (+12.1%, vs +6.4% for the plain 1h version), ETH (+7.9% vs −0.1%) and gold (+1.0% vs +6.7%: worse there). It lost on silver (−3.0%) and XRP (−4.7%). Six months gives only 5–9 trades per market, so treat these as a hint, not proof. Over 2 years at 0.059% per side (the fee CoinDCX actually charged on market orders): ETH 21 trades, profit factor 2.68, +31.1%; BTC 25 trades, 1.87, +17.1%; gold (11 months) 11 trades, 2.12, +7.3%; XRP 23 trades, 1.16, +5.1%; silver (10 months) 10 trades, 0.54, −6.2%. The rules were chosen on the first year only, and the second year held up on BTC, ETH and gold. A version with the stop under the 5m low was tested first and made close to nothing on BTC and lost on silver and XRP. It trades rarely: expect about one signal a month per market. Don't use it on silver or XRP.",
+      "Made money on BTC (+12.1%, vs +6.4% for the plain 1h version), ETH (+7.9% vs −0.1%) and gold (+1.0% vs +6.7%: worse there). It lost on silver (−3.0%) and XRP (−4.7%). Six months gives only 5–9 trades per market, so treat these as a hint, not proof. Over 2 years at 0.059% per side (the fee CoinDCX actually charged on market orders): ETH 21 trades, profit factor 2.68, +31.1%; BTC 25 trades, 1.87, +17.1%; gold (11 months) 11 trades, 2.12, +7.3%; XRP 23 trades, 1.16, +5.1%; silver (10 months) 10 trades, 0.54, −6.2%. The rules were chosen on the first year only, and the second year held up on BTC, ETH and gold. A version with the stop under the 5m low was tested first and made close to nothing on BTC and lost on silver and XRP. It trades rarely: expect about one signal a month per market. Don't use it on silver or XRP. NAS100 gave a single trade in 58 days (a winner, +2.9%): no evidence either way.",
   },
 };

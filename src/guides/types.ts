@@ -28,9 +28,12 @@ export interface GuideDiagram {
 export interface GuideBacktestRow {
   symbol: string;
   timeframe: string;
+  // Set when the row covers a different window from backtest.period
+  // (Yahoo keeps only 60 days of NAS100 candles below 1h).
+  period?: string;
   trades: number;
   winRatePct: number;
-  profitFactor: number;
+  profitFactor: number | null; // null: no losing trade
   returnPct: number;
   maxDrawdownPct: number;
 }

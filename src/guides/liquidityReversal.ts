@@ -1,5 +1,5 @@
 import { StrategyGuide } from "./types";
-import { BACKTEST_PERIOD, BACKTEST_SETTINGS } from "./shared";
+import { BACKTEST_PERIOD, BACKTEST_SETTINGS, NAS100_60D } from "./shared";
 
 // Matches src/strategies/liquidityReversalStrategy.ts with its defaults:
 // one chart (1h in the guide), swingLookback 3, ATR 14, equal lows within
@@ -13,7 +13,7 @@ export const liquidityReversalGuide: StrategyGuide = {
   difficulty: "Intermediate",
   style: "Reversal after a liquidity sweep",
   timeframes: "One chart. 1h is the main setting; 15m also works",
-  markets: "Liquid crypto (tested on BTCUSDT, ETHUSDT, SOLUSDT, XRPUSDT)",
+  markets: "Liquid crypto (tested on BTCUSDT, ETHUSDT, SOLUSDT, XRPUSDT, plus NAS100)",
   frequency: "About 2 trades a month per market on 1h, about 2 a week on 15m",
   holdTime: "Hours to a few days on 1h",
   direction: "Both: long after equal lows are swept, short after equal highs are swept",
@@ -135,8 +135,10 @@ export const liquidityReversalGuide: StrategyGuide = {
       { symbol: "ETHUSDT", timeframe: "1h", trades: 10, winRatePct: 30.0, profitFactor: 0.99, returnPct: -0.1, maxDrawdownPct: 7.5 },
       { symbol: "BTCUSDT", timeframe: "15m", trades: 51, winRatePct: 37.3, profitFactor: 1.24, returnPct: 4.8, maxDrawdownPct: 9.8 },
       { symbol: "ETHUSDT", timeframe: "15m", trades: 44, winRatePct: 34.1, profitFactor: 0.93, returnPct: -1.6, maxDrawdownPct: 9.7 },
+      { symbol: "NAS100", timeframe: "1h", trades: 2, winRatePct: 50.0, profitFactor: 1.55, returnPct: 0.5, maxDrawdownPct: 1.2 },
+      { symbol: "NAS100", timeframe: "15m", period: NAS100_60D, trades: 8, winRatePct: 12.5, profitFactor: 0.16, returnPct: -2.2, maxDrawdownPct: 2.2 },
     ],
     verdict:
-      "Roughly breakeven: no clear edge either way. BTC made a little on both timeframes and ETH lost a little. On 1h SOLUSDT (−1.2%) and XRPUSDT (−1.4%) also lost slightly. On 15m SOL made +1.2% and XRP +12.7%. On 4h there were only 1–3 trades per coin. Changing the settings moved results around without fixing that: counting every swing low as liquidity (not just equal lows) lost on all four coins on 1h (−1.8% to −10.6%), while a 3R minimum or wider swings helped on some coins and hurt on others. The video's examples are 3–5R winners on forex; here the average trade was close to 0R. Paper-trade it and keep a journal before risking money.",
+      "Roughly breakeven: no clear edge either way. BTC made a little on both timeframes and ETH lost a little. On 1h SOLUSDT (−1.2%) and XRPUSDT (−1.4%) also lost slightly. On 15m SOL made +1.2% and XRP +12.7%. On 4h there were only 1–3 trades per coin. Changing the settings moved results around without fixing that: counting every swing low as liquidity (not just equal lows) lost on all four coins on 1h (−1.8% to −10.6%), while a 3R minimum or wider swings helped on some coins and hurt on others. The video's examples are 3–5R winners on forex; here the average trade was close to 0R. Paper-trade it and keep a journal before risking money. On NAS100 it found only 2 trades on 1h in the 6 months (+0.5%) and lost on 15m (1 winner in 8, −2.2% over 58 days).",
   },
 };

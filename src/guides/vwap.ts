@@ -1,5 +1,5 @@
 import { StrategyGuide } from "./types";
-import { BACKTEST_PERIOD, BACKTEST_SETTINGS } from "./shared";
+import { BACKTEST_PERIOD, BACKTEST_SETTINGS, NAS100_60D } from "./shared";
 
 // Matches src/strategies/vwapStrategy.ts with its defaults: session VWAP
 // reset at 00:00 UTC, no signals in a session's first 3 candles, retest
@@ -14,7 +14,7 @@ export const vwapGuide: StrategyGuide = {
   difficulty: "Beginner",
   style: "Intraday: VWAP as dynamic support/resistance, plus liquidity-sweep reversals",
   timeframes: "5m (the video's suggestion for new traders; 3m and 15m also work the same way)",
-  markets: "Anything with real volume. Tested on 12 crypto markets and gold/silver (Binance), and on the Nifty 50 ETF (NIFTYBEES, NSE)",
+  markets: "Anything with real volume. Tested on 12 crypto markets and gold/silver (Binance), and on the Nifty 50 ETF (NIFTYBEES, NSE), and the Nasdaq 100 futures (NAS100)",
   frequency: "Often: about 25 signals a week per market on 5m, at most 2 longs and 2 shorts a day",
   holdTime: "Minutes to a few hours",
   direction: "Both",
@@ -141,8 +141,9 @@ export const vwapGuide: StrategyGuide = {
       { symbol: "XAUUSDT", timeframe: "5m", trades: 630, winRatePct: 22.5, profitFactor: 0.29, returnPct: -38.2, maxDrawdownPct: 38.2 },
       { symbol: "XAGUSDT", timeframe: "5m", trades: 628, winRatePct: 26.6, profitFactor: 0.55, returnPct: -37.7, maxDrawdownPct: 39.2 },
       { symbol: "XRPUSDT", timeframe: "5m", trades: 655, winRatePct: 30.5, profitFactor: 0.63, returnPct: -34.3, maxDrawdownPct: 34.3 },
+      { symbol: "NAS100", timeframe: "5m", period: NAS100_60D, trades: 156, winRatePct: 22.4, profitFactor: 0.28, returnPct: -10.9, maxDrawdownPct: 11.3 },
     ],
     verdict:
-      "It lost money everywhere. In these 6 months all five markets lost 34–42%. Over 2 years at 0.059% per side (the fee CoinDCX actually charged), all 12 markets lost on both 5m and 15m: 24 of 24 runs, losing 57–97%, with profit factors of 0.28–0.80. The rules themselves have no edge even before costs: with zero fees the profit factor was 0.93–1.30 and usually close to 1.00. A 2R target needs a win rate above 33% just to break even before fees, and it won 28–33%. Fees then make it much worse, because a 5m stop is tiny. The typical BTC stop was 0.09% of price, and the round-trip fee at 0.059% per side is 0.12%, more than the whole risk. Gold did best before fees (profit factor 1.18 on 5m and 1.30 on 15m), but its typical stop was only 0.06%, so it lost the most after them. Taking only retests, wider 1-ATR stops, 1 trade a day, or using 15m candles didn't fix it: still 0 of 24 profitable. On Indian markets, NIFTYBEES (the Nifty 50 ETF, the only free Nifty intraday data with volume) over the last 60 days, during NSE hours, closing at the end of each day, at 0.03% per side: 5m 150 trades, win 26.7%, profit factor 0.27, −9.7%; 15m 80 trades, win 38.8%, profit factor 0.73, −2.4%. The video's trader picks the “important” levels by eye and trades Nifty options, which this test can't copy. Don't trade it as coded.",
+      "It lost money everywhere. In these 6 months all five markets lost 34–42%. Over 2 years at 0.059% per side (the fee CoinDCX actually charged), all 12 markets lost on both 5m and 15m: 24 of 24 runs, losing 57–97%, with profit factors of 0.28–0.80. The rules themselves have no edge even before costs: with zero fees the profit factor was 0.93–1.30 and usually close to 1.00. A 2R target needs a win rate above 33% just to break even before fees, and it won 28–33%. Fees then make it much worse, because a 5m stop is tiny. The typical BTC stop was 0.09% of price, and the round-trip fee at 0.059% per side is 0.12%, more than the whole risk. Gold did best before fees (profit factor 1.18 on 5m and 1.30 on 15m), but its typical stop was only 0.06%, so it lost the most after them. Taking only retests, wider 1-ATR stops, 1 trade a day, or using 15m candles didn't fix it: still 0 of 24 profitable. On Indian markets, NIFTYBEES (the Nifty 50 ETF, the only free Nifty intraday data with volume) over the last 60 days, during NSE hours, closing at the end of each day, at 0.03% per side: 5m 150 trades, win 26.7%, profit factor 0.27, −9.7%; 15m 80 trades, win 38.8%, profit factor 0.73, −2.4%. The video's trader picks the “important” levels by eye and trades Nifty options, which this test can't copy. Don't trade it as coded. NAS100 (the Nasdaq 100 futures, which have real volume) lost too: 156 trades in 58 days, 22% won, profit factor 0.28, −10.9%.",
   },
 };

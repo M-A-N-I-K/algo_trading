@@ -1,5 +1,5 @@
 import { StrategyGuide } from "./types";
-import { BACKTEST_PERIOD, BACKTEST_SETTINGS } from "./shared";
+import { BACKTEST_PERIOD, BACKTEST_SETTINGS, NAS100_30D } from "./shared";
 
 // Matches src/strategies/nyOpenFvgStrategy.ts with its defaults: 15m swings
 // of 3 bars a side, 1m swings of 2 bars a side, window 09:30–11:00 New York
@@ -13,7 +13,7 @@ export const nyOpenFvgGuide: StrategyGuide = {
   difficulty: "Advanced",
   style: "Trend continuation at the session open, two timeframes",
   timeframes: "Two charts: 15m for the trend, 1m for the entry",
-  markets: "Tested on XAUUSDT, ETHUSDT and BTCUSDT",
+  markets: "Tested on XAUUSDT, ETHUSDT and BTCUSDT, plus NAS100",
   frequency: "About 1.5–2 trades a week per market, at most one a day",
   holdTime: "Minutes to an hour or two: almost every trade hits its stop or target before 16:00 New York",
   direction: "Both: long in a 15m uptrend, short in a 15m downtrend",
@@ -133,8 +133,9 @@ export const nyOpenFvgGuide: StrategyGuide = {
       { symbol: "XAUUSDT", timeframe: "1m (15m trend)", trades: 37, winRatePct: 24.3, profitFactor: 0.22, returnPct: -2.9, maxDrawdownPct: 2.9 },
       { symbol: "ETHUSDT", timeframe: "1m (15m trend)", trades: 41, winRatePct: 24.4, profitFactor: 0.55, returnPct: -2.2, maxDrawdownPct: 2.7 },
       { symbol: "BTCUSDT", timeframe: "1m (15m trend)", trades: 23, winRatePct: 34.8, profitFactor: 0.57, returnPct: -1.1, maxDrawdownPct: 2.1 },
+      { symbol: "NAS100", timeframe: "1m (15m trend)", period: NAS100_30D, trades: 3, winRatePct: 66.7, profitFactor: 2.44, returnPct: 0.3, maxDrawdownPct: 0.3 },
     ],
     verdict:
-      "It lost money on all three markets. The returns look small only because these settings allow no leverage: a 1m stop of about 0.05–0.1% can't be sized up to 2% risk, so each trade risked well under 0.1%, while the 0.04% fee per side was bigger than the stop on many trades. A fill-accurate test with resting limit orders and FundingPips' real costs (2 years on ETH and BTC, 11 months on gold): gold 82 trades, 22% winners, profit factor 0.67, −25.5R; ETH 180 trades, 22%, 0.22, −273R; BTC 150 trades, 21%, 0.18, −278R. Before any costs it still lost about 0.1R a trade on every market. Costs then took about 0.2R a trade on gold and 1.4–1.7R on ETH and BTC, because the stops are tiny. Targets of 2R and 4R, a 08:30 start, wider 1m swings and closing by 16:00 New York all lost too. Putting the stop under the first candle of the gap (a wider stop) came closest: about break-even before costs, still a loss after them (profit factor 0.5–0.9). Don't trade it on FundingPips.",
+      "It lost money on all three markets. The returns look small only because these settings allow no leverage: a 1m stop of about 0.05–0.1% can't be sized up to 2% risk, so each trade risked well under 0.1%, while the 0.04% fee per side was bigger than the stop on many trades. A fill-accurate test with resting limit orders and FundingPips' real costs (2 years on ETH and BTC, 11 months on gold): gold 82 trades, 22% winners, profit factor 0.67, −25.5R; ETH 180 trades, 22%, 0.22, −273R; BTC 150 trades, 21%, 0.18, −278R. Before any costs it still lost about 0.1R a trade on every market. Costs then took about 0.2R a trade on gold and 1.4–1.7R on ETH and BTC, because the stops are tiny. Targets of 2R and 4R, a 08:30 start, wider 1m swings and closing by 16:00 New York all lost too. Putting the stop under the first candle of the gap (a wider stop) came closest: about break-even before costs, still a loss after them (profit factor 0.5–0.9). Don't trade it on FundingPips. NAS100 took only 3 trades in the 29 days of 1m candles Yahoo keeps (2 won, +0.3%): far too few to judge.",
   },
 };

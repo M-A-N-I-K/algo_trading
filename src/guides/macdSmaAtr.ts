@@ -1,5 +1,5 @@
 import { StrategyGuide } from "./types";
-import { BACKTEST_PERIOD, BACKTEST_SETTINGS } from "./shared";
+import { BACKTEST_PERIOD, BACKTEST_SETTINGS, NAS100_60D } from "./shared";
 
 // Matches src/strategies/macdSmaAtrStrategy.ts with its defaults: SMA 50,
 // MACD 12/26/9 histogram, ATR 14 against its own 20-period SMA. It has no
@@ -11,7 +11,7 @@ export const macdSmaAtrGuide: StrategyGuide = {
   difficulty: "Beginner",
   style: "Momentum, always in the market",
   timeframes: "One chart, 15m",
-  markets: "Liquid crypto (tested on BTCUSDT and ETHUSDT)",
+  markets: "Liquid crypto (tested on BTCUSDT and ETHUSDT, plus NAS100)",
   frequency: "About 6 trades a week per market",
   holdTime: "Until the opposite signal: hours to days",
   direction: "Long or short; flips from one to the other",
@@ -106,8 +106,9 @@ export const macdSmaAtrGuide: StrategyGuide = {
     rows: [
       { symbol: "BTCUSDT", timeframe: "15m", trades: 166, winRatePct: 31.3, profitFactor: 0.9, returnPct: -11.8, maxDrawdownPct: 33.5 },
       { symbol: "ETHUSDT", timeframe: "15m", trades: 162, winRatePct: 32.7, profitFactor: 1.3, returnPct: 44.9, maxDrawdownPct: 26.1 },
+      { symbol: "NAS100", timeframe: "15m", period: NAS100_60D, trades: 30, winRatePct: 30.0, profitFactor: 1.16, returnPct: 2.3, maxDrawdownPct: 9.2 },
     ],
     verdict:
-      "The biggest swing of all: +45% on ETH, −12% on BTC, with 26–34% drawdowns because there's no stop. One good trend on ETH can explain the gain. Don't read it as an edge yet.",
+      "The biggest swing of all: +45% on ETH, −12% on BTC, with 26–34% drawdowns because there's no stop. One good trend on ETH can explain the gain. Don't read it as an edge yet. NAS100 made +2.3% on 30 trades over 58 days, but with a 9.2% drawdown on the way.",
   },
 };

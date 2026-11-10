@@ -1,5 +1,5 @@
 import { StrategyGuide } from "./types";
-import { BACKTEST_PERIOD, BACKTEST_SETTINGS } from "./shared";
+import { BACKTEST_PERIOD, BACKTEST_SETTINGS, NAS100_60D } from "./shared";
 
 // Matches src/strategies/sessionLondonOpenBosStrategy.ts with its registry
 // defaults: 4h EMA(50) bias, sessions 00:00 / 07:00 / 12:00 UTC, pivots
@@ -11,7 +11,7 @@ export const sessionLondonBosGuide: StrategyGuide = {
   difficulty: "Beginner",
   style: "Session breakout",
   timeframes: "4h chart for the bias, 15m chart for the trade",
-  markets: "Liquid crypto and gold (tested on BTCUSDT and ETHUSDT)",
+  markets: "Liquid crypto and gold (tested on BTCUSDT and ETHUSDT, plus NAS100)",
   frequency: "Up to 3 a day per market (one per session); about 4–5 a week in the last test",
   holdTime: "A few hours",
   direction: "Long or short, whichever the 4h trend allows",
@@ -115,8 +115,9 @@ export const sessionLondonBosGuide: StrategyGuide = {
     rows: [
       { symbol: "BTCUSDT", timeframe: "4h / 15m", trades: 99, winRatePct: 38.4, profitFactor: 1.2, returnPct: 13.3, maxDrawdownPct: 12.5 },
       { symbol: "ETHUSDT", timeframe: "4h / 15m", trades: 126, winRatePct: 37.3, profitFactor: 0.95, returnPct: -4.8, maxDrawdownPct: 25.1 },
+      { symbol: "NAS100", timeframe: "4h / 15m", period: NAS100_60D, trades: 37, winRatePct: 29.7, profitFactor: 1.04, returnPct: 0.6, maxDrawdownPct: 4.7 },
     ],
     verdict:
-      "The best BTC result of all the strategies (+13%), but it lost on ETH with a 25% drawdown. With a 2R target it needs to win more than a third of trades; it did on both coins, just barely after fees on ETH.",
+      "The best BTC result of all the strategies (+13%), but it lost on ETH with a 25% drawdown. With a 2R target it needs to win more than a third of trades; it did on both coins, just barely after fees on ETH. NAS100 was break-even over 58 days: 37 trades, 30% won, profit factor 1.04, +0.6%.",
   },
 };

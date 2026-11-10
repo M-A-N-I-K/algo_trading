@@ -1,5 +1,5 @@
 import { StrategyGuide } from "./types";
-import { BACKTEST_PERIOD, BACKTEST_SETTINGS } from "./shared";
+import { BACKTEST_PERIOD, BACKTEST_SETTINGS, NAS100_60D } from "./shared";
 
 // Matches src/strategies/liquiditySweepStrategy.ts with its defaults:
 // one chart (1h in the guide), swingLookback 3, ATR 14, equalTolAtr 0.1,
@@ -11,7 +11,7 @@ export const liquiditySweepGuide: StrategyGuide = {
   difficulty: "Intermediate",
   style: "Trend pullback into liquidity",
   timeframes: "One chart. 1h is the main setting; 15m and 4h also work",
-  markets: "Liquid crypto (tested on BTCUSDT and ETHUSDT)",
+  markets: "Liquid crypto (tested on BTCUSDT and ETHUSDT, plus NAS100)",
   frequency: "About 1 trade every 2–3 weeks per market on 1h, about 1 a week on 15m",
   holdTime: "A day to a week on 1h",
   direction: "Long in an uptrend, short in a downtrend",
@@ -135,8 +135,10 @@ export const liquiditySweepGuide: StrategyGuide = {
       { symbol: "ETHUSDT", timeframe: "1h", trades: 7, winRatePct: 85.7, profitFactor: 27.46, returnPct: 35.8, maxDrawdownPct: 4.2 },
       { symbol: "BTCUSDT", timeframe: "15m", trades: 29, winRatePct: 17.2, profitFactor: 0.5, returnPct: -6.9, maxDrawdownPct: 8.5 },
       { symbol: "ETHUSDT", timeframe: "15m", trades: 27, winRatePct: 37.0, profitFactor: 4.56, returnPct: 43.4, maxDrawdownPct: 4.6 },
+      { symbol: "NAS100", timeframe: "1h", trades: 2, winRatePct: 50.0, profitFactor: 1.5, returnPct: 0.9, maxDrawdownPct: 2.5 },
+      { symbol: "NAS100", timeframe: "15m", period: NAS100_60D, trades: 6, winRatePct: 0.0, profitFactor: 0, returnPct: -2.6, maxDrawdownPct: 2.6 },
     ],
     verdict:
-      "Mixed, and the samples are small. It made a lot on ETH and lost on BTC on both timeframes. On 1h it also made money on SOLUSDT (+1.3%) and XRPUSDT (+6.9%). On 15m XRP lost (−7.6%) and SOL made a little (+3.9%). On 4h there were only 1–4 trades per coin. The ETH and BTC pattern held under every setting change tried (a looser or tighter 'equal', a 3R minimum, bigger or smaller swings), so the result isn't one lucky setting. But 7–9 trades per coin on 1h is far too few to trust: ETH's 6 wins in 7 could easily be luck. Paper-trade it and keep a journal before risking money.",
+      "Mixed, and the samples are small. It made a lot on ETH and lost on BTC on both timeframes. On 1h it also made money on SOLUSDT (+1.3%) and XRPUSDT (+6.9%). On 15m XRP lost (−7.6%) and SOL made a little (+3.9%). On 4h there were only 1–4 trades per coin. The ETH and BTC pattern held under every setting change tried (a looser or tighter 'equal', a 3R minimum, bigger or smaller swings), so the result isn't one lucky setting. But 7–9 trades per coin on 1h is far too few to trust: ETH's 6 wins in 7 could easily be luck. Paper-trade it and keep a journal before risking money. On NAS100 it found only 2 trades on 1h in the 6 months (+0.9%) and lost all 6 on 15m (−2.6% over 58 days).",
   },
 };

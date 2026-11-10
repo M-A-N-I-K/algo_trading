@@ -39,7 +39,7 @@ export default function GuidesIndex() {
                 <p className="text-[13px] text-fog">
                   Last backtest:{" "}
                   {g.backtest.rows.map((r, i) => (
-                    <span key={r.symbol}>
+                    <span key={`${r.symbol}-${r.timeframe}`}>
                       {i > 0 && " · "}
                       {r.symbol.replace("USDT", "")} <span className={`tabular-nums ${toneClass(r.returnPct)}`}>{signedNumber(r.returnPct, 1, "%")}</span>
                     </span>

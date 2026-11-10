@@ -12,7 +12,7 @@ export const perfectEntryGuide: StrategyGuide = {
   difficulty: "Intermediate",
   style: "Trend pullback with confirmation",
   timeframes: "4h chart for the context (trend, points of interest, target), 1h chart for the confirmation and the entry",
-  markets: "Liquid crypto (tested on BTCUSDT and ETHUSDT)",
+  markets: "Liquid crypto (tested on BTCUSDT and ETHUSDT, plus NAS100)",
   frequency: "About 1 trade every 1–2 weeks per market",
   holdTime: "A day to a week",
   direction: "Long in a 4h uptrend, short in a 4h downtrend",
@@ -138,8 +138,9 @@ export const perfectEntryGuide: StrategyGuide = {
     rows: [
       { symbol: "BTCUSDT", timeframe: "4h / 1h", trades: 16, winRatePct: 6.3, profitFactor: 0.3, returnPct: -11.6, maxDrawdownPct: 12.0 },
       { symbol: "ETHUSDT", timeframe: "4h / 1h", trades: 5, winRatePct: 20.0, profitFactor: 1.07, returnPct: 0.3, maxDrawdownPct: 4.5 },
+      { symbol: "NAS100", timeframe: "4h / 1h", trades: 4, winRatePct: 25.0, profitFactor: 2.73, returnPct: 2.2, maxDrawdownPct: 0.7 },
     ],
     verdict:
-      "Lost money on BTC and was flat on ETH (only 5 trades). It also lost on SOLUSDT (−7.0%, 8 trades) and XRPUSDT (−14.8%, 9 trades). Across the four coins 3 of 38 trades won. Each winner paid 4–4.5R, but with a 3R minimum you need roughly 1 win in 4 just to break even, and it managed about 1 in 13. Changing the settings (a 2R minimum, bigger or smaller swings) lost money too, so it isn't one unlucky setting. The video's trader also picks which point of interest matters and reads the daily chart, and code can't copy that judgement. Treat this as a way to think about entries, not a proven edge, and paper-trade it first.",
+      "Lost money on BTC and was flat on ETH (only 5 trades). It also lost on SOLUSDT (−7.0%, 8 trades) and XRPUSDT (−14.8%, 9 trades). Across the four coins 3 of 38 trades won. Each winner paid 4–4.5R, but with a 3R minimum you need roughly 1 win in 4 just to break even, and it managed about 1 in 13. Changing the settings (a 2R minimum, bigger or smaller swings) lost money too, so it isn't one unlucky setting. The video's trader also picks which point of interest matters and reads the daily chart, and code can't copy that judgement. Treat this as a way to think about entries, not a proven edge, and paper-trade it first. NAS100 made +2.2% in the 6 months from 1 winner in 4 trades: too few to count.",
   },
 };

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, CircleCheck, CircleX, Crosshair, Flag, ShieldAlert } from "lucide-react";
 import { Button, Callout, Panel, Segmented, Tag, signedNumber, tableClass, tdClass, thClass, toneClass } from "@/components/kit";
 import type { GuideStep, StrategyGuide } from "@/guides";
+import { NAS100_SOURCE } from "@/guides/shared";
 import GuideDiagram from "./GuideDiagram";
 
 const DIFFICULTY_TONE = { Beginner: "gain", Intermediate: "fees", Advanced: "loss" } as const;
@@ -85,7 +86,7 @@ function Checklist({ items }: { items: string[] }) {
 
 export default function StrategyGuideView({ guide }: { guide: StrategyGuide }) {
   const [side, setSide] = useState<"long" | "short">("long");
-  const losers = guide.backtest.rows.filter((r) => r.returnPct < 0).map((r) => r.symbol);
+  const losers = [...new Set(guide.backtest.rows.filter((r) => r.returnPct < 0).map((r) => r.symbol))];
 
   return (
     <article className="flex min-w-0 flex-col gap-6">
@@ -227,12 +228,17 @@ export default function StrategyGuideView({ guide }: { guide: StrategyGuide }) {
             </thead>
             <tbody>
               {guide.backtest.rows.map((r) => (
-                <tr key={r.symbol}>
+                <tr key={`${r.symbol}-${r.timeframe}`}>
                   <td className={tdClass}>{r.symbol}</td>
-                  <td className={`${tdClass} text-fog`}>{r.timeframe}</td>
+                  <td className={`${tdClass} text-fog`}>
+                    {r.timeframe}
+                    {r.period && <span className="block text-[12px] text-mist">{r.period}</span>}
+                  </td>
                   <td className={`${tdClass} text-right tabular-nums`}>{r.trades}</td>
                   <td className={`${tdClass} text-right tabular-nums`}>{r.winRatePct.toFixed(1)}%</td>
-                  <td className={`${tdClass} text-right tabular-nums`}>{r.profitFactor.toFixed(2)}</td>
+                  <td className={`${tdClass} text-right tabular-nums`} title={r.profitFactor === null ? "No losing trade" : undefined}>
+                    {r.profitFactor === null ? "–" : r.profitFactor.toFixed(2)}
+                  </td>
                   <td className={`${tdClass} text-right tabular-nums ${toneClass(r.returnPct)}`}>{signedNumber(r.returnPct, 1, "%")}</td>
                   <td className={`${tdClass} text-right tabular-nums text-loss-ink`}>{r.maxDrawdownPct.toFixed(1)}%</td>
                 </tr>
@@ -240,6 +246,7 @@ export default function StrategyGuideView({ guide }: { guide: StrategyGuide }) {
             </tbody>
           </table>
         </div>
+        {guide.backtest.rows.some((r) => r.symbol === "NAS100") && <p className="mt-3 max-w-[75ch] text-[13px] text-mist">{NAS100_SOURCE}</p>}
         <p className="mt-4 max-w-[75ch] text-sm leading-relaxed text-fog">{guide.backtest.verdict}</p>
         <p className="mt-3 text-sm text-fog">
           Run it yourself on other markets or dates from{" "}

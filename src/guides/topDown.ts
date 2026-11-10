@@ -1,5 +1,5 @@
 import { StrategyGuide } from "./types";
-import { BACKTEST_PERIOD, BACKTEST_SETTINGS } from "./shared";
+import { BACKTEST_PERIOD, BACKTEST_SETTINGS, NAS100_60D } from "./shared";
 
 // Matches src/strategies/topDownStrategy.ts with its defaults: weekly bias
 // (last closed week green and closed above the prior week's high), daily
@@ -15,7 +15,7 @@ export const topDownGuide: StrategyGuide = {
   difficulty: "Intermediate",
   style: "Trend pullback, top-down from weekly to 5 minutes",
   timeframes: "Weekly and daily for the bias (weekend work), 1h for the range, 5m to enter (day-to-day work)",
-  markets: "Liquid crypto and gold (tested on 12 markets: BTC, ETH, XAU, XAG, XRP, SOL, AVAX, DOGE, ADA, SUI, NEAR, AAVE)",
+  markets: "Liquid crypto and gold (tested on 12 markets: BTC, ETH, XAU, XAG, XRP, SOL, AVAX, DOGE, ADA, SUI, NEAR, AAVE, plus NAS100)",
   frequency: "Rare: about 6–10 trades a year per market, because most weeks don't give a strong enough weekly candle",
   holdTime: "Hours for the first half; days to weeks for the runner",
   direction: "Both, but only one per week: longs in a bullish week, shorts in a bearish one",
@@ -149,8 +149,9 @@ export const topDownGuide: StrategyGuide = {
       { symbol: "XAUUSDT", timeframe: "5m (1h range, weekly/daily bias)", trades: 4, winRatePct: 50.0, profitFactor: 5.54, returnPct: 2.2, maxDrawdownPct: 1.0 },
       { symbol: "XAGUSDT", timeframe: "5m (1h range, weekly/daily bias)", trades: 4, winRatePct: 50.0, profitFactor: 2.88, returnPct: 1.4, maxDrawdownPct: 1.1 },
       { symbol: "XRPUSDT", timeframe: "5m (1h range, weekly/daily bias)", trades: 6, winRatePct: 50.0, profitFactor: 1.73, returnPct: 1.8, maxDrawdownPct: 5.3 },
+      { symbol: "NAS100", timeframe: "5m (1h range, weekly/daily bias)", period: NAS100_60D, trades: 1, winRatePct: 0.0, profitFactor: 0, returnPct: -0.3, maxDrawdownPct: 0.5 },
     ],
     verdict:
-      "All five markets made money in these 6 months, but with only 3–6 trades each, that proves nothing. Over 2 years at 0.059% per side (the fee CoinDCX actually charged on market orders), it made money on 6 of 12 markets: ETH 15 trades, profit factor 2.44, +17.4%; BTC 15 trades, 2.49, +8.4%; NEAR 10 trades, 1.96, +14.4%; AVAX 11 trades, 1.50, +7.0%; gold (11 months) 6 trades, 1.91, +1.3%; XRP 14 trades, 1.07, +0.5%. It lost money on the other six: DOGE −15.9% (profit factor 0.05), AAVE −15.9%, ADA −14.0%, SUI −8.4%, SOL −1.5%, silver −1.0%. It doesn't pass the Signals page's bar on any market. It never reaches 20 trades in 2 years, because most weeks give no bias. Even on BTC and ETH it lost money in the first year and made all of it in the second. The weekly and daily bias did help: without it, the same entries had a profit factor of 0.89 on BTC and 0.76 on ETH. So did the runner: on ETH, taking everything off at the range high made 0.0% instead of +17.4%. Treat it as an unproven idea. If you trade it, stick to BTC and ETH, size small, and don't trade it on DOGE, ADA, AAVE or SUI.",
+      "All five markets made money in these 6 months, but with only 3–6 trades each, that proves nothing. Over 2 years at 0.059% per side (the fee CoinDCX actually charged on market orders), it made money on 6 of 12 markets: ETH 15 trades, profit factor 2.44, +17.4%; BTC 15 trades, 2.49, +8.4%; NEAR 10 trades, 1.96, +14.4%; AVAX 11 trades, 1.50, +7.0%; gold (11 months) 6 trades, 1.91, +1.3%; XRP 14 trades, 1.07, +0.5%. It lost money on the other six: DOGE −15.9% (profit factor 0.05), AAVE −15.9%, ADA −14.0%, SUI −8.4%, SOL −1.5%, silver −1.0%. It doesn't pass the Signals page's bar on any market. It never reaches 20 trades in 2 years, because most weeks give no bias. Even on BTC and ETH it lost money in the first year and made all of it in the second. The weekly and daily bias did help: without it, the same entries had a profit factor of 0.89 on BTC and 0.76 on ETH. So did the runner: on ETH, taking everything off at the range high made 0.0% instead of +17.4%. Treat it as an unproven idea. If you trade it, stick to BTC and ETH, size small, and don't trade it on DOGE, ADA, AAVE or SUI. NAS100 gave a single trade in 58 days, a loser (−0.3%).",
   },
 };

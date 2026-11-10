@@ -1,5 +1,5 @@
 import { StrategyGuide } from "./types";
-import { BACKTEST_PERIOD, BACKTEST_SETTINGS } from "./shared";
+import { BACKTEST_PERIOD, BACKTEST_SETTINGS, NAS100_60D } from "./shared";
 
 // Matches src/strategies/macd200EmaSrStrategy.ts with its defaults: EMA 200,
 // MACD 12/26/9, swing lookback 5, crossover within 10 candles of the
@@ -12,7 +12,7 @@ export const macd200EmaSrGuide: StrategyGuide = {
   difficulty: "Beginner",
   style: "Trend pullback with momentum confirmation",
   timeframes: "One chart, 15m",
-  markets: "Liquid crypto (tested on BTCUSDT and ETHUSDT)",
+  markets: "Liquid crypto (tested on BTCUSDT and ETHUSDT, plus NAS100)",
   frequency: "About 2–3 trades a week per market",
   holdTime: "Hours to a day",
   direction: "Long above the 200 EMA, short below it",
@@ -115,8 +115,9 @@ export const macd200EmaSrGuide: StrategyGuide = {
     rows: [
       { symbol: "BTCUSDT", timeframe: "15m", trades: 57, winRatePct: 31.6, profitFactor: 0.63, returnPct: -10.6, maxDrawdownPct: 13.9 },
       { symbol: "ETHUSDT", timeframe: "15m", trades: 66, winRatePct: 37.9, profitFactor: 0.95, returnPct: -1.7, maxDrawdownPct: 11.4 },
+      { symbol: "NAS100", timeframe: "15m", period: NAS100_60D, trades: 10, winRatePct: 50.0, profitFactor: 0.52, returnPct: -1.9, maxDrawdownPct: 3.1 },
     ],
     verdict:
-      "Lost on both coins. With a 1.5R target it needs to win about 40% of trades plus fees; it won 32–38%. Easy to learn, but test it on other timeframes before trading it.",
+      "Lost on both coins. With a 1.5R target it needs to win about 40% of trades plus fees; it won 32–38%. Easy to learn, but test it on other timeframes before trading it. NAS100 lost too: 10 trades over 58 days, half won, profit factor 0.52, −1.9%.",
   },
 };

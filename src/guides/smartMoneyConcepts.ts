@@ -1,5 +1,5 @@
 import { StrategyGuide } from "./types";
-import { BACKTEST_PERIOD, BACKTEST_SETTINGS } from "./shared";
+import { BACKTEST_PERIOD, BACKTEST_SETTINGS, NAS100_60D } from "./shared";
 
 // Matches src/strategies/smartMoneyConceptsStrategy.ts with its defaults:
 // swingLookback 5, setups expire after 40 candles, FVG entry at its
@@ -12,7 +12,7 @@ export const smartMoneyConceptsGuide: StrategyGuide = {
   difficulty: "Advanced",
   style: "Reversal after a liquidity sweep",
   timeframes: "One chart, 15m",
-  markets: "Liquid crypto (tested on BTCUSDT and ETHUSDT)",
+  markets: "Liquid crypto (tested on BTCUSDT and ETHUSDT, plus NAS100)",
   frequency: "About 4 trades a week per market",
   holdTime: "Hours to a day",
   direction: "Long after a sweep of support, short after a sweep of resistance",
@@ -121,8 +121,9 @@ export const smartMoneyConceptsGuide: StrategyGuide = {
     rows: [
       { symbol: "BTCUSDT", timeframe: "15m", trades: 97, winRatePct: 21.6, profitFactor: 0.7, returnPct: -17.9, maxDrawdownPct: 18.3 },
       { symbol: "ETHUSDT", timeframe: "15m", trades: 107, winRatePct: 25.2, profitFactor: 1.01, returnPct: 0.7, maxDrawdownPct: 12 },
+      { symbol: "NAS100", timeframe: "15m", period: NAS100_60D, trades: 18, winRatePct: 33.3, profitFactor: 1.19, returnPct: 1.4, maxDrawdownPct: 5.3 },
     ],
     verdict:
-      "Break-even on ETH, a clear loss on BTC. A 3R target needs a win rate above ~25% to pay for fees; BTC fell short. Practise on a demo account first: it's the hardest one to spot correctly by eye.",
+      "Break-even on ETH, a clear loss on BTC. A 3R target needs a win rate above ~25% to pay for fees; BTC fell short. Practise on a demo account first: it's the hardest one to spot correctly by eye. NAS100 made +1.4% on 18 trades over 58 days (profit factor 1.19), a small sample.",
   },
 };
