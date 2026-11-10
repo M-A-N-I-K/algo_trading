@@ -6,6 +6,10 @@
 //   metals 0.02%, forex 0.01% per side), with at least 20 trades, profit
 //   factor 1.3 or more and a profit in both halves. Picked from about 174
 //   strategy/market/timeframe pairs, so expect live results to be worse.
+//   The NAS100 and EUR/USD setups marked "MT5" passed the same test on the
+//   platform's own bars (MT5 export, Jan 2025 – Nov 2026, 97 weeks) at its
+//   measured costs: every scannable strategy/timeframe on both markets,
+//   48 pairs, 3 new setups passed (EUR/USD Liquidity Reversal 1h passed too).
 // - Rules: replaying those trades as one $5,000 account, at 0.5% risk and at
 //   most 4 trades open, the worst drawdown was 6% and no Monday start in 100
 //   touched the 4% daily or 12% total loss limit, even counting every open
@@ -126,15 +130,24 @@ export const PLAYBOOK_SETUPS: PlaybookSetup[] = [
   setup("XAUUSDT", "XAUUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 23, winRatePct: 39.1, avgR: 0.78, profitFactor: 2.14, perWeek: 0.54, maxDrawdownR: 4.4, maxLossStreak: 4, weeks: 42 }),
   setup("BTCUSDT", "BTCUSD", "smc", "Smart Money Concepts", "4h", { trades: 29, winRatePct: 37.9, avgR: 0.75, profitFactor: 2.14, perWeek: 0.29, maxDrawdownR: 5.3, maxLossStreak: 5, weeks: 100 }),
   setup("USDJPY", "USDJPY", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 39, winRatePct: 43.6, avgR: 0.67, profitFactor: 2.07, perWeek: 0.39, maxDrawdownR: 6.6, maxLossStreak: 6, weeks: 101 }),
+  // MT5: profit only +6.6R in the second half (+37.1R in the first), so watch it.
+  setup("EURUSD", "EURUSD", "liquidity-sweep", "Liquidity Sweep", "15m", { trades: 79, winRatePct: 31.6, avgR: 0.55, profitFactor: 1.76, perWeek: 0.81, maxDrawdownR: 10.6, maxLossStreak: 10, weeks: 97 }),
   setup("XAGUSDT", "XAGUSD", "smc", "Smart Money Concepts", "1h", { trades: 41, winRatePct: 36.6, avgR: 0.52, profitFactor: 1.78, perWeek: 1.0, maxDrawdownR: 5.2, maxLossStreak: 5, weeks: 41 }),
   setup("EURUSD", "EURUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 25, winRatePct: 40, avgR: 0.39, profitFactor: 1.58, perWeek: 0.24, maxDrawdownR: 8.1, maxLossStreak: 7, weeks: 103 }),
+  // MT5.
+  setup("EURUSD", "EURUSD", "smc", "Smart Money Concepts", "1h", { trades: 51, winRatePct: 35.3, avgR: 0.37, profitFactor: 1.56, perWeek: 0.53, maxDrawdownR: 8.1, maxLossStreak: 8, weeks: 97 }),
   setup("BTCUSDT", "BTCUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 45, winRatePct: 37.8, avgR: 0.29, profitFactor: 1.42, perWeek: 0.45, maxDrawdownR: 6.7, maxLossStreak: 6, weeks: 99 }),
   setup("BTCUSDT", "BTCUSD", "liquidity-reversal-mtf", "Liquidity Reversal MTF", "5m", { trades: 25, winRatePct: 40, avgR: 0.28, profitFactor: 1.41, perWeek: 0.26, maxDrawdownR: 3.5, maxLossStreak: 3, weeks: 98 }),
   setup("BTCUSDT", "BTCUSD", "session-london-bos", "Session London BOS", "1h", { trades: 84, winRatePct: 44, avgR: 0.27, profitFactor: 1.46, perWeek: 0.81, maxDrawdownR: 5.4, maxLossStreak: 5, weeks: 104 }),
+  // MT5.
+  setup("NAS100", "NDX100", "smc", "Smart Money Concepts", "1h", { trades: 59, winRatePct: 30.5, avgR: 0.22, profitFactor: 1.32, perWeek: 0.61, maxDrawdownR: 11.1, maxLossStreak: 9, weeks: 97 }),
   setup("GBPUSD", "GBPUSD", "smc", "Smart Money Concepts", "1h", { trades: 52, winRatePct: 30.8, avgR: 0.21, profitFactor: 1.29, perWeek: 0.54, maxDrawdownR: 7.4, maxLossStreak: 7, weeks: 97 }),
   setup("ETHUSDT", "ETHUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 46, winRatePct: 34.8, avgR: 0.17, profitFactor: 1.25, perWeek: 0.45, maxDrawdownR: 5.4, maxLossStreak: 5, weeks: 103 }),
   setup("XAUUSDT", "XAUUSD", "macd-200ema-sr", "MACD + 200 EMA + S/R", "1h", { trades: 28, winRatePct: 46.4, avgR: 0.12, profitFactor: 1.21, perWeek: 0.64, maxDrawdownR: 4.9, maxLossStreak: 3, weeks: 44 }),
 ];
+
+/** Signals a week across every setup, from the baselines. */
+export const PLAYBOOK_SIGNALS_PER_WEEK = PLAYBOOK_SETUPS.reduce((a, s) => a + s.baseline.perWeek, 0);
 
 export const PLAYBOOK_SETUP_IDS: ReadonlySet<string> = new Set(PLAYBOOK_SETUPS.map((s) => s.id));
 export const setupById = (id: string) => PLAYBOOK_SETUPS.find((s) => s.id === id);
@@ -142,6 +155,11 @@ export const setupById = (id: string) => PLAYBOOK_SETUPS.find((s) => s.id === id
 // Contract size of one lot on the platform, in units of the base asset.
 // Standard MT5 specs; check your platform's symbol specification.
 export function lotUnits(symbol: string): number {
+  const s = symbol.toUpperCase();
+  // Index CFDs, measured from the MT5 report's P&L: 0.01 lot of NDX100 lost
+  // $14.59 on a 72.93-point move, 0.01 of SPX500 $4.52 on 9.03 points.
+  if (s === "NAS100" || s === "NDX100" || s === "US100" || s === "USTEC") return 20;
+  if (s === "SPX500" || s === "US500") return 50;
   if (symbol.startsWith("XAU")) return 100; // ounces
   if (symbol.startsWith("XAG")) return 5000; // ounces
   if (symbol.startsWith("BTC") || symbol.startsWith("ETH")) return 1; // coins

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { accountById, PLAYBOOK_ACCOUNT, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "./config";
+import { accountById, lotUnits, PLAYBOOK_ACCOUNT, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "./config";
 import {
   accountStatus as accountStatusOn,
   adherence,
@@ -93,9 +93,9 @@ const plan = (over: Partial<TradePlan> = {}): TradePlan => ({
 const status = (checks: ReturnType<typeof preTradeChecks>, id: string) => checks.find((c) => c.id === id)?.status;
 
 describe("playbook config", () => {
-  it("has 13 unique setups that the registry knows", () => {
-    expect(PLAYBOOK_SETUPS).toHaveLength(13);
-    expect(new Set(PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(13);
+  it("has 16 unique setups that the registry knows", () => {
+    expect(PLAYBOOK_SETUPS).toHaveLength(16);
+    expect(new Set(PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(16);
     for (const s of PLAYBOOK_SETUPS) expect(s.id).toBe(`${s.strategy}:${s.symbol}:${s.interval}`);
   });
 });
@@ -354,5 +354,14 @@ describe("the two FundingPips accounts", () => {
     const checks = preTradeChecksOn(plan({ riskAmount: 37.5 }), [closed(-270, Date.UTC(2026, 10, 2), { accountId: pro.id })], pro);
     expect(status(checks, "floor")).toBe("fail");
     expect(checks.find((c) => c.id === "floor")?.label).toContain("6%");
+  });
+});
+
+describe("index lot sizes", () => {
+  it("sizes NAS100 as the platform's 20-unit lot, not a currency lot", () => {
+    expect(lotUnits("NAS100")).toBe(20);
+    expect(lotUnits("NDX100")).toBe(20);
+    // 1% of $10k on a 50-point stop: $100 / (50 × 20) = 0.1 lot
+    expect(sizePosition("NAS100", 25_000, 24_950, 100)?.lots).toBeCloseTo(0.1, 5);
   });
 });

@@ -54,20 +54,23 @@ export function commissionRule(symbol: string): CommissionRule {
   return { kind: "perLot", usdPerLot: 5, measured: false }; // forex
 }
 
-// Estimated spread in price units (bid–ask), paid once per round trip.
+// Spread in price units (bid–ask), paid once per round trip. EURUSD and NDX100
+// are measured: the median of the SPREAD column in MT5 bar exports (Jan 2025 –
+// Nov 2026), EURUSD rounded up from 0.1 to 0.2 pip because a bar records its
+// tightest spread. The rest are estimates.
 export const SPREAD: Record<string, number> = {
   XAUUSD: 0.3,
   XAGUSD: 0.03,
   BTCUSD: 25,
   ETHUSD: 2,
-  EURUSD: 0.00008,
+  EURUSD: 0.00002,
   GBPUSD: 0.0001,
   AUDUSD: 0.0001,
   NZDUSD: 0.00012,
   USDCAD: 0.00012,
   USDCHF: 0.00012,
   USDJPY: 0.012,
-  NDX100: 1.5,
+  NDX100: 1.6,
   SPX500: 0.5,
 };
 

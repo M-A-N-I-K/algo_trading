@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { Button, Callout, EmptyState, Field, Panel, Stat, Tag, TextInput, money, signedNumber, tableClass, tdClass, thClass, toneClass } from "@/components/kit";
 import { fetchJson } from "@/lib/apiClient";
-import { PLAYBOOK_ACCOUNTS, setupById } from "@/lib/playbook/config";
+import { PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, PLAYBOOK_SIGNALS_PER_WEEK, setupById } from "@/lib/playbook/config";
 import type { JournalEntry, RankedSignal, SetupVerdict } from "@/lib/playbook/rules";
 import type { PlaybookView } from "@/lib/playbook/store";
 import { fmtPrice } from "@/lib/plan/weeklyPlan";
@@ -237,17 +237,17 @@ function SignalsPanel({ accountId, onPlan, freeSlots }: { accountId: string; onP
   return (
     <Panel
       title="Today's signals"
-      note={`Only the 13 playbook setups, best first: new before running, A-grade before B, then the setup with the higher backtest average. ${freeSlots > 0 ? `You have ${freeSlots} free slot${freeSlots > 1 ? "s" : ""}: take from the top.` : "All slots are full."}`}
+      note={`Only the ${PLAYBOOK_SETUPS.length} playbook setups, best first: new before running, A-grade before B, then the setup with the higher backtest average. ${freeSlots > 0 ? `You have ${freeSlots} free slot${freeSlots > 1 ? "s" : ""}: take from the top.` : "All slots are full."}`}
       aside={data && <span className="text-xs text-mist">Checked {when.format(data.asOf)}, every minute</span>}
     >
       {isLoading ? (
-        <EmptyState>Scanning the 13 setups. The first scan after a restart downloads two years of candles and can take a minute.</EmptyState>
+        <EmptyState>Scanning the {PLAYBOOK_SETUPS.length} setups. The first scan after a restart downloads two years of candles and can take a minute.</EmptyState>
       ) : error || !data ? (
         <Callout tone="critical" title="Couldn't scan">{error instanceof Error ? error.message : "Try again in a minute."}</Callout>
       ) : (
         <div className="flex flex-col gap-5">
           {fresh.length === 0 ? (
-            <EmptyState>No new signal right now. Across all 13 setups expect about 4 to 5 a week, so most hours have none: that&apos;s normal, not a reason to look elsewhere.</EmptyState>
+            <EmptyState>No new signal right now. Across all {PLAYBOOK_SETUPS.length} setups the backtests averaged about {Math.round(PLAYBOOK_SIGNALS_PER_WEEK)} a week, so most hours have none: that&apos;s normal, not a reason to look elsewhere.</EmptyState>
           ) : (
             <div className="grid gap-3">{fresh.map((x, i) => <SignalCard key={x.setup.id} item={x} rank={i + 1} onPlan={onPlan} />)}</div>
           )}
@@ -443,9 +443,9 @@ function Discipline({ view }: { view: PlaybookView }) {
 function RulesPanel({ view }: { view: PlaybookView }) {
   const k = view.rules;
   return (
-    <Panel title="The rules" note="Set from a replay of two years of these 13 setups as one account. See the Guides page for how to trade each strategy.">
+    <Panel title="The rules" note="Set from a replay of two years of the first 13 setups as one account. See the Guides page for how to trade each strategy.">
       <ul className="flex list-disc flex-col gap-1.5 pl-4 text-[13px] leading-relaxed text-paper marker:text-mist">
-        <li>Only the 13 setups on this page. A chart that looks good elsewhere is not a trade.</li>
+        <li>Only the {PLAYBOOK_SETUPS.length} setups on this page. A chart that looks good elsewhere is not a trade.</li>
         {k.riskPctB === null ? (
           <li>Risk {k.riskPctA}% ({usd((view.account.size * k.riskPctA) / 100)}) on A-grade trades only. Skip B-grade and ungraded signals: with {view.account.maxLossPct}% of total room, this account can&apos;t afford the weaker trades.</li>
         ) : (
