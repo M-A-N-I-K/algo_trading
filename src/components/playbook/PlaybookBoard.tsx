@@ -7,7 +7,7 @@ import { Plus } from "lucide-react";
 import { Button, Callout, EmptyState, Field, Panel, Stat, Tag, TextInput, money, signedNumber, tableClass, tdClass, thClass, toneClass } from "@/components/kit";
 import { fetchJson } from "@/lib/apiClient";
 import { PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, PLAYBOOK_SIGNALS_PER_WEEK, setupById } from "@/lib/playbook/config";
-import type { JournalEntry, RankedSignal, SetupVerdict } from "@/lib/playbook/rules";
+import { MID_AVG_R, STRONG_AVG_R, type JournalEntry, type RankedSignal, type SetupVerdict, type Tier } from "@/lib/playbook/rules";
 import type { PlaybookView } from "@/lib/playbook/store";
 import { fmtPrice } from "@/lib/plan/weeklyPlan";
 import { cn } from "@/lib/utils";
@@ -38,6 +38,38 @@ function Meter({ value, max, tone }: { value: number; max: number; tone: "gain" 
 function SideTag({ side }: { side: "LONG" | "SHORT" }) {
   return <Tag tone={side === "LONG" ? "gain" : "loss"}>{side === "LONG" ? "Long" : "Short"}</Tag>;
 }
+// S and A+ stand out; C is greyed, since it's a skip.
+const TIER_CLASS: Record<Tier, string> = {
+  S: "border-gain/60 bg-gain/15 text-gain-ink",
+  "A+": "border-signal/60 bg-signal/15 text-signal",
+  A: "border-signal/30 bg-signal/5 text-signal",
+  B: "border-rule bg-deck-2 text-paper",
+  C: "border-rule bg-transparent text-mist line-through",
+};
+function TierBadge({ tier }: { tier: Tier }) {
+  return (
+    <span className={cn("inline-flex h-7 min-w-9 items-center justify-center rounded-[6px] border px-2 font-display text-sm font-semibold tabular-nums", TIER_CLASS[tier])} aria-label={`Tier ${tier}`}>
+      {tier}
+    </span>
+  );
+}
+
+function TierLegend() {
+  return (
+    <details className="rounded-[8px] border border-rule bg-ink/30 px-3 py-2 text-[13px] text-fog">
+      <summary className="cursor-pointer text-paper">How the tiers work</summary>
+      <ul className="mt-2 flex flex-col gap-1">
+        <li><TierBadge tier="S" /> A-grade on a strong setup (backtest {STRONG_AVG_R}R+ a trade). Full risk.</li>
+        <li><TierBadge tier="A+" /> A-grade on a mid setup ({MID_AVG_R}–{STRONG_AVG_R}R). Full risk.</li>
+        <li><TierBadge tier="A" /> A-grade on a weaker setup (under {MID_AVG_R}R). Full risk.</li>
+        <li><TierBadge tier="B" /> B-grade or ungraded. B risk, and only if a slot is still free after the A tiers.</li>
+        <li><TierBadge tier="C" /> Skip: this account doesn&apos;t take it (Pro skips B, nobody takes B-grade forex) or entering now is chasing.</li>
+      </ul>
+      <p className="mt-2">A-grade trades made profit factor 2.10 in the backtest against 1.44 for B-grade. The tier picks which signal gets your slot; the size stays the account&apos;s tested A or B risk.</p>
+    </details>
+  );
+}
+
 function GradeTag({ grade }: { grade: "A" | "B" | null | undefined }) {
   return grade ? <Tag tone={grade === "A" ? "signal" : "neutral"}>{grade}-grade</Tag> : <Tag>No grade</Tag>;
 }
@@ -179,15 +211,16 @@ function AccountPanel({ view }: { view: PlaybookView }) {
 /* ---------- signals ---------- */
 
 function SignalCard({ item, rank, onPlan }: { item: RankedSignal; rank: number; onPlan: (d: PlanDefaults) => void }) {
-  const { setup, signal: s, sizing, checks } = item;
+  const { setup, signal: s, sizing, checks, tier } = item;
   const price = (v: number | null) => (v === null ? "—" : fmtPrice(v, setup.symbol));
   const blockers = checks.filter((c) => c.hard && c.status === "fail");
   const warnings = checks.filter((c) => c.status === "warn" && c.id !== "grade");
   return (
-    <article className="flex min-w-0 flex-col gap-3 rounded-[10px] border border-rule bg-ink/40 p-4">
+    <article className={cn("flex min-w-0 flex-col gap-3 rounded-[10px] border border-rule bg-ink/40 p-4", tier === "C" && "opacity-70")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs tabular-nums text-mist">#{rank}</span>
+          <TierBadge tier={tier} />
           <h3 className="font-display text-[17px] font-semibold text-paper">{setup.platformSymbol}</h3>
           <SideTag side={s.side} />
           <GradeTag grade={s.grade} />
@@ -202,8 +235,9 @@ function SignalCard({ item, rank, onPlan }: { item: RankedSignal; rank: number; 
         <div><dt className="text-mist">Stop</dt><dd className="tabular-nums text-loss-ink">{price(s.stop)}</dd></div>
         <div><dt className="text-mist">Target</dt><dd className="tabular-nums text-gain-ink">{price(s.target)}</dd></div>
         <div><dt className="text-mist">Reward : risk</dt><dd className="tabular-nums text-paper">{s.rr !== null ? `${s.rr.toFixed(1)} : 1` : "—"}</dd></div>
-        <div><dt className="text-mist">Size</dt><dd className="tabular-nums text-paper">{sizing ? `${sizing.lots} lot · ${usd(sizing.riskAtLots)}` : "—"}</dd></div>
+        <div><dt className="text-mist">Size</dt><dd className="tabular-nums text-paper">{tier === "C" ? "Skip" : sizing ? `${sizing.lots} lot · ${usd(sizing.riskAtLots)} (${item.riskPct}%)` : "—"}</dd></div>
       </dl>
+      <p className="text-[13px] leading-snug text-fog"><span className="text-paper">Tier {tier}:</span> {item.tierReason}</p>
       <p className="text-[13px] leading-snug">
         {item.takeable ? (
           <span className="text-gain-ink">Fits every rule.</span>
@@ -237,7 +271,7 @@ function SignalsPanel({ accountId, onPlan, freeSlots }: { accountId: string; onP
   return (
     <Panel
       title="Today's signals"
-      note={`Only the ${PLAYBOOK_SETUPS.length} playbook setups, best first: new before running, A-grade before B, then the setup with the higher backtest average. ${freeSlots > 0 ? `You have ${freeSlots} free slot${freeSlots > 1 ? "s" : ""}: take from the top.` : "All slots are full."}`}
+      note={`Only the ${PLAYBOOK_SETUPS.length} playbook setups, by priority: ones you can take first, then tier S, A+, A, B, C, new before running. ${freeSlots > 0 ? `You have ${freeSlots} free slot${freeSlots > 1 ? "s" : ""}: take from the top.` : "All slots are full."}`}
       aside={data && <span className="text-xs text-mist">Checked {when.format(data.asOf)}, every minute</span>}
     >
       {isLoading ? (
@@ -246,6 +280,7 @@ function SignalsPanel({ accountId, onPlan, freeSlots }: { accountId: string; onP
         <Callout tone="critical" title="Couldn't scan">{error instanceof Error ? error.message : "Try again in a minute."}</Callout>
       ) : (
         <div className="flex flex-col gap-5">
+          <TierLegend />
           {fresh.length === 0 ? (
             <EmptyState>No new signal right now. Across all {PLAYBOOK_SETUPS.length} setups the backtests averaged about {Math.round(PLAYBOOK_SIGNALS_PER_WEEK)} a week, so most hours have none: that&apos;s normal, not a reason to look elsewhere.</EmptyState>
           ) : (

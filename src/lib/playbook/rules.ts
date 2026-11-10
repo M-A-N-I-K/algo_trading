@@ -323,6 +323,42 @@ export interface SignalInput {
   signal: LatestSignal | null;
 }
 
+/* ---------- priority tiers ---------- */
+
+// Which signal gets a slot first. Built from two measured edges only:
+// - the location grade: A-grade trades made profit factor 2.10 against 1.44
+//   for B-grade, and B-grade currency trades lost (0.72);
+// - the setup's own backtest average R.
+// The tier sets priority, not size: risk stays the account's A or B amount,
+// the sizes its limits were tested with. C means skip.
+export type Tier = "S" | "A+" | "A" | "B" | "C";
+export const TIERS: readonly Tier[] = ["S", "A+", "A", "B", "C"];
+
+// Setup strength from its backtest average R: roughly the top, middle and
+// bottom third of the playbook.
+export const STRONG_AVG_R = 0.6;
+export const MID_AVG_R = 0.3;
+export type SetupStrength = "strong" | "mid" | "low";
+export const setupStrength = (setup: PlaybookSetup): SetupStrength =>
+  setup.baseline.avgR >= STRONG_AVG_R ? "strong" : setup.baseline.avgR >= MID_AVG_R ? "mid" : "low";
+
+const STRENGTH_LABEL: Record<SetupStrength, string> = {
+  strong: `a strong setup (backtest ${STRONG_AVG_R}R+ a trade)`,
+  mid: `a mid setup (backtest ${MID_AVG_R}–${STRONG_AVG_R}R a trade)`,
+  low: `a weaker setup (backtest under ${MID_AVG_R}R a trade)`,
+};
+
+export function signalTier(setup: PlaybookSetup, grade: Grade | null, account: PlaybookAccount, chasing: boolean): { tier: Tier; reason: string } {
+  const r = setup.baseline.avgR.toFixed(2);
+  if (chasing) return { tier: "C", reason: "Price has run past the signal's entry: the backtest didn't pay a late fill. Skip it." };
+  const skip = riskBudget(setup.symbol, grade, account).skip;
+  if (skip) return { tier: "C", reason: `${skip}. Skip it.` };
+  const strength = setupStrength(setup);
+  if (grade !== "A") return { tier: "B", reason: `${grade === "B" ? "B-grade" : "No grade"} on ${STRENGTH_LABEL[strength]}, ${r}R. B risk.` };
+  const tier: Tier = strength === "strong" ? "S" : strength === "mid" ? "A+" : "A";
+  return { tier, reason: `A-grade on ${STRENGTH_LABEL[strength]}, ${r}R. Full risk.` };
+}
+
 export interface RankedSignal {
   setup: PlaybookSetup;
   signal: LatestSignal;
@@ -330,9 +366,16 @@ export interface RankedSignal {
   sizing: Sizing | null;
   checks: Check[];
   takeable: boolean; // no rule would break
+  tier: Tier;
+  tierReason: string;
+  riskPct: number; // what the account risks on it (0 for C)
 }
 
-/** New and running signals for playbook setups, best first: A before B, then by the setup's average R. */
+/**
+ * New and running signals for playbook setups, best first: ones you can take
+ * before blocked ones, then by tier (S, A+, A, B, C), new before running, and
+ * the setup with the higher backtest average R.
+ */
 export function rankSignals(rows: SignalInput[], entries: JournalEntry[], now: number, account: PlaybookAccount = PLAYBOOK_ACCOUNT, stoppedElsewhere: string[] = []): RankedSignal[] {
   const out: RankedSignal[] = [];
   for (const row of rows) {
@@ -350,10 +393,17 @@ export function rankSignals(rows: SignalInput[], entries: JournalEntry[], now: n
       plan = { setupId: setup.id, side: s.side, grade, entry, stop: s.stop, target: s.target, riskAmount: sizing?.riskAtLots ?? budget.amount, signalEntry: s.entry, time: now };
       checks = preTradeChecks(plan, entries, account, stoppedElsewhere);
     }
-    out.push({ setup, signal: s, plan, sizing, checks, takeable: plan !== null && hardFailures(checks).length === 0 });
+    const chasing = checks.some((c) => c.id === "chase" && c.status === "warn");
+    const { tier, reason } = signalTier(setup, grade, account, chasing);
+    const takeable = plan !== null && hardFailures(checks).length === 0;
+    out.push({ setup, signal: s, plan, sizing, checks, takeable, tier, tierReason: reason, riskPct: tier === "C" ? 0 : riskBudget(setup.symbol, grade, account).riskPct });
   }
-  const rank = (r: RankedSignal) => (r.signal.status === "new" ? 0 : 2) + (r.signal.grade === "A" ? 0 : 1);
-  return out.sort((a, b) => rank(a) - rank(b) || PLAYBOOK_SETUPS.indexOf(a.setup) - PLAYBOOK_SETUPS.indexOf(b.setup));
+  const order = (r: RankedSignal) => [r.takeable && r.tier !== "C" ? 0 : 1, TIERS.indexOf(r.tier), r.signal.status === "new" ? 0 : 1, -r.setup.baseline.avgR];
+  return out.sort((a, b) => {
+    const x = order(a), y = order(b);
+    for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i];
+    return PLAYBOOK_SETUPS.indexOf(a.setup) - PLAYBOOK_SETUPS.indexOf(b.setup);
+  });
 }
 
 /* ---------- scorecard ---------- */

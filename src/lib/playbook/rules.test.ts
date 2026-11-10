@@ -43,6 +43,7 @@ const BTC_SMC = "smc:BTCUSDT:4h";
 const XAU_LR = "liquidity-reversal:XAUUSDT:1h";
 const JPY_LR = "liquidity-reversal:USDJPY:1h";
 const EUR_LR = "liquidity-reversal:EURUSD:1h";
+const XAU_MACD = "macd-200ema-sr:XAUUSDT:1h";
 
 let n = 0;
 function entry(over: Partial<JournalEntry>): JournalEntry {
@@ -249,9 +250,32 @@ describe("signal ranking", () => {
     lastCloseTime: NOON,
     signal: { status: statusName, side, signalTime: NOON, entry: 100, stop: side === "LONG" ? 98 : 102, target: side === "LONG" ? 106 : 94, rr: 3, exitPrice: null, exitTime: null, rMultiple: null, grade },
   });
-  it("puts new A-grade signals first, then by setup order, and drops non-playbook rows", () => {
+  it("orders by tier, new before running, then setup average R, and drops non-playbook rows", () => {
     const ranked = rankSignals([sig(XAU_LR, "B"), sig(BTC_SMC, "A", "SHORT"), sig(ETH_SWEEP, "A", "LONG", "open"), sig(JPY_LR, "A"), sig("vwap:ETHUSDT:5m", "A")], [], NOON);
-    expect(ranked.map((r) => r.setup.id)).toEqual([BTC_SMC, JPY_LR, XAU_LR, ETH_SWEEP]);
+    expect(ranked.map((r) => r.setup.id)).toEqual([BTC_SMC, JPY_LR, ETH_SWEEP, XAU_LR]);
+    expect(ranked.map((r) => r.tier)).toEqual(["S", "S", "S", "B"]);
+  });
+  // EUR/USD at a real price, so the smallest lot fits the risk budget.
+  const fx = (id: string, grade: "A" | "B") => {
+    const x = sig(id, grade);
+    return { ...x, lastClose: 1.1, signal: { ...x.signal, entry: 1.1, stop: 1.098, target: 1.106 } };
+  };
+  it("tiers A-grade signals by setup strength", () => {
+    const ranked = rankSignals([sig(XAU_MACD, "A"), fx(EUR_LR, "A"), sig(BTC_SMC, "A")], [], NOON);
+    expect(ranked.map((r) => [r.setup.id, r.tier])).toEqual([[BTC_SMC, "S"], [EUR_LR, "A+"], [XAU_MACD, "A"]]);
+    expect(ranked.every((r) => r.riskPct === ACCOUNT.rules.riskPctA)).toBe(true);
+  });
+  it("makes B-grade forex, B on an A-only account, and chasing a C with no risk", () => {
+    expect(rankSignals([fx(EUR_LR, "B")], [], NOON)[0]).toMatchObject({ tier: "C", riskPct: 0 });
+    expect(rankSignals([sig(XAU_LR, "B")], [], NOON)[0]).toMatchObject({ tier: "B", riskPct: ACCOUNT.rules.riskPctB });
+    const pro = accountById("pro-5k")!;
+    expect(rankSignalsOn([sig(XAU_LR, "B")], [], NOON, pro)[0].tier).toBe("C");
+    const late = { ...sig(BTC_SMC, "A", "SHORT", "open"), lastClose: 99 }; // 0.5R past the entry
+    expect(rankSignals([late], [], NOON)[0].tier).toBe("C");
+  });
+  it("puts signals you can take ahead of blocked ones of a higher tier", () => {
+    const ranked = rankSignals([sig(ETH_SWEEP, "A"), fx(EUR_LR, "A")], [entry({ setupId: ETH_SWEEP })], NOON);
+    expect(ranked.map((r) => [r.setup.id, r.tier, r.takeable])).toEqual([[EUR_LR, "A+", true], [ETH_SWEEP, "S", false]]);
   });
   it("sizes each signal from its grade and marks blocked ones", () => {
     const ranked = rankSignals([sig(ETH_SWEEP, "A")], [entry({ setupId: BTC_SMC })], NOON);
