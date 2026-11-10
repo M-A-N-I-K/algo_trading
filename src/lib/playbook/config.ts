@@ -10,11 +10,12 @@
 //   1h and 4h bars from May 2020 (gold from 2020 too, about 340 weeks) at its
 //   measured costs. A setup stays only if it passes the rule above on the 4h
 //   grid the scanner uses (UTC) and still makes PF 1.2 with both halves up on
-//   MT5's server-time grid. 12 of the original setups failed and are retired
+//   MT5's server-time grid. 13 of the original setups failed and are retired
 //   below; Gold SMC 4h passed and was added. EUR/USD Liquidity Sweep 15m was
 //   dropped on 4 years of 15m bars (PF 1.17, first half lost 22R). On BTC and
 //   ETH 5m and 15m bars since 2020 both 5m setups lost and no 15m strategy
-//   passed. Silver SMC 1h could not be re-tested yet (no platform 1h bars).
+//   passed. Silver SMC 1h lost too (PF 0.94), and no silver strategy passed
+//   on 5m, 15m, 1h or 4h.
 // - Rules: replaying those trades as one $5,000 account, at 0.5% risk and at
 //   most 4 trades open, the worst drawdown was 6% and no Monday start in 100
 //   touched the 4% daily or 12% total loss limit, even counting every open
@@ -131,8 +132,6 @@ const setup = (symbol: string, platformSymbol: string, strategy: string, strateg
 // Ordered by average R, best first: when two signals compete for the last
 // slot at the same grade, take the one higher up.
 export const PLAYBOOK_SETUPS: PlaybookSetup[] = [
-  // Not re-tested on MT5: the XAGUSD "H1" export holds 4h bars.
-  setup("XAGUSDT", "XAGUSD", "smc", "Smart Money Concepts", "1h", { trades: 41, winRatePct: 36.6, avgR: 0.52, profitFactor: 1.78, perWeek: 1.0, maxDrawdownR: 5.2, maxLossStreak: 5, weeks: 41 }),
   // MT5 6.5y, 4h candles on the UTC grid the scanner uses. On MT5's own
   // server-time 4h grid it made PF 1.51 (+0.3R, then +10.1R), so the edge is
   // real but grid-sensitive. Rare: one signal every 2 months.
@@ -162,6 +161,7 @@ export const RETIRED_SETUPS: PlaybookSetup[] = [
   retire(setup("BTCUSDT", "BTCUSD", "session-london-bos", "Session London BOS", "1h", { trades: 84, winRatePct: 44, avgR: 0.27, profitFactor: 1.46, perWeek: 0.81, maxDrawdownR: 5.4, maxLossStreak: 5, weeks: 104 }), "PF 1.08 on MT5 bars since 2020, first half lost"),
   retire(setup("GBPUSD", "GBPUSD", "smc", "Smart Money Concepts", "1h", { trades: 52, winRatePct: 30.8, avgR: 0.21, profitFactor: 1.29, perWeek: 0.54, maxDrawdownR: 7.4, maxLossStreak: 7, weeks: 97 }), "PF 1.01 on MT5 bars since 2020, second half lost"),
   retire(setup("ETHUSDT", "ETHUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 46, winRatePct: 34.8, avgR: 0.17, profitFactor: 1.25, perWeek: 0.45, maxDrawdownR: 5.4, maxLossStreak: 5, weeks: 103 }), "PF 0.88 on MT5 bars since 2020"),
+  retire(setup("XAGUSDT", "XAGUSD", "smc", "Smart Money Concepts", "1h", { trades: 41, winRatePct: 36.6, avgR: 0.52, profitFactor: 1.78, perWeek: 1.0, maxDrawdownR: 5.2, maxLossStreak: 5, weeks: 41 }), "PF 0.94 over 223 trades on MT5 bars since 2020"),
   retire(setup("ETHUSDT", "ETHUSD", "liquidity-reversal-mtf", "Liquidity Reversal MTF", "5m", { trades: 21, winRatePct: 52.4, avgR: 0.87, profitFactor: 2.68, perWeek: 0.22, maxDrawdownR: 3.3, maxLossStreak: 3, weeks: 93 }), "PF 0.88 on MT5 5m bars since 2020"),
   retire(setup("BTCUSDT", "BTCUSD", "liquidity-reversal-mtf", "Liquidity Reversal MTF", "5m", { trades: 25, winRatePct: 40, avgR: 0.28, profitFactor: 1.41, perWeek: 0.26, maxDrawdownR: 3.5, maxLossStreak: 3, weeks: 98 }), "PF 0.81 on MT5 5m bars since 2020"),
   retire(setup("XAUUSDT", "XAUUSD", "macd-200ema-sr", "MACD + 200 EMA + S/R", "1h", { trades: 28, winRatePct: 46.4, avgR: 0.12, profitFactor: 1.21, perWeek: 0.64, maxDrawdownR: 4.9, maxLossStreak: 3, weeks: 44 }), "PF 1.18 on MT5 bars since 2020, first half lost"),

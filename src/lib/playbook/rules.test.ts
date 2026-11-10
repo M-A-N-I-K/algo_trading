@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 // The live playbook changes as setups are re-tested; the rules don't. Two
-// retired crypto setups are put back as active fixtures here so these tests
-// keep covering a strong setup, a low one and crypto exposure.
+// retired setups are put back as active fixtures here so these tests keep
+// covering strong, mid and low setups and crypto exposure.
 vi.mock("./config", async (importOriginal) => {
   const real = await importOriginal<typeof import("./config")>();
-  const revive = ["liquidity-reversal-mtf:ETHUSDT:5m", "liquidity-reversal-mtf:BTCUSDT:5m"];
+  const revive = ["liquidity-reversal-mtf:ETHUSDT:5m", "liquidity-reversal-mtf:BTCUSDT:5m", "smc:XAGUSDT:1h"];
   const fixtures = real.RETIRED_SETUPS.filter((s) => revive.includes(s.id)).map((s) => ({ ...s, retired: undefined }));
   const PLAYBOOK_SETUPS = [...real.PLAYBOOK_SETUPS, ...fixtures];
   const RETIRED_SETUPS = real.RETIRED_SETUPS.filter((s) => !revive.includes(s.id));
@@ -64,7 +64,7 @@ const BTC_MTF = "liquidity-reversal-mtf:BTCUSDT:5m"; // fixture, low
 const XAU_SMC = "smc:XAUUSDT:4h"; // mid
 const NAS_MACD = "macd-200ema-sr:NAS100:4h"; // mid
 const EUR_LR = "liquidity-reversal:EURUSD:1h"; // low
-const XAG_SMC = "smc:XAGUSDT:1h"; // mid
+const XAG_SMC = "smc:XAGUSDT:1h"; // fixture, mid
 const JPY_LR = "liquidity-reversal:USDJPY:1h"; // retired
 
 let n = 0;
@@ -116,10 +116,10 @@ const plan = (over: Partial<TradePlan> = {}): TradePlan => ({
 const status = (checks: ReturnType<typeof preTradeChecks>, id: string) => checks.find((c) => c.id === id)?.status;
 
 describe("playbook config", () => {
-  it("has 4 unique setups, and keeps retired ones apart, each with a reason", async () => {
+  it("has 3 unique setups, and keeps retired ones apart, each with a reason", async () => {
     const real = await vi.importActual<typeof import("./config")>("./config");
-    expect(real.PLAYBOOK_SETUPS).toHaveLength(4);
-    expect(new Set(real.PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(4);
+    expect(real.PLAYBOOK_SETUPS).toHaveLength(3);
+    expect(new Set(real.PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(3);
     for (const s of real.PLAYBOOK_SETUPS) expect(s.id).toBe(`${s.strategy}:${s.symbol}:${s.interval}`);
     const active = new Set(real.PLAYBOOK_SETUPS.map((s) => s.id));
     for (const s of real.RETIRED_SETUPS) {
