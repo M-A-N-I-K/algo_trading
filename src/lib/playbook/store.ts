@@ -1,7 +1,7 @@
 import type { PlaybookTrade } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { appError } from "@/lib/errors";
-import { accountById, lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "./config";
+import { accountById, lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, activeSetupById, setupById, type PlaybookAccount } from "./config";
 import { accountStatus, adherence, hardFailures, preTradeChecks, scorecard, usdPerUnitMove, type AccountStatus, type Check, type JournalEntry } from "./rules";
 
 // Database side of the playbook journal: loading entries, opening a trade
@@ -165,8 +165,8 @@ export interface OpenResult {
  */
 export async function openTrade(userId: string, body: Body, now = Date.now()): Promise<OpenResult> {
   const accountId = pickAccount(body.accountId).id;
-  const setup = setupById(str(body, "setupId"));
-  if (!setup) throw appError("INVALID_INPUT", "Pick one of the playbook setups.");
+  const setup = activeSetupById(str(body, "setupId"));
+  if (!setup) throw appError("INVALID_INPUT", setupById(str(body, "setupId"))?.retired ? "That setup is retired. Pick one of the playbook setups." : "Pick one of the playbook setups.");
   const side = str(body, "side") === "SHORT" ? "SHORT" : "LONG";
   const g = str(body, "grade");
   const grade = g === "A" || g === "B" ? g : null;

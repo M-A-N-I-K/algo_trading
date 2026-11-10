@@ -393,6 +393,7 @@ const VERDICT: Record<SetupVerdict, { label: string; tone: "neutral" | "gain" | 
   "on-track": { label: "On track", tone: "gain" },
   watch: { label: "Watch", tone: "fees" },
   pause: { label: "Pause it", tone: "loss" },
+  retired: { label: "Retired", tone: "neutral" },
 };
 
 function Scorecard({ view }: { view: PlaybookView }) {
@@ -478,7 +479,7 @@ function Discipline({ view }: { view: PlaybookView }) {
 function RulesPanel({ view }: { view: PlaybookView }) {
   const k = view.rules;
   return (
-    <Panel title="The rules" note="Set from a replay of two years of the first 13 setups as one account. See the Guides page for how to trade each strategy.">
+    <Panel title="The rules" note="Set from a replay of two years of the original 13 setups as one account. See the Guides page for how to trade each strategy.">
       <ul className="flex list-disc flex-col gap-1.5 pl-4 text-[13px] leading-relaxed text-paper marker:text-mist">
         <li>Only the {PLAYBOOK_SETUPS.length} setups on this page. A chart that looks good elsewhere is not a trade.</li>
         {k.riskPctB === null ? (
@@ -496,7 +497,7 @@ function RulesPanel({ view }: { view: PlaybookView }) {
         <li>Judge a setup after 25 trades, not after a losing streak.</li>
       </ul>
       <p className="mt-4 text-xs leading-relaxed text-mist">
-        The setups were picked as the best of about 174 strategy, market and timeframe pairs over the same two years they were tested on, so expect live results to be worse than the backtest. Gold has 11 months of data and silver 10. Check lot sizes against your platform&apos;s symbol specification. More on each strategy in the <Link href="/guides" className="underline underline-offset-4">Guides</Link>.
+        The setups were picked from many strategy, market and timeframe pairs, then re-tested on the platform&apos;s own bars since 2020; ten that failed the re-test are retired. Picking the best of many overstates the edge, so expect live results to be worse than the backtest. Silver SMC 1h and the two 5m setups have only about two years of exchange data behind them. Check lot sizes against your platform&apos;s symbol specification. More on each strategy in the <Link href="/guides" className="underline underline-offset-4">Guides</Link>.
       </p>
     </Panel>
   );

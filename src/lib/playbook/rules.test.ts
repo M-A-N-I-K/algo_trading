@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { accountById, lotUnits, PLAYBOOK_ACCOUNT, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "./config";
+import { accountById, lotUnits, PLAYBOOK_ACCOUNT, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, RETIRED_SETUPS, activeSetupById, setupById, type PlaybookAccount } from "./config";
 import {
   accountStatus as accountStatusOn,
   adherence,
@@ -13,6 +13,7 @@ import {
   rankSignals as rankSignalsOn,
   riskBudget as riskBudgetOn,
   rStats,
+  scorecard,
   sizePosition,
   type JournalEntry,
   type TradePlan,
@@ -38,17 +39,17 @@ const riskBudget = (symbol: string, grade: "A" | "B" | null, account = ACCOUNT) 
 
 // Wed 11 Nov 2026 12:00 UTC = 14:00 platform time (UTC+2 in winter).
 const NOON = Date.UTC(2026, 10, 11, 12, 0);
-const ETH_SWEEP = "liquidity-sweep:ETHUSDT:1h";
-const BTC_SMC = "smc:BTCUSDT:4h";
-const XAU_LR = "liquidity-reversal:XAUUSDT:1h";
-const JPY_LR = "liquidity-reversal:USDJPY:1h";
-const EUR_LR = "liquidity-reversal:EURUSD:1h";
-const XAU_MACD = "macd-200ema-sr:XAUUSDT:1h";
-const XAG_SMC = "smc:XAGUSDT:1h";
+const ETH_MTF = "liquidity-reversal-mtf:ETHUSDT:5m"; // strong (avg R 0.6+)
+const BTC_MTF = "liquidity-reversal-mtf:BTCUSDT:5m"; // low
+const XAU_SMC = "smc:XAUUSDT:4h"; // mid
+const NAS_MACD = "macd-200ema-sr:NAS100:4h"; // mid
+const EUR_LR = "liquidity-reversal:EURUSD:1h"; // low
+const XAG_SMC = "smc:XAGUSDT:1h"; // mid
+const JPY_LR = "liquidity-reversal:USDJPY:1h"; // retired
 
 let n = 0;
 function entry(over: Partial<JournalEntry>): JournalEntry {
-  const setup = setupById(over.setupId ?? ETH_SWEEP)!;
+  const setup = setupById(over.setupId ?? ETH_MTF)!;
   return {
     id: String(++n),
     accountId: "test",
@@ -82,7 +83,7 @@ const closed = (pnl: number, exitTime = NOON - 1000, over: Partial<JournalEntry>
   entry({ status: "CLOSED", pnl, rMultiple: pnl / 25, exitTime, exitPrice: 100, ...over });
 
 const plan = (over: Partial<TradePlan> = {}): TradePlan => ({
-  setupId: ETH_SWEEP,
+  setupId: ETH_MTF,
   side: "LONG",
   grade: "A",
   entry: 3000,
@@ -95,10 +96,20 @@ const plan = (over: Partial<TradePlan> = {}): TradePlan => ({
 const status = (checks: ReturnType<typeof preTradeChecks>, id: string) => checks.find((c) => c.id === id)?.status;
 
 describe("playbook config", () => {
-  it("has 15 unique setups that the registry knows", () => {
-    expect(PLAYBOOK_SETUPS).toHaveLength(15);
-    expect(new Set(PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(15);
+  it("has 6 unique setups that the registry knows", () => {
+    expect(PLAYBOOK_SETUPS).toHaveLength(6);
+    expect(new Set(PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(6);
     for (const s of PLAYBOOK_SETUPS) expect(s.id).toBe(`${s.strategy}:${s.symbol}:${s.interval}`);
+  });
+  it("keeps retired setups apart, each with a reason", () => {
+    const active = new Set(PLAYBOOK_SETUPS.map((s) => s.id));
+    for (const s of RETIRED_SETUPS) {
+      expect(active.has(s.id)).toBe(false);
+      expect(s.retired).toBeTruthy();
+      expect(setupById(s.id)).toBe(s);
+      expect(activeSetupById(s.id)).toBeUndefined();
+    }
+    expect(PLAYBOOK_SETUPS.every((s) => !s.retired)).toBe(true);
   });
 });
 
@@ -219,19 +230,20 @@ describe("pre-trade checks", () => {
     expect(status(preTradeChecks(plan({ setupId: EUR_LR, grade: "B", entry: 1.1, stop: 1.09, target: 1.13, riskAmount: 12.5 }), []), "grade")).toBe("fail");
   });
   it("fails when all slots are full", () => {
-    const open = [entry({ setupId: XAU_LR }), entry({ setupId: JPY_LR }), entry({ setupId: EUR_LR, side: "SHORT" }), entry({ setupId: BTC_SMC, side: "SHORT" })];
+    const open = [entry({ setupId: XAU_SMC }), entry({ setupId: JPY_LR }), entry({ setupId: EUR_LR, side: "SHORT" }), entry({ setupId: BTC_MTF, side: "SHORT" })];
     expect(status(preTradeChecks(plan(), open), "slots")).toBe("fail");
   });
   it("fails a second crypto long, and a USD double-up", () => {
-    expect(status(preTradeChecks(plan(), [entry({ setupId: BTC_SMC })]), "overlap")).toBe("fail");
-    expect(status(preTradeChecks(plan(), [entry({ setupId: BTC_SMC, side: "SHORT" })]), "overlap")).toBe("pass");
-    const longEur = entry({ setupId: EUR_LR, side: "LONG" });
-    expect(status(preTradeChecks(plan({ setupId: JPY_LR, side: "SHORT", entry: 150, stop: 151, target: 147 }), [longEur]), "overlap")).toBe("fail");
+    expect(status(preTradeChecks(plan(), [entry({ setupId: BTC_MTF })]), "overlap")).toBe("fail");
+    expect(status(preTradeChecks(plan(), [entry({ setupId: BTC_MTF, side: "SHORT" })]), "overlap")).toBe("pass");
+    // Long USD/JPY (a trade logged before that setup was retired) is long the dollar, like short EUR/USD.
+    const longJpy = entry({ setupId: JPY_LR, side: "LONG" });
+    expect(status(preTradeChecks(plan({ setupId: EUR_LR, side: "SHORT", entry: 1.1, stop: 1.102, target: 1.094 }), [longJpy]), "overlap")).toBe("fail");
   });
   it("fails after the daily stop and when the worst case would breach the firm's limits", () => {
     expect(status(preTradeChecks(plan(), [closed(-100)]), "daily-stop")).toBe("fail");
     // −$90 closed today and $100 open at risk: one more $25 loss reaches −$215, past the $200 limit.
-    const open = [entry({ setupId: XAU_LR, riskAmount: 50 }), entry({ setupId: JPY_LR, riskAmount: 50 })];
+    const open = [entry({ setupId: XAU_SMC, riskAmount: 50 }), entry({ setupId: JPY_LR, riskAmount: 50 })];
     expect(status(preTradeChecks(plan(), [closed(-90), ...open]), "firm-daily")).toBe("fail");
     // $575 lost overall: one more $25 loss touches the $4,400 floor.
     expect(status(preTradeChecks(plan(), [closed(-575, Date.UTC(2026, 10, 2))]), "floor")).toBe("fail");
@@ -251,47 +263,47 @@ describe("signal ranking", () => {
     lastCloseTime: NOON,
     signal: { status: statusName, side, signalTime: NOON, entry: 100, stop: side === "LONG" ? 98 : 102, target: side === "LONG" ? 106 : 94, rr: 3, exitPrice: null, exitTime: null, rMultiple: null, grade },
   });
-  it("orders by tier, new before running, then setup average R, and drops non-playbook rows", () => {
-    const ranked = rankSignals([sig(XAU_LR, "B"), sig(BTC_SMC, "A", "SHORT"), sig(ETH_SWEEP, "A", "LONG", "open"), sig(JPY_LR, "A"), sig("vwap:ETHUSDT:5m", "A")], [], NOON);
-    expect(ranked.map((r) => r.setup.id)).toEqual([BTC_SMC, JPY_LR, ETH_SWEEP, XAU_LR]);
-    expect(ranked.map((r) => r.tier)).toEqual(["S", "S", "S", "B"]);
-  });
   // EUR/USD at a real price, so the smallest lot fits the risk budget.
   const fx = (id: string, grade: "A" | "B") => {
     const x = sig(id, grade);
     return { ...x, lastClose: 1.1, signal: { ...x.signal, entry: 1.1, stop: 1.098, target: 1.106 } };
   };
   // Silver at a real price, for the same reason.
-  const ag = (id: string, grade: "A" | "B") => {
-    const x = sig(id, grade);
+  const ag = (id: string, grade: "A" | "B", statusName: "new" | "open" = "new") => {
+    const x = sig(id, grade, "LONG", statusName);
     return { ...x, lastClose: 30, signal: { ...x.signal, entry: 30, stop: 29.9, target: 30.3 } };
   };
+  it("orders by tier, new before running, then setup average R, and drops non-playbook and retired rows", () => {
+    const ranked = rankSignals([sig(XAU_SMC, "B"), sig(BTC_MTF, "A", "SHORT"), ag(XAG_SMC, "A", "open"), sig(NAS_MACD, "A"), sig(JPY_LR, "A"), sig("vwap:ETHUSDT:5m", "A")], [], NOON);
+    expect(ranked.map((r) => r.setup.id)).toEqual([NAS_MACD, XAG_SMC, BTC_MTF, XAU_SMC]);
+    expect(ranked.map((r) => r.tier)).toEqual(["A+", "A+", "A", "B"]);
+  });
   it("tiers A-grade signals by setup strength", () => {
-    const ranked = rankSignals([sig(XAU_MACD, "A"), ag(XAG_SMC, "A"), sig(BTC_SMC, "A")], [], NOON);
-    expect(ranked.map((r) => [r.setup.id, r.tier])).toEqual([[BTC_SMC, "S"], [XAG_SMC, "A+"], [XAU_MACD, "A"]]);
+    const ranked = rankSignals([sig(BTC_MTF, "A"), ag(XAG_SMC, "A"), sig(ETH_MTF, "A")], [], NOON);
+    expect(ranked.map((r) => [r.setup.id, r.tier])).toEqual([[ETH_MTF, "S"], [XAG_SMC, "A+"], [BTC_MTF, "A"]]);
     expect(ranked.every((r) => r.riskPct === ACCOUNT.rules.riskPctA)).toBe(true);
   });
   it("makes B-grade forex, B on an A-only account, and chasing a C with no risk", () => {
     expect(rankSignals([fx(EUR_LR, "B")], [], NOON)[0]).toMatchObject({ tier: "C", riskPct: 0 });
-    expect(rankSignals([sig(XAU_LR, "B")], [], NOON)[0]).toMatchObject({ tier: "B", riskPct: ACCOUNT.rules.riskPctB });
+    expect(rankSignals([sig(XAU_SMC, "B")], [], NOON)[0]).toMatchObject({ tier: "B", riskPct: ACCOUNT.rules.riskPctB });
     const pro = accountById("pro-5k")!;
-    expect(rankSignalsOn([sig(XAU_LR, "B")], [], NOON, pro)[0].tier).toBe("C");
-    const late = { ...sig(BTC_SMC, "A", "SHORT", "open"), lastClose: 99 }; // 0.5R past the entry
+    expect(rankSignalsOn([sig(XAU_SMC, "B")], [], NOON, pro)[0].tier).toBe("C");
+    const late = { ...sig(BTC_MTF, "A", "SHORT", "open"), lastClose: 99 }; // 0.5R past the entry
     expect(rankSignals([late], [], NOON)[0].tier).toBe("C");
   });
   it("puts signals you can take ahead of blocked ones of a higher tier", () => {
-    const ranked = rankSignals([sig(ETH_SWEEP, "A"), ag(XAG_SMC, "A")], [entry({ setupId: ETH_SWEEP })], NOON);
-    expect(ranked.map((r) => [r.setup.id, r.tier, r.takeable])).toEqual([[XAG_SMC, "A+", true], [ETH_SWEEP, "S", false]]);
+    const ranked = rankSignals([sig(ETH_MTF, "A"), ag(XAG_SMC, "A")], [entry({ setupId: ETH_MTF })], NOON);
+    expect(ranked.map((r) => [r.setup.id, r.tier, r.takeable])).toEqual([[XAG_SMC, "A+", true], [ETH_MTF, "S", false]]);
   });
   it("sizes each signal from its grade and marks blocked ones", () => {
-    const ranked = rankSignals([sig(ETH_SWEEP, "A")], [entry({ setupId: BTC_SMC })], NOON);
+    const ranked = rankSignals([sig(ETH_MTF, "A")], [entry({ setupId: BTC_MTF })], NOON);
     expect(ranked[0].plan?.riskAmount).toBeLessThanOrEqual(25);
     expect(ranked[0].takeable).toBe(false);
   });
 });
 
 describe("scorecard", () => {
-  const setup = setupById(ETH_SWEEP)!;
+  const setup = setupById(ETH_MTF)!;
   it("computes R statistics", () => {
     const s = rStats([2, -1, -1, 3, -1]);
     expect(s.trades).toBe(5);
@@ -309,6 +321,20 @@ describe("scorecard", () => {
     expect(judgeSetup(setup, rStats(losing)).verdict).toBe("pause");
     const fine = Array.from({ length: 12 }, (_, i) => (i % 2 === 0 ? 2 : -1));
     expect(judgeSetup(setup, rStats(fine)).verdict).toBe("on-track");
+  });
+  it("lists a retired setup only when trades were logged on it, marked retired", () => {
+    const ids = (e: JournalEntry[]) => scorecard(e).map((r) => r.setup.id);
+    expect(ids([])).toEqual(PLAYBOOK_SETUPS.map((s) => s.id));
+    const card = scorecard([closed(-25, NOON - 1000, { setupId: JPY_LR, symbol: "USDJPY" })]);
+    const jpy = card.find((r) => r.setup.id === JPY_LR)!;
+    expect(card).toHaveLength(PLAYBOOK_SETUPS.length + 1);
+    expect(jpy.verdict).toBe("retired");
+    expect(jpy.live.trades).toBe(1);
+  });
+  it("blocks new trades on a retired setup", () => {
+    const checks = preTradeChecks(plan({ setupId: JPY_LR, entry: 150, stop: 151, target: 147, side: "SHORT" }), []);
+    expect(status(checks, "setup")).toBe("fail");
+    expect(checks.find((c) => c.id === "setup")?.detail).toMatch(/^Retired/);
   });
   it("splits results by whether the rules were followed and ranks mistakes by cost", () => {
     const a = adherence([
@@ -349,7 +375,7 @@ describe("the two FundingPips accounts", () => {
     expect(hardFailures(preTradeChecksOn(plan({ riskAmount: 37.5 }), [], pro))).toEqual([]);
   });
   it("allows 2 open trades", () => {
-    const open = [entry({ accountId: flex.id, setupId: XAU_LR, riskAmount: 100 })];
+    const open = [entry({ accountId: flex.id, setupId: XAU_SMC, riskAmount: 100 })];
     expect(status(preTradeChecksOn(flexPlan(), open, flex), "slots")).toBe("pass");
     open.push(entry({ accountId: flex.id, setupId: JPY_LR, riskAmount: 100 }));
     expect(status(preTradeChecksOn(flexPlan(), open, flex), "slots")).toBe("fail");
@@ -364,13 +390,13 @@ describe("the two FundingPips accounts", () => {
   });
   it("keeps closed losses plus open risk inside the own daily stop", () => {
     // −$100 today and $100 open: another $100 could reach −$300, past the $200 stop.
-    const entries = [lossOn(flex, -100), entry({ accountId: flex.id, setupId: XAU_LR, riskAmount: 100 })];
+    const entries = [lossOn(flex, -100), entry({ accountId: flex.id, setupId: XAU_SMC, riskAmount: 100 })];
     expect(status(preTradeChecksOn(flexPlan(), entries, flex), "own-daily")).toBe("fail");
     // Two fresh trades fit exactly: −$200 worst case, with room for lot rounding.
-    expect(status(preTradeChecksOn(flexPlan({ riskAmount: 103 }), [entry({ accountId: flex.id, setupId: XAU_LR, riskAmount: 100 })], flex), "own-daily")).toBe("pass");
+    expect(status(preTradeChecksOn(flexPlan({ riskAmount: 103 }), [entry({ accountId: flex.id, setupId: XAU_SMC, riskAmount: 100 })], flex), "own-daily")).toBe("pass");
     // Pro: $37.50 open plus $37.50 new is its $75 stop.
-    expect(status(preTradeChecksOn(plan({ riskAmount: 37.5 }), [entry({ accountId: pro.id, setupId: XAU_LR, riskAmount: 37.5 })], pro), "own-daily")).toBe("pass");
-    expect(status(preTradeChecksOn(plan({ riskAmount: 37.5 }), [lossOn(pro, -37.5), entry({ accountId: pro.id, setupId: XAU_LR, riskAmount: 37.5 })], pro), "own-daily")).toBe("fail");
+    expect(status(preTradeChecksOn(plan({ riskAmount: 37.5 }), [entry({ accountId: pro.id, setupId: XAU_SMC, riskAmount: 37.5 })], pro), "own-daily")).toBe("pass");
+    expect(status(preTradeChecksOn(plan({ riskAmount: 37.5 }), [lossOn(pro, -37.5), entry({ accountId: pro.id, setupId: XAU_SMC, riskAmount: 37.5 })], pro), "own-daily")).toBe("fail");
   });
   it("blocks every account when another hit its daily stop", () => {
     const checks = preTradeChecksOn(flexPlan(), [], flex, [pro.name]);

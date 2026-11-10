@@ -6,17 +6,14 @@
 //   metals 0.02%, forex 0.01% per side), with at least 20 trades, profit
 //   factor 1.3 or more and a profit in both halves. Picked from about 174
 //   strategy/market/timeframe pairs, so expect live results to be worse.
-//   The NAS100 and EUR/USD setups marked "MT5" passed the same test on the
-//   platform's own bars (MT5 export, Jan 2025 – Nov 2026, 97 weeks) at its
-//   measured costs: every scannable strategy/timeframe on both markets,
-//   48 pairs, 3 new setups passed (EUR/USD Liquidity Reversal 1h passed too).
-//   "MT5 6.5y" setups passed on 1h and 4h exports from May 2020 (340 weeks),
-//   which also overrule the 22-month test: NAS100 SMC 1h (PF 1.10, first half
-//   lost) and EUR/USD SMC 1h (PF 1.16, first half lost) were taken out again,
-//   and NAS100 SMC 4h (PF 3.82 over 22 months) fell to 1.04 there. EUR/USD
-//   Liquidity Sweep 15m was taken out too: on 15m bars from Nov 2022 (all the
-//   platform keeps, 4 years) it made PF 1.17, lost 22R in the first half and
-//   took nearly all its profit from 2025. No other EUR/USD 15m setup passed.
+// - Re-test (Nov 2026): every setup was run again on the platform's own MT5
+//   1h and 4h bars from May 2020 (gold from 2020 too, about 340 weeks) at its
+//   measured costs. A setup stays only if it passes the rule above on the 4h
+//   grid the scanner uses (UTC) and still makes PF 1.2 with both halves up on
+//   MT5's server-time grid. 10 of the original setups failed and are retired
+//   below; Gold SMC 4h passed and was added. EUR/USD Liquidity Sweep 15m was
+//   dropped on 4 years of 15m bars (PF 1.17, first half lost 22R). Silver SMC
+//   1h and the two 5m setups could not be re-tested yet (no platform bars).
 // - Rules: replaying those trades as one $5,000 account, at 0.5% risk and at
 //   most 4 trades open, the worst drawdown was 6% and no Monday start in 100
 //   touched the 4% daily or 12% total loss limit, even counting every open
@@ -117,6 +114,7 @@ export interface PlaybookSetup {
   strategyName: string;
   interval: string;
   baseline: SetupBaseline;
+  retired?: string; // why it no longer trades
 }
 
 const setup = (symbol: string, platformSymbol: string, strategy: string, strategyName: string, interval: string, baseline: SetupBaseline): PlaybookSetup => ({
@@ -132,35 +130,52 @@ const setup = (symbol: string, platformSymbol: string, strategy: string, strateg
 // Ordered by average R, best first: when two signals compete for the last
 // slot at the same grade, take the one higher up.
 export const PLAYBOOK_SETUPS: PlaybookSetup[] = [
-  setup("ETHUSDT", "ETHUSD", "liquidity-sweep", "Liquidity Sweep", "1h", { trades: 26, winRatePct: 50, avgR: 1.26, profitFactor: 3.33, perWeek: 0.26, maxDrawdownR: 5.5, maxLossStreak: 5, weeks: 99 }),
+  // Not re-tested on MT5: needs 5m platform bars (the 2-year Binance test stands).
   setup("ETHUSDT", "ETHUSD", "liquidity-reversal-mtf", "Liquidity Reversal MTF", "5m", { trades: 21, winRatePct: 52.4, avgR: 0.87, profitFactor: 2.68, perWeek: 0.22, maxDrawdownR: 3.3, maxLossStreak: 3, weeks: 93 }),
-  setup("XAUUSDT", "XAUUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 23, winRatePct: 39.1, avgR: 0.78, profitFactor: 2.14, perWeek: 0.54, maxDrawdownR: 4.4, maxLossStreak: 4, weeks: 42 }),
-  setup("BTCUSDT", "BTCUSD", "smc", "Smart Money Concepts", "4h", { trades: 29, winRatePct: 37.9, avgR: 0.75, profitFactor: 2.14, perWeek: 0.29, maxDrawdownR: 5.3, maxLossStreak: 5, weeks: 100 }),
-  setup("USDJPY", "USDJPY", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 39, winRatePct: 43.6, avgR: 0.67, profitFactor: 2.07, perWeek: 0.39, maxDrawdownR: 6.6, maxLossStreak: 6, weeks: 101 }),
-  // MT5 6.5y. A 20% win rate that lives on big winners: the top 5 trades make
-  // more than the total, losing runs of 10 are normal, and 2025 lost 11.1R.
-  setup("NAS100", "NDX100", "perfect-entry", "Perfect Entry", "1h", { trades: 79, winRatePct: 20.3, avgR: 0.6, profitFactor: 1.74, perWeek: 0.23, maxDrawdownR: 13.6, maxLossStreak: 10, weeks: 340 }),
+  // Not re-tested on MT5: the XAGUSD "H1" export holds 4h bars.
   setup("XAGUSDT", "XAGUSD", "smc", "Smart Money Concepts", "1h", { trades: 41, winRatePct: 36.6, avgR: 0.52, profitFactor: 1.78, perWeek: 1.0, maxDrawdownR: 5.2, maxLossStreak: 5, weeks: 41 }),
-  setup("BTCUSDT", "BTCUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 45, winRatePct: 37.8, avgR: 0.29, profitFactor: 1.42, perWeek: 0.45, maxDrawdownR: 6.7, maxLossStreak: 6, weeks: 99 }),
+  // MT5 6.5y, 4h candles on the UTC grid the scanner uses. On MT5's own
+  // server-time 4h grid it made PF 1.51 (+0.3R, then +10.1R), so the edge is
+  // real but grid-sensitive. Rare: one signal every 2 months.
+  setup("NAS100", "NDX100", "macd-200ema-sr", "MACD + 200 EMA + S/R", "4h", { trades: 44, winRatePct: 59.1, avgR: 0.47, profitFactor: 2.14, perWeek: 0.13, maxDrawdownR: 3.6, maxLossStreak: 3, weeks: 340 }),
+  // MT5 6.5y (gold since 2020), UTC 4h grid. Most of the profit came in the
+  // first half (+19.5R, then +1.2R) and 2026 so far lost 7.3R; on the MT5
+  // server-time grid it made PF 1.44 with both halves up (+11.4R, +7.1R).
+  setup("XAUUSDT", "XAUUSD", "smc", "Smart Money Concepts", "4h", { trades: 56, winRatePct: 33.9, avgR: 0.37, profitFactor: 1.56, perWeek: 0.16, maxDrawdownR: 7.3, maxLossStreak: 8, weeks: 358 }),
+  // Not re-tested on MT5: needs 5m platform bars.
   setup("BTCUSDT", "BTCUSD", "liquidity-reversal-mtf", "Liquidity Reversal MTF", "5m", { trades: 25, winRatePct: 40, avgR: 0.28, profitFactor: 1.41, perWeek: 0.26, maxDrawdownR: 3.5, maxLossStreak: 3, weeks: 98 }),
-  setup("BTCUSDT", "BTCUSD", "session-london-bos", "Session London BOS", "1h", { trades: 84, winRatePct: 44, avgR: 0.27, profitFactor: 1.46, perWeek: 0.81, maxDrawdownR: 5.4, maxLossStreak: 5, weeks: 104 }),
-  // MT5 6.5y, 4h. Rare (one signal every 2 months) and nearly flat in the first half
-  // (+0.3R, then +10.0R), so judge it on the scorecard before sizing up.
-  setup("NAS100", "NDX100", "macd-200ema-sr", "MACD + 200 EMA + S/R", "4h", { trades: 40, winRatePct: 50, avgR: 0.26, profitFactor: 1.51, perWeek: 0.12, maxDrawdownR: 6.1, maxLossStreak: 6, weeks: 340 }),
-  setup("GBPUSD", "GBPUSD", "smc", "Smart Money Concepts", "1h", { trades: 52, winRatePct: 30.8, avgR: 0.21, profitFactor: 1.29, perWeek: 0.54, maxDrawdownR: 7.4, maxLossStreak: 7, weeks: 97 }),
-  // MT5 6.5y baseline: an original setup whose profit factor fell from 1.58
-  // (2 years of Yahoo data) to 1.23 on the platform's bars since 2020. Still
-  // profitable in both halves and 6 of 7 years, so it stays, ranked lower.
+  // MT5 6.5y: profit factor fell from 1.58 (2 years of Yahoo data) to 1.24 on
+  // the platform's bars since 2020. Profitable in both halves and 6 of 7
+  // years, so it stays, ranked lowest.
   setup("EURUSD", "EURUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 124, winRatePct: 30.6, avgR: 0.17, profitFactor: 1.23, perWeek: 0.36, maxDrawdownR: 14.6, maxLossStreak: 10, weeks: 341 }),
-  setup("ETHUSDT", "ETHUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 46, winRatePct: 34.8, avgR: 0.17, profitFactor: 1.25, perWeek: 0.45, maxDrawdownR: 5.4, maxLossStreak: 5, weeks: 103 }),
-  setup("XAUUSDT", "XAUUSD", "macd-200ema-sr", "MACD + 200 EMA + S/R", "1h", { trades: 28, winRatePct: 46.4, avgR: 0.12, profitFactor: 1.21, perWeek: 0.64, maxDrawdownR: 4.9, maxLossStreak: 3, weeks: 44 }),
+];
+
+const retire = (s: PlaybookSetup, retired: string): PlaybookSetup => ({ ...s, retired });
+
+// Setups that failed the re-test on the platform's MT5 bars since 2020. No
+// signals, no new trades; kept so trades already logged on them still show
+// their setup and scorecard history. Baselines are the original ones.
+export const RETIRED_SETUPS: PlaybookSetup[] = [
+  retire(setup("ETHUSDT", "ETHUSD", "liquidity-sweep", "Liquidity Sweep", "1h", { trades: 26, winRatePct: 50, avgR: 1.26, profitFactor: 3.33, perWeek: 0.26, maxDrawdownR: 5.5, maxLossStreak: 5, weeks: 99 }), "PF 0.90 on MT5 bars since 2020"),
+  retire(setup("XAUUSDT", "XAUUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 23, winRatePct: 39.1, avgR: 0.78, profitFactor: 2.14, perWeek: 0.54, maxDrawdownR: 4.4, maxLossStreak: 4, weeks: 42 }), "PF 0.64, lost 30.7R on MT5 bars since 2020"),
+  retire(setup("BTCUSDT", "BTCUSD", "smc", "Smart Money Concepts", "4h", { trades: 29, winRatePct: 37.9, avgR: 0.75, profitFactor: 2.14, perWeek: 0.29, maxDrawdownR: 5.3, maxLossStreak: 5, weeks: 100 }), "PF 0.76 on MT5 bars since 2020"),
+  retire(setup("USDJPY", "USDJPY", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 39, winRatePct: 43.6, avgR: 0.67, profitFactor: 2.07, perWeek: 0.39, maxDrawdownR: 6.6, maxLossStreak: 6, weeks: 101 }), "PF 0.82 on MT5 bars since 2020"),
+  retire(setup("NAS100", "NDX100", "perfect-entry", "Perfect Entry", "1h", { trades: 79, winRatePct: 20.3, avgR: 0.6, profitFactor: 1.74, perWeek: 0.23, maxDrawdownR: 13.6, maxLossStreak: 10, weeks: 340 }), "PF 1.74 on UTC hours but 0.98 on MT5 server hours: too fragile"),
+  retire(setup("BTCUSDT", "BTCUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 45, winRatePct: 37.8, avgR: 0.29, profitFactor: 1.42, perWeek: 0.45, maxDrawdownR: 6.7, maxLossStreak: 6, weeks: 99 }), "PF 1.01 on MT5 bars since 2020"),
+  retire(setup("BTCUSDT", "BTCUSD", "session-london-bos", "Session London BOS", "1h", { trades: 84, winRatePct: 44, avgR: 0.27, profitFactor: 1.46, perWeek: 0.81, maxDrawdownR: 5.4, maxLossStreak: 5, weeks: 104 }), "PF 1.08 on MT5 bars since 2020, first half lost"),
+  retire(setup("GBPUSD", "GBPUSD", "smc", "Smart Money Concepts", "1h", { trades: 52, winRatePct: 30.8, avgR: 0.21, profitFactor: 1.29, perWeek: 0.54, maxDrawdownR: 7.4, maxLossStreak: 7, weeks: 97 }), "PF 1.01 on MT5 bars since 2020, second half lost"),
+  retire(setup("ETHUSDT", "ETHUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 46, winRatePct: 34.8, avgR: 0.17, profitFactor: 1.25, perWeek: 0.45, maxDrawdownR: 5.4, maxLossStreak: 5, weeks: 103 }), "PF 0.88 on MT5 bars since 2020"),
+  retire(setup("XAUUSDT", "XAUUSD", "macd-200ema-sr", "MACD + 200 EMA + S/R", "1h", { trades: 28, winRatePct: 46.4, avgR: 0.12, profitFactor: 1.21, perWeek: 0.64, maxDrawdownR: 4.9, maxLossStreak: 3, weeks: 44 }), "PF 1.18 on MT5 bars since 2020, first half lost"),
 ];
 
 /** Signals a week across every setup, from the baselines. */
 export const PLAYBOOK_SIGNALS_PER_WEEK = PLAYBOOK_SETUPS.reduce((a, s) => a + s.baseline.perWeek, 0);
 
 export const PLAYBOOK_SETUP_IDS: ReadonlySet<string> = new Set(PLAYBOOK_SETUPS.map((s) => s.id));
-export const setupById = (id: string) => PLAYBOOK_SETUPS.find((s) => s.id === id);
+/** Any setup, retired ones included: for showing logged trades. */
+export const setupById = (id: string) => PLAYBOOK_SETUPS.find((s) => s.id === id) ?? RETIRED_SETUPS.find((s) => s.id === id);
+/** Only setups that still trade: for signals and new trades. */
+export const activeSetupById = (id: string) => PLAYBOOK_SETUPS.find((s) => s.id === id);
 
 // Contract size of one lot on the platform, in units of the base asset.
 // Standard MT5 specs; check your platform's symbol specification.

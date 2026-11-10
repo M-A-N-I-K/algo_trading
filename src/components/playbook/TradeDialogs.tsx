@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, CircleAlert, CircleX } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button, Callout, Field, Segmented, SelectInput, TextArea, TextInput, money, signedNumber, toneClass } from "@/components/kit";
-import { lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "@/lib/playbook/config";
+import { lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_SETUPS, activeSetupById, setupById, type PlaybookAccount } from "@/lib/playbook/config";
 import { hardFailures, pnlUsd, preTradeChecks, riskBudget, sizePosition, usdPerUnitMove, type Check, type Grade, type JournalEntry, type Side } from "@/lib/playbook/rules";
 import { roundTripCostPerUnitUsd } from "@/lib/costs/fundingpips";
 import { fmtPrice } from "@/lib/plan/weeklyPlan";
@@ -86,7 +86,7 @@ export function PlanTradeDialog({ open, onClose, defaults, entries, account, sto
 
 function PlanTradeForm({ defaults, entries, account, stoppedElsewhere, onDone }: { defaults: PlanDefaults; entries: JournalEntry[]; account: PlaybookAccount; stoppedElsewhere: string[]; onDone: () => void }) {
   const refresh = useRefresh();
-  const [setupId, setSetupId] = useState(defaults.setupId ?? PLAYBOOK_SETUPS[0].id);
+  const [setupId, setSetupId] = useState(activeSetupById(defaults.setupId ?? "")?.id ?? PLAYBOOK_SETUPS[0].id);
   const [side, setSide] = useState<Side>(defaults.side ?? "LONG");
   const [grade, setGrade] = useState<"A" | "B" | "none">(defaults.grade ?? "none");
   const [entry, setEntry] = useState(defaults.entry !== undefined ? String(defaults.entry) : "");
@@ -97,7 +97,7 @@ function PlanTradeForm({ defaults, entries, account, stoppedElsewhere, onDone }:
   const [notes, setNotes] = useState("");
   const [override, setOverride] = useState("");
 
-  const setup = setupById(setupId)!;
+  const setup = activeSetupById(setupId) ?? PLAYBOOK_SETUPS[0];
   const g: Grade | null = grade === "none" ? null : grade;
   const budget = riskBudget(setup.symbol, g, account);
   const e = n(entry), s = n(stop), t = n(target);

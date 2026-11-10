@@ -4,7 +4,9 @@ import {
   lotUnits,
   MISTAKES,
   PLAYBOOK_ACCOUNT,
+  activeSetupById,
   PLAYBOOK_SETUPS,
+  RETIRED_SETUPS,
   setupById,
   type PlaybookAccount,
   type PlaybookSetup,
@@ -247,9 +249,10 @@ export function preTradeChecks(plan: TradePlan, entries: JournalEntry[], account
   const add = (id: string, label: string, ok: boolean | "warn", detail: string, hard = true) =>
     checks.push({ id, label, status: ok === "warn" ? "warn" : ok ? "pass" : "fail", detail, hard });
 
-  const setup = setupById(plan.setupId);
+  const setup = activeSetupById(plan.setupId);
+  const retired = setup ? undefined : setupById(plan.setupId)?.retired;
   const symbol = setup?.symbol ?? "";
-  add("setup", "A playbook setup", Boolean(setup), setup ? `${setup.strategyName} on ${setup.platformSymbol} ${setup.interval}` : "This strategy and market aren't in the playbook.");
+  add("setup", "A playbook setup", Boolean(setup), setup ? `${setup.strategyName} on ${setup.platformSymbol} ${setup.interval}` : retired ? `Retired: ${retired}.` : "This strategy and market aren't in the playbook.");
 
   const budget = riskBudget(symbol, plan.grade, account);
   if (budget.skip) add("grade", "Grade", false, budget.skip);
@@ -380,7 +383,7 @@ export function rankSignals(rows: SignalInput[], entries: JournalEntry[], now: n
   const out: RankedSignal[] = [];
   for (const row of rows) {
     const s = row.signal;
-    const setup = setupById(row.id);
+    const setup = activeSetupById(row.id);
     if (!setup || !s || (s.status !== "new" && s.status !== "open")) continue;
     const grade = s.grade ?? null;
     const entry = s.status === "new" ? s.entry : row.lastClose;
@@ -430,7 +433,7 @@ export function rStats(rs: number[]): RStats {
   return { trades: n, winRatePct: n ? (wins / n) * 100 : 0, avgR: n ? sum / n : 0, sumR: sum, profitFactor: gl > 0 ? gw / gl : null, maxDrawdownR: dd, lossStreak: streak };
 }
 
-export type SetupVerdict = "no-trades" | "collecting" | "on-track" | "watch" | "pause";
+export type SetupVerdict = "no-trades" | "collecting" | "on-track" | "watch" | "pause" | "retired";
 
 export interface SetupScore {
   setup: PlaybookSetup;
@@ -449,6 +452,7 @@ const closedR = (entries: JournalEntry[]) =>
 
 export function judgeSetup(setup: PlaybookSetup, live: RStats): { verdict: SetupVerdict; reason: string } {
   const b = setup.baseline;
+  if (setup.retired) return { verdict: "retired", reason: `No longer traded: ${setup.retired}` };
   if (live.trades === 0) return { verdict: "no-trades", reason: `Expect about ${(b.perWeek * 4.3).toFixed(1)} signals a month` };
   if (live.lossStreak > b.maxLossStreak + 2)
     return { verdict: "watch", reason: `${live.lossStreak} losses in a row; the backtest's worst was ${b.maxLossStreak}` };
@@ -463,7 +467,10 @@ export function judgeSetup(setup: PlaybookSetup, live: RStats): { verdict: Setup
 
 export function scorecard(entries: JournalEntry[]): SetupScore[] {
   const closed = closedR(entries);
-  return PLAYBOOK_SETUPS.map((setup) => {
+  // Retired setups show only when trades were logged on them.
+  const logged = new Set(entries.map((e) => e.setupId));
+  const setups = [...PLAYBOOK_SETUPS, ...RETIRED_SETUPS.filter((s) => logged.has(s.id))];
+  return setups.map((setup) => {
     const live = rStats(closed.filter((e) => e.setupId === setup.id).map((e) => e.rMultiple!));
     return { setup, live, ...judgeSetup(setup, live) };
   });
