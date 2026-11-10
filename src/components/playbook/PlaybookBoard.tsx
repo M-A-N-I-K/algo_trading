@@ -497,7 +497,7 @@ function RulesPanel({ view }: { view: PlaybookView }) {
         <li>Judge a setup after 25 trades, not after a losing streak.</li>
       </ul>
       <p className="mt-4 text-xs leading-relaxed text-mist">
-        The setups were picked from many strategy, market and timeframe pairs, then re-tested on the platform&apos;s own bars since 2020; ten that failed the re-test are retired. Picking the best of many overstates the edge, so expect live results to be worse than the backtest. Silver SMC 1h and the two 5m setups have only about two years of exchange data behind them. Check lot sizes against your platform&apos;s symbol specification. More on each strategy in the <Link href="/guides" className="underline underline-offset-4">Guides</Link>.
+        The setups were picked from many strategy, market and timeframe pairs, then re-tested on the platform&apos;s own bars since 2020; twelve that failed the re-test are retired. Picking the best of many overstates the edge, so expect live results to be worse than the backtest. Silver SMC 1h has only 10 months of exchange data behind it until it is re-tested. Check lot sizes against your platform&apos;s symbol specification. More on each strategy in the <Link href="/guides" className="underline underline-offset-4">Guides</Link>.
       </p>
     </Panel>
   );

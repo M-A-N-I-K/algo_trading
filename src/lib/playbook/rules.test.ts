@@ -1,5 +1,25 @@
-import { describe, expect, it } from "vitest";
-import { accountById, lotUnits, PLAYBOOK_ACCOUNT, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, RETIRED_SETUPS, activeSetupById, setupById, type PlaybookAccount } from "./config";
+import { describe, expect, it, vi } from "vitest";
+
+// The live playbook changes as setups are re-tested; the rules don't. Two
+// retired crypto setups are put back as active fixtures here so these tests
+// keep covering a strong setup, a low one and crypto exposure.
+vi.mock("./config", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./config")>();
+  const revive = ["liquidity-reversal-mtf:ETHUSDT:5m", "liquidity-reversal-mtf:BTCUSDT:5m"];
+  const fixtures = real.RETIRED_SETUPS.filter((s) => revive.includes(s.id)).map((s) => ({ ...s, retired: undefined }));
+  const PLAYBOOK_SETUPS = [...real.PLAYBOOK_SETUPS, ...fixtures];
+  const RETIRED_SETUPS = real.RETIRED_SETUPS.filter((s) => !revive.includes(s.id));
+  const activeSetupById = (id: string) => PLAYBOOK_SETUPS.find((s) => s.id === id);
+  return {
+    ...real,
+    PLAYBOOK_SETUPS,
+    RETIRED_SETUPS,
+    PLAYBOOK_SETUP_IDS: new Set(PLAYBOOK_SETUPS.map((s) => s.id)),
+    activeSetupById,
+    setupById: (id: string) => activeSetupById(id) ?? RETIRED_SETUPS.find((s) => s.id === id),
+  };
+});
+import { accountById, lotUnits, PLAYBOOK_ACCOUNT, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "./config";
 import {
   accountStatus as accountStatusOn,
   adherence,
@@ -39,8 +59,8 @@ const riskBudget = (symbol: string, grade: "A" | "B" | null, account = ACCOUNT) 
 
 // Wed 11 Nov 2026 12:00 UTC = 14:00 platform time (UTC+2 in winter).
 const NOON = Date.UTC(2026, 10, 11, 12, 0);
-const ETH_MTF = "liquidity-reversal-mtf:ETHUSDT:5m"; // strong (avg R 0.6+)
-const BTC_MTF = "liquidity-reversal-mtf:BTCUSDT:5m"; // low
+const ETH_MTF = "liquidity-reversal-mtf:ETHUSDT:5m"; // fixture, strong (avg R 0.6+)
+const BTC_MTF = "liquidity-reversal-mtf:BTCUSDT:5m"; // fixture, low
 const XAU_SMC = "smc:XAUUSDT:4h"; // mid
 const NAS_MACD = "macd-200ema-sr:NAS100:4h"; // mid
 const EUR_LR = "liquidity-reversal:EURUSD:1h"; // low
@@ -96,20 +116,19 @@ const plan = (over: Partial<TradePlan> = {}): TradePlan => ({
 const status = (checks: ReturnType<typeof preTradeChecks>, id: string) => checks.find((c) => c.id === id)?.status;
 
 describe("playbook config", () => {
-  it("has 6 unique setups that the registry knows", () => {
-    expect(PLAYBOOK_SETUPS).toHaveLength(6);
-    expect(new Set(PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(6);
-    for (const s of PLAYBOOK_SETUPS) expect(s.id).toBe(`${s.strategy}:${s.symbol}:${s.interval}`);
-  });
-  it("keeps retired setups apart, each with a reason", () => {
-    const active = new Set(PLAYBOOK_SETUPS.map((s) => s.id));
-    for (const s of RETIRED_SETUPS) {
+  it("has 4 unique setups, and keeps retired ones apart, each with a reason", async () => {
+    const real = await vi.importActual<typeof import("./config")>("./config");
+    expect(real.PLAYBOOK_SETUPS).toHaveLength(4);
+    expect(new Set(real.PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(4);
+    for (const s of real.PLAYBOOK_SETUPS) expect(s.id).toBe(`${s.strategy}:${s.symbol}:${s.interval}`);
+    const active = new Set(real.PLAYBOOK_SETUPS.map((s) => s.id));
+    for (const s of real.RETIRED_SETUPS) {
       expect(active.has(s.id)).toBe(false);
       expect(s.retired).toBeTruthy();
-      expect(setupById(s.id)).toBe(s);
-      expect(activeSetupById(s.id)).toBeUndefined();
+      expect(real.setupById(s.id)).toBe(s);
+      expect(real.activeSetupById(s.id)).toBeUndefined();
     }
-    expect(PLAYBOOK_SETUPS.every((s) => !s.retired)).toBe(true);
+    expect(real.PLAYBOOK_SETUPS.every((s) => !s.retired)).toBe(true);
   });
 });
 
