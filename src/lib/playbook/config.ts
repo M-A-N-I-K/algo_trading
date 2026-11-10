@@ -13,7 +13,10 @@
 //   "MT5 6.5y" setups passed on 1h and 4h exports from May 2020 (340 weeks),
 //   which also overrule the 22-month test: NAS100 SMC 1h (PF 1.10, first half
 //   lost) and EUR/USD SMC 1h (PF 1.16, first half lost) were taken out again,
-//   and NAS100 SMC 4h (PF 3.82 over 22 months) fell to 1.04 there.
+//   and NAS100 SMC 4h (PF 3.82 over 22 months) fell to 1.04 there. EUR/USD
+//   Liquidity Sweep 15m was taken out too: on 15m bars from Nov 2022 (all the
+//   platform keeps, 4 years) it made PF 1.17, lost 22R in the first half and
+//   took nearly all its profit from 2025. No other EUR/USD 15m setup passed.
 // - Rules: replaying those trades as one $5,000 account, at 0.5% risk and at
 //   most 4 trades open, the worst drawdown was 6% and no Monday start in 100
 //   touched the 4% daily or 12% total loss limit, even counting every open
@@ -137,8 +140,6 @@ export const PLAYBOOK_SETUPS: PlaybookSetup[] = [
   // MT5 6.5y. A 20% win rate that lives on big winners: the top 5 trades make
   // more than the total, losing runs of 10 are normal, and 2025 lost 11.1R.
   setup("NAS100", "NDX100", "perfect-entry", "Perfect Entry", "1h", { trades: 79, winRatePct: 20.3, avgR: 0.6, profitFactor: 1.74, perWeek: 0.23, maxDrawdownR: 13.6, maxLossStreak: 10, weeks: 340 }),
-  // MT5: profit only +6.6R in the second half (+37.1R in the first), so watch it.
-  setup("EURUSD", "EURUSD", "liquidity-sweep", "Liquidity Sweep", "15m", { trades: 79, winRatePct: 31.6, avgR: 0.55, profitFactor: 1.76, perWeek: 0.81, maxDrawdownR: 10.6, maxLossStreak: 10, weeks: 97 }),
   setup("XAGUSDT", "XAGUSD", "smc", "Smart Money Concepts", "1h", { trades: 41, winRatePct: 36.6, avgR: 0.52, profitFactor: 1.78, perWeek: 1.0, maxDrawdownR: 5.2, maxLossStreak: 5, weeks: 41 }),
   setup("BTCUSDT", "BTCUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 45, winRatePct: 37.8, avgR: 0.29, profitFactor: 1.42, perWeek: 0.45, maxDrawdownR: 6.7, maxLossStreak: 6, weeks: 99 }),
   setup("BTCUSDT", "BTCUSD", "liquidity-reversal-mtf", "Liquidity Reversal MTF", "5m", { trades: 25, winRatePct: 40, avgR: 0.28, profitFactor: 1.41, perWeek: 0.26, maxDrawdownR: 3.5, maxLossStreak: 3, weeks: 98 }),

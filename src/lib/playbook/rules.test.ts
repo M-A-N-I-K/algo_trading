@@ -44,7 +44,7 @@ const XAU_LR = "liquidity-reversal:XAUUSDT:1h";
 const JPY_LR = "liquidity-reversal:USDJPY:1h";
 const EUR_LR = "liquidity-reversal:EURUSD:1h";
 const XAU_MACD = "macd-200ema-sr:XAUUSDT:1h";
-const EUR_SWEEP = "liquidity-sweep:EURUSD:15m";
+const XAG_SMC = "smc:XAGUSDT:1h";
 
 let n = 0;
 function entry(over: Partial<JournalEntry>): JournalEntry {
@@ -95,9 +95,9 @@ const plan = (over: Partial<TradePlan> = {}): TradePlan => ({
 const status = (checks: ReturnType<typeof preTradeChecks>, id: string) => checks.find((c) => c.id === id)?.status;
 
 describe("playbook config", () => {
-  it("has 16 unique setups that the registry knows", () => {
-    expect(PLAYBOOK_SETUPS).toHaveLength(16);
-    expect(new Set(PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(16);
+  it("has 15 unique setups that the registry knows", () => {
+    expect(PLAYBOOK_SETUPS).toHaveLength(15);
+    expect(new Set(PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(15);
     for (const s of PLAYBOOK_SETUPS) expect(s.id).toBe(`${s.strategy}:${s.symbol}:${s.interval}`);
   });
 });
@@ -261,9 +261,14 @@ describe("signal ranking", () => {
     const x = sig(id, grade);
     return { ...x, lastClose: 1.1, signal: { ...x.signal, entry: 1.1, stop: 1.098, target: 1.106 } };
   };
+  // Silver at a real price, for the same reason.
+  const ag = (id: string, grade: "A" | "B") => {
+    const x = sig(id, grade);
+    return { ...x, lastClose: 30, signal: { ...x.signal, entry: 30, stop: 29.9, target: 30.3 } };
+  };
   it("tiers A-grade signals by setup strength", () => {
-    const ranked = rankSignals([sig(XAU_MACD, "A"), fx(EUR_SWEEP, "A"), sig(BTC_SMC, "A")], [], NOON);
-    expect(ranked.map((r) => [r.setup.id, r.tier])).toEqual([[BTC_SMC, "S"], [EUR_SWEEP, "A+"], [XAU_MACD, "A"]]);
+    const ranked = rankSignals([sig(XAU_MACD, "A"), ag(XAG_SMC, "A"), sig(BTC_SMC, "A")], [], NOON);
+    expect(ranked.map((r) => [r.setup.id, r.tier])).toEqual([[BTC_SMC, "S"], [XAG_SMC, "A+"], [XAU_MACD, "A"]]);
     expect(ranked.every((r) => r.riskPct === ACCOUNT.rules.riskPctA)).toBe(true);
   });
   it("makes B-grade forex, B on an A-only account, and chasing a C with no risk", () => {
@@ -275,8 +280,8 @@ describe("signal ranking", () => {
     expect(rankSignals([late], [], NOON)[0].tier).toBe("C");
   });
   it("puts signals you can take ahead of blocked ones of a higher tier", () => {
-    const ranked = rankSignals([sig(ETH_SWEEP, "A"), fx(EUR_SWEEP, "A")], [entry({ setupId: ETH_SWEEP })], NOON);
-    expect(ranked.map((r) => [r.setup.id, r.tier, r.takeable])).toEqual([[EUR_SWEEP, "A+", true], [ETH_SWEEP, "S", false]]);
+    const ranked = rankSignals([sig(ETH_SWEEP, "A"), ag(XAG_SMC, "A")], [entry({ setupId: ETH_SWEEP })], NOON);
+    expect(ranked.map((r) => [r.setup.id, r.tier, r.takeable])).toEqual([[XAG_SMC, "A+", true], [ETH_SWEEP, "S", false]]);
   });
   it("sizes each signal from its grade and marks blocked ones", () => {
     const ranked = rankSignals([sig(ETH_SWEEP, "A")], [entry({ setupId: BTC_SMC })], NOON);
