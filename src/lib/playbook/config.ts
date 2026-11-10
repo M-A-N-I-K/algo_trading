@@ -10,6 +10,8 @@
 //   platform's own bars (MT5 export, Jan 2025 – Nov 2026, 97 weeks) at its
 //   measured costs: every scannable strategy/timeframe on both markets,
 //   48 pairs, 3 new setups passed (EUR/USD Liquidity Reversal 1h passed too).
+//   "MT5 4h" setups passed on 4h exports from May 2020 (6.5 years, 340 weeks):
+//   NAS100 SMC 4h, PF 3.82 over the last 22 months, fell to 1.04 there.
 // - Rules: replaying those trades as one $5,000 account, at 0.5% risk and at
 //   most 4 trades open, the worst drawdown was 6% and no Monday start in 100
 //   touched the 4% daily or 12% total loss limit, even counting every open
@@ -139,6 +141,9 @@ export const PLAYBOOK_SETUPS: PlaybookSetup[] = [
   setup("BTCUSDT", "BTCUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 45, winRatePct: 37.8, avgR: 0.29, profitFactor: 1.42, perWeek: 0.45, maxDrawdownR: 6.7, maxLossStreak: 6, weeks: 99 }),
   setup("BTCUSDT", "BTCUSD", "liquidity-reversal-mtf", "Liquidity Reversal MTF", "5m", { trades: 25, winRatePct: 40, avgR: 0.28, profitFactor: 1.41, perWeek: 0.26, maxDrawdownR: 3.5, maxLossStreak: 3, weeks: 98 }),
   setup("BTCUSDT", "BTCUSD", "session-london-bos", "Session London BOS", "1h", { trades: 84, winRatePct: 44, avgR: 0.27, profitFactor: 1.46, perWeek: 0.81, maxDrawdownR: 5.4, maxLossStreak: 5, weeks: 104 }),
+  // MT5 4h. Rare (one signal every 2 months) and nearly flat in the first half
+  // (+0.3R, then +10.0R), so judge it on the scorecard before sizing up.
+  setup("NAS100", "NDX100", "macd-200ema-sr", "MACD + 200 EMA + S/R", "4h", { trades: 40, winRatePct: 50, avgR: 0.26, profitFactor: 1.51, perWeek: 0.12, maxDrawdownR: 6.1, maxLossStreak: 6, weeks: 340 }),
   // MT5.
   setup("NAS100", "NDX100", "smc", "Smart Money Concepts", "1h", { trades: 59, winRatePct: 30.5, avgR: 0.22, profitFactor: 1.32, perWeek: 0.61, maxDrawdownR: 11.1, maxLossStreak: 9, weeks: 97 }),
   setup("GBPUSD", "GBPUSD", "smc", "Smart Money Concepts", "1h", { trades: 52, winRatePct: 30.8, avgR: 0.21, profitFactor: 1.29, perWeek: 0.54, maxDrawdownR: 7.4, maxLossStreak: 7, weeks: 97 }),

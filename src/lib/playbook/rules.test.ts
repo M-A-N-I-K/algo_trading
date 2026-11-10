@@ -94,9 +94,9 @@ const plan = (over: Partial<TradePlan> = {}): TradePlan => ({
 const status = (checks: ReturnType<typeof preTradeChecks>, id: string) => checks.find((c) => c.id === id)?.status;
 
 describe("playbook config", () => {
-  it("has 16 unique setups that the registry knows", () => {
-    expect(PLAYBOOK_SETUPS).toHaveLength(16);
-    expect(new Set(PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(16);
+  it("has 17 unique setups that the registry knows", () => {
+    expect(PLAYBOOK_SETUPS).toHaveLength(17);
+    expect(new Set(PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(17);
     for (const s of PLAYBOOK_SETUPS) expect(s.id).toBe(`${s.strategy}:${s.symbol}:${s.interval}`);
   });
 });
