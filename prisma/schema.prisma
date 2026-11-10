@@ -478,7 +478,9 @@ model PlaybookTrade {
   overrideReason String    @default("") // why it was taken anyway
   exitTime       DateTime?
   exitPrice      Float?
-  pnl            Float?    // $ from the platform: spread, commission and swap included
+  pnl            Float?    // net $: the platform's profit plus commission and swap
+  commission     Float?    // $ commission charged, negative (a cost)
+  swap           Float?    // $ overnight swap, as the platform shows it
   rMultiple      Float?    // pnl / riskAmount
   exitReason     String?   // stop, target, breakeven or manual
   mistakes       String[]  @default([])

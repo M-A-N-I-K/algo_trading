@@ -326,7 +326,10 @@ function History({ trades, onEdit }: { trades: JournalEntry[]; onEdit: (t: Journ
                     <td className={tdClass}><span className="flex flex-wrap items-center gap-1.5">{marketOf(t)} <SideTag side={t.side} /> <GradeTag grade={t.grade} /></span></td>
                     <td className={cn(tdClass, "text-fog")}>{s ? `${s.strategyName} ${s.interval}` : t.setupId}</td>
                     <td className={cn(tdClass, "tabular-nums", toneClass(t.rMultiple ?? 0))}>{t.rMultiple !== null ? r(t.rMultiple) : "—"}</td>
-                    <td className={cn(tdClass, "tabular-nums", toneClass(t.pnl ?? 0))}>{t.pnl !== null ? money(t.pnl) : "—"}</td>
+                    <td className={cn(tdClass, "tabular-nums", toneClass(t.pnl ?? 0))}>
+                      {t.pnl !== null ? money(t.pnl) : "—"}
+                      {(t.commission || t.swap) ? <span className="block text-[12px] text-fog">{money((t.commission ?? 0) + (t.swap ?? 0))} fees &amp; swap</span> : null}
+                    </td>
                     <td className={cn(tdClass, "capitalize text-fog")}>{t.exitReason ?? "—"}</td>
                     <td className={tdClass}>
                       <span className="flex flex-wrap gap-1">

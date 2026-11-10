@@ -272,7 +272,10 @@ function CloseTradeForm({ trade, onDone }: { trade: JournalEntry; onDone: () => 
   const closing = trade.status === "OPEN";
   const setup = setupById(trade.setupId);
   const [exitPrice, setExitPrice] = useState(trade.exitPrice != null ? String(trade.exitPrice) : "");
-  const [pnlText, setPnlText] = useState<string | null>(trade.pnl != null ? String(trade.pnl) : null);
+  // The platform's Profit column (price move only), then its Commission and Swap.
+  const [profitText, setProfitText] = useState<string | null>(null); // null = follow the price estimate
+  const [commissionText, setCommissionText] = useState<string | null>(null); // null = follow the cost estimate
+  const [swapText, setSwapText] = useState("");
   const [time, setTime] = useState(toLocalInput(trade.exitTime ?? Date.now()));
   const [reason, setReason] = useState<"stop" | "target" | "breakeven" | "manual">((trade.exitReason as "stop") ?? "target");
   const [mistakes, setMistakes] = useState<Set<string>>(new Set(trade.mistakes));
@@ -281,13 +284,18 @@ function CloseTradeForm({ trade, onDone }: { trade: JournalEntry; onDone: () => 
 
   const x = n(exitPrice);
   const estimate = Number.isFinite(x) ? pnlUsd(trade.symbol, trade.side, trade.quantity, trade.entryPrice, x) : NaN;
-  const pnl = pnlText === null ? estimate : n(pnlText);
+  const profit = profitText === null ? estimate : n(profitText);
+  const commissionEstimate = -roundTripCostPerUnitUsd(trade.symbol, trade.entryPrice).commission * trade.quantity;
+  const commissionIn = commissionText === null ? commissionEstimate : commissionText.trim() === "" ? 0 : n(commissionText);
+  const commission = -Math.abs(commissionIn);
+  const swap = swapText.trim() === "" ? 0 : n(swapText);
+  const pnl = profit + commission + swap;
   const r = Number.isFinite(pnl) && trade.riskAmount > 0 ? pnl / trade.riskAmount : NaN;
 
   const save = useMutation({
     mutationFn: () =>
       send(`/api/playbook/trades/${trade.id}`, "PATCH", {
-        ...(closing ? { exitPrice: x, pnl, exitTime: fromLocalInput(time), exitReason: reason } : {}),
+        ...(closing ? { exitPrice: x, profit, commission, swap, exitTime: fromLocalInput(time), exitReason: reason } : {}),
         mistakes: [...mistakes],
         notes,
       }),
@@ -322,12 +330,20 @@ function CloseTradeForm({ trade, onDone }: { trade: JournalEntry; onDone: () => 
           <Field label="Exit time" htmlFor="pb-exit-time">
             <TextInput id="pb-exit-time" type="datetime-local" value={time} onChange={(ev) => setTime(ev.target.value)} />
           </Field>
-          <Field label="P&L from your platform ($)" htmlFor="pb-pnl" hint={Number.isFinite(estimate) ? `From prices: ${money(estimate)}. Use the platform's figure: it includes spread, commission and swap.` : "Spread, commission and swap included."}>
-            <TextInput id="pb-pnl" inputMode="decimal" value={pnlText ?? (Number.isFinite(estimate) ? estimate.toFixed(2) : "")} onChange={(ev) => setPnlText(ev.target.value)} />
+          <Field label="Profit ($)" htmlFor="pb-pnl" hint={Number.isFinite(estimate) ? `From prices: ${money(estimate)}. Use the platform's Profit column: the price move, spread included.` : "The platform's Profit column, before commission and swap."}>
+            <TextInput id="pb-pnl" inputMode="decimal" value={profitText ?? (Number.isFinite(estimate) ? estimate.toFixed(2) : "")} onChange={(ev) => setProfitText(ev.target.value)} />
+          </Field>
+          <Field label="Commission ($)" htmlFor="pb-commission" hint={`Estimate ${money(commissionEstimate)}. Always counted as a cost, so 3.5 and -3.5 mean the same.`}>
+            <TextInput id="pb-commission" inputMode="decimal" value={commissionText ?? commissionEstimate.toFixed(2)} onChange={(ev) => setCommissionText(ev.target.value)} />
+          </Field>
+          <Field label="Swap ($)" htmlFor="pb-swap" hint="As the platform shows it: negative when you paid, positive when you earned. Blank is 0.">
+            <TextInput id="pb-swap" inputMode="decimal" placeholder="0" value={swapText} onChange={(ev) => setSwapText(ev.target.value)} />
           </Field>
           <div className="flex flex-col justify-end">
-            <p className="text-[13px] text-fog">Result</p>
-            <p className={cn("font-display text-xl font-semibold tabular-nums", Number.isFinite(r) ? toneClass(r) : "text-fog")}>{Number.isFinite(r) ? signedNumber(r, 2, "R") : "—"}</p>
+            <p className="text-[13px] text-fog">Net P&amp;L · result</p>
+            <p className={cn("font-display text-xl font-semibold tabular-nums", Number.isFinite(r) ? toneClass(r) : "text-fog")}>
+              {Number.isFinite(pnl) ? money(pnl) : "—"} · {Number.isFinite(r) ? signedNumber(r, 2, "R") : "—"}
+            </p>
           </div>
           <Field label="How it closed" className="sm:col-span-2">
             <Segmented

@@ -67,6 +67,8 @@ function entry(over: Partial<JournalEntry>): JournalEntry {
     exitTime: null,
     exitPrice: null,
     pnl: null,
+    commission: null,
+    swap: null,
     rMultiple: null,
     exitReason: null,
     mistakes: [],

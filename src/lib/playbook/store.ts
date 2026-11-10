@@ -29,6 +29,8 @@ export function toEntry(t: PlaybookTrade): JournalEntry {
     exitTime: t.exitTime?.getTime() ?? null,
     exitPrice: t.exitPrice,
     pnl: t.pnl,
+    commission: t.commission,
+    swap: t.swap,
     rMultiple: t.rMultiple,
     exitReason: t.exitReason,
     mistakes: t.mistakes,
@@ -254,9 +256,15 @@ export async function updateTrade(userId: string, id: string, body: Body, now = 
     Object.assign(data, { entryPrice: entry, stopLoss: stop, takeProfit: target, lots, quantity, riskAmount: quantity * perUnitRisk, entryTime: new Date(entryTime) });
   }
 
-  if (body.exitPrice !== undefined || body.pnl !== undefined) {
+  if (body.exitPrice !== undefined || body.pnl !== undefined || body.profit !== undefined) {
     const exitPrice = num(body, "exitPrice")!;
-    const pnl = num(body, "pnl")!;
+    // Commission is always a cost, whatever sign it's typed with; swap keeps its sign.
+    const commission = -Math.abs(num(body, "commission", false) ?? 0);
+    const swap = num(body, "swap", false) ?? 0;
+    // `profit` is the platform's Profit column (price move only): net it here.
+    // A bare `pnl` is taken as already net.
+    const profit = num(body, "profit", false);
+    const pnl = profit !== null ? profit + commission + swap : num(body, "pnl")!;
     const exitTime = time(body, "exitTime", now);
     if (exitTime < existing.entryTime.getTime()) throw appError("INVALID_INPUT", "The exit can't be before the entry.");
     const reason = str(body, "exitReason");
@@ -265,6 +273,8 @@ export async function updateTrade(userId: string, id: string, body: Body, now = 
       status: "CLOSED",
       exitPrice,
       pnl,
+      commission: profit !== null || body.commission !== undefined ? commission : null,
+      swap: profit !== null || body.swap !== undefined ? swap : null,
       exitTime: new Date(exitTime),
       rMultiple: risk > 0 ? pnl / risk : null,
       exitReason: EXIT_REASONS.has(reason) ? reason : "manual",

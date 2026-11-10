@@ -3,8 +3,10 @@ import { authChallengeResponse, authenticateRequest } from "@/lib/auth";
 import { toErrorResponse } from "@/lib/errors";
 import { deleteTrade, updateTrade } from "@/lib/playbook/store";
 
-// PATCH /api/playbook/trades/:id → close a trade (exitPrice, pnl, exitTime,
-// exitReason) and/or set its mistakes and notes.
+// PATCH /api/playbook/trades/:id → close a trade (exitPrice, profit,
+// commission, swap, exitTime, exitReason; net P&L = profit + commission +
+// swap), correct an open one (entryPrice, stopLoss, takeProfit, lots,
+// entryTime), and/or set its mistakes and notes.
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await authenticateRequest(request);
   if (!user) return authChallengeResponse();

@@ -36,7 +36,9 @@ export interface JournalEntry {
   overrideReason: string;
   exitTime: number | null;
   exitPrice: number | null;
-  pnl: number | null; // $ from the platform
+  pnl: number | null; // net $: profit + commission + swap
+  commission: number | null; // $ charged, negative
+  swap: number | null; // $ as the platform shows it
   rMultiple: number | null;
   exitReason: string | null;
   mistakes: string[];
