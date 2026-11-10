@@ -37,3 +37,6 @@ next-env.d.ts
 # editor / tooling
 .claude
 .playwright-mcp/
+
+# local market data (MT5 exports)
+/data/
