@@ -11,7 +11,7 @@ import type { JournalEntry, RankedSignal, SetupVerdict } from "@/lib/playbook/ru
 import type { PlaybookView } from "@/lib/playbook/store";
 import { fmtPrice } from "@/lib/plan/weeklyPlan";
 import { cn } from "@/lib/utils";
-import { CloseTradeDialog, PLAYBOOK_KEY, PLAYBOOK_SIGNALS_KEY, PlanTradeDialog, type PlanDefaults } from "./TradeDialogs";
+import { CloseTradeDialog, EditTradeDialog, PLAYBOOK_KEY, PLAYBOOK_SIGNALS_KEY, PlanTradeDialog, type PlanDefaults } from "./TradeDialogs";
 
 interface SignalsResponse {
   asOf: number;
@@ -267,7 +267,7 @@ function SignalsPanel({ accountId, onPlan, freeSlots }: { accountId: string; onP
 
 /* ---------- open trades and history ---------- */
 
-function OpenTrades({ trades, onClose }: { trades: JournalEntry[]; onClose: (t: JournalEntry) => void }) {
+function OpenTrades({ trades, onClose, onEdit }: { trades: JournalEntry[]; onClose: (t: JournalEntry) => void; onEdit: (t: JournalEntry) => void }) {
   return (
     <Panel title="Open trades" note="Close each one with the P&L your platform shows, so costs and swap are counted.">
       {trades.length === 0 ? (
@@ -291,7 +291,7 @@ function OpenTrades({ trades, onClose }: { trades: JournalEntry[]; onClose: (t: 
                     <td className={cn(tdClass, "tabular-nums text-gain-ink")}>{p(t.takeProfit)}</td>
                     <td className={cn(tdClass, "tabular-nums")}>{usd(t.riskAmount)}</td>
                     <td className={cn(tdClass, "whitespace-nowrap text-fog")}>{when.format(t.entryTime)}</td>
-                    <td className={cn(tdClass, "text-right")}><Button size="sm" onClick={() => onClose(t)}>Close</Button></td>
+                    <td className={cn(tdClass, "text-right")}><span className="flex justify-end gap-1.5"><Button size="sm" variant="ghost" onClick={() => onEdit(t)}>Edit</Button><Button size="sm" onClick={() => onClose(t)}>Close</Button></span></td>
                   </tr>
                 );
               })}
@@ -491,6 +491,7 @@ export default function PlaybookBoard() {
   });
   const [plan, setPlan] = useState<PlanDefaults | null>(null);
   const [closing, setClosing] = useState<JournalEntry | null>(null);
+  const [editing, setEditing] = useState<JournalEntry | null>(null);
 
   if (isLoading) return <Panel title="Loading the playbook"><EmptyState>Loading your trades.</EmptyState></Panel>;
   if (error || !view) return <Callout tone="critical" title="Couldn't load the playbook">{error instanceof Error ? error.message : "Try again in a minute."}</Callout>;
@@ -507,13 +508,14 @@ export default function PlaybookBoard() {
       <AccountSwitcher view={view} onSelect={selectAccount} />
       <AccountPanel view={view} />
       <SignalsPanel accountId={view.account.id} onPlan={setPlan} freeSlots={Math.max(0, view.rules.maxOpen - view.status.openCount)} />
-      <OpenTrades trades={view.open} onClose={setClosing} />
+      <OpenTrades trades={view.open} onClose={setClosing} onEdit={setEditing} />
       <Discipline view={view} />
       <Scorecard view={view} />
       <History trades={view.closed} onEdit={setClosing} />
       <RulesPanel view={view} />
       <PlanTradeDialog open={plan !== null} defaults={plan ?? {}} entries={entries} account={view.account} stoppedElsewhere={view.stoppedElsewhere} onClose={() => setPlan(null)} />
       <CloseTradeDialog trade={closing} onClose={() => setClosing(null)} />
+      <EditTradeDialog trade={editing} onClose={() => setEditing(null)} />
     </div>
   );
 }

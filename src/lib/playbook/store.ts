@@ -236,18 +236,37 @@ export async function updateTrade(userId: string, id: string, body: Body, now = 
   if (Array.isArray(body.mistakes)) data.mistakes = (body.mistakes as unknown[]).map(String).filter((m) => known.has(m));
   if (typeof body.notes === "string") data.notes = body.notes;
 
+  // Correct an open trade as it really is on the platform: fill price, stop,
+  // target, lots, entry time. Risk is recomputed the same way as when logging.
+  const edits = ["entryPrice", "stopLoss", "takeProfit", "lots", "entryTime"].filter((k) => body[k] !== undefined);
+  if (edits.length) {
+    if (existing.status !== "OPEN") throw appError("INVALID_INPUT", "Only an open trade's prices and size can be changed.");
+    const entry = body.entryPrice !== undefined ? num(body, "entryPrice")! : existing.entryPrice;
+    const stop = body.stopLoss !== undefined ? num(body, "stopLoss")! : existing.stopLoss;
+    const target = body.takeProfit !== undefined ? num(body, "takeProfit", false) : existing.takeProfit;
+    const lots = body.lots !== undefined ? num(body, "lots", false) : existing.lots;
+    const entryTime = time(body, "entryTime", existing.entryTime.getTime());
+    if (entryTime > now) throw appError("INVALID_INPUT", "The entry can't be in the future.");
+    const perUnitRisk = Math.abs(entry - stop) * usdPerUnitMove(existing.symbol, stop);
+    if (!(perUnitRisk > 0)) throw appError("INVALID_INPUT", "Entry and stop can't be the same price.");
+    if (lots !== null && !(lots > 0)) throw appError("INVALID_INPUT", "Lots must be more than 0.");
+    const quantity = lots !== null ? lots * lotUnits(existing.symbol) : existing.quantity;
+    Object.assign(data, { entryPrice: entry, stopLoss: stop, takeProfit: target, lots, quantity, riskAmount: quantity * perUnitRisk, entryTime: new Date(entryTime) });
+  }
+
   if (body.exitPrice !== undefined || body.pnl !== undefined) {
     const exitPrice = num(body, "exitPrice")!;
     const pnl = num(body, "pnl")!;
     const exitTime = time(body, "exitTime", now);
     if (exitTime < existing.entryTime.getTime()) throw appError("INVALID_INPUT", "The exit can't be before the entry.");
     const reason = str(body, "exitReason");
+    const risk = (data.riskAmount as number | undefined) ?? existing.riskAmount;
     Object.assign(data, {
       status: "CLOSED",
       exitPrice,
       pnl,
       exitTime: new Date(exitTime),
-      rMultiple: existing.riskAmount > 0 ? pnl / existing.riskAmount : null,
+      rMultiple: risk > 0 ? pnl / risk : null,
       exitReason: EXIT_REASONS.has(reason) ? reason : "manual",
     });
   }

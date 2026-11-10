@@ -384,3 +384,91 @@ function CloseTradeForm({ trade, onDone }: { trade: JournalEntry; onDone: () => 
     </div>
   );
 }
+
+/* ---------- edit an open trade ---------- */
+
+export function EditTradeDialog({ trade, onClose }: { trade: JournalEntry | null; onClose: () => void }) {
+  return (
+    <Dialog open={trade !== null} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className={dialogClass}>{trade && <EditTradeForm key={trade.id} trade={trade} onDone={onClose} />}</DialogContent>
+    </Dialog>
+  );
+}
+
+function EditTradeForm({ trade, onDone }: { trade: JournalEntry; onDone: () => void }) {
+  const refresh = useRefresh();
+  const setup = setupById(trade.setupId);
+  const [entry, setEntry] = useState(String(trade.entryPrice));
+  const [stop, setStop] = useState(String(trade.stopLoss));
+  const [target, setTarget] = useState(trade.takeProfit != null ? String(trade.takeProfit) : "");
+  const [lotsText, setLotsText] = useState(trade.lots != null ? String(trade.lots) : "");
+  const [time, setTime] = useState(toLocalInput(trade.entryTime));
+  const [notes, setNotes] = useState(trade.notes);
+
+  const e = n(entry), s = n(stop), t = n(target), lots = n(lotsText);
+  const hasLots = lotsText.trim() !== "";
+  const quantity = hasLots ? lots * lotUnits(trade.symbol) : trade.quantity;
+  // Same sum the server stores: $ lost at the stop, before costs.
+  const riskAmount = Number.isFinite(e) && Number.isFinite(s) && Number.isFinite(quantity) ? quantity * Math.abs(e - s) * usdPerUnitMove(trade.symbol, s) : NaN;
+  const ready = Number.isFinite(e) && Number.isFinite(s) && e !== s && (!hasLots || lots > 0) && (target.trim() === "" || Number.isFinite(t));
+
+  const save = useMutation({
+    mutationFn: () =>
+      send(`/api/playbook/trades/${trade.id}`, "PATCH", {
+        entryPrice: e,
+        stopLoss: s,
+        takeProfit: target.trim() === "" ? null : t,
+        ...(hasLots ? { lots } : {}),
+        entryTime: fromLocalInput(time),
+        notes,
+      }),
+    onSuccess: async () => { await refresh(); onDone(); },
+  });
+
+  return (
+    <div className="flex flex-col gap-5">
+      <DialogHeader>
+        <DialogTitle className={titleClass}>Edit {trade.side.toLowerCase()} {setup?.platformSymbol ?? trade.symbol}</DialogTitle>
+        <p className="text-[13px] text-fog">Match the trade to what your platform shows. Risk is recalculated from the new entry, stop and lots.</p>
+      </DialogHeader>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Entry" htmlFor="pb-edit-entry">
+          <TextInput id="pb-edit-entry" inputMode="decimal" value={entry} onChange={(ev) => setEntry(ev.target.value)} />
+        </Field>
+        <Field label="Stop loss" htmlFor="pb-edit-stop">
+          <TextInput id="pb-edit-stop" inputMode="decimal" value={stop} onChange={(ev) => setStop(ev.target.value)} />
+        </Field>
+        <Field label="Target" htmlFor="pb-edit-target" hint="Optional">
+          <TextInput id="pb-edit-target" inputMode="decimal" value={target} onChange={(ev) => setTarget(ev.target.value)} />
+        </Field>
+        <Field label="Lots" htmlFor="pb-edit-lots">
+          <TextInput id="pb-edit-lots" inputMode="decimal" value={lotsText} onChange={(ev) => setLotsText(ev.target.value)} />
+        </Field>
+        <Field label="Entry time" htmlFor="pb-edit-time">
+          <TextInput id="pb-edit-time" type="datetime-local" value={time} onChange={(ev) => setTime(ev.target.value)} />
+        </Field>
+        <div className="flex flex-col justify-end">
+          <p className="text-[13px] text-fog">At risk</p>
+          <p className="font-display text-xl font-semibold tabular-nums text-paper">
+            {Number.isFinite(riskAmount) ? money(riskAmount, { sign: false }) : "—"}
+            {Number.isFinite(riskAmount) && Math.abs(riskAmount - trade.riskAmount) > 0.005 && <span className="ml-2 text-[13px] font-normal text-fog">was {money(trade.riskAmount, { sign: false })}</span>}
+          </p>
+        </div>
+      </div>
+
+      <Field label="Notes" htmlFor="pb-edit-notes">
+        <TextArea id="pb-edit-notes" className="min-h-16" value={notes} onChange={(ev) => setNotes(ev.target.value)} />
+      </Field>
+
+      {save.error && <Callout tone="critical">{save.error.message}</Callout>}
+
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="ghost" onClick={onDone}>Cancel</Button>
+        <Button variant="primary" disabled={!ready || save.isPending} onClick={() => save.mutate()}>
+          {save.isPending ? "Saving…" : "Save changes"}
+        </Button>
+      </div>
+    </div>
+  );
+}
