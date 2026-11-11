@@ -124,6 +124,6 @@ export const smartMoneyConceptsGuide: StrategyGuide = {
       { symbol: "NAS100", timeframe: "15m", period: NAS100_60D, trades: 18, winRatePct: 33.3, profitFactor: 1.19, returnPct: 1.4, maxDrawdownPct: 5.3 },
     ],
     verdict:
-      "Break-even on ETH, a clear loss on BTC. A 3R target needs a win rate above ~25% to pay for fees; BTC fell short. Practise on a demo account first: it's the hardest one to spot correctly by eye. NAS100 made +1.4% on 18 trades over 58 days (profit factor 1.19), a small sample.",
+      "Break-even on ETH, a clear loss on BTC. A 3R target needs a win rate above ~25% to pay for fees; BTC fell short. Practise on a demo account first: it's the hardest one to spot correctly by eye. NAS100 made +1.4% on 18 trades over 58 days (profit factor 1.19), a small sample. On 4h candles it does better, and two 4h versions are Playbook setups, tested on the broker's own MT5 bars: gold since 2020 (56 trades, profit factor 1.56) and the FTSE 100 since July 2023 (27 trades, profit factor 3.03, too few trades to trust that number fully).",
   },
 };

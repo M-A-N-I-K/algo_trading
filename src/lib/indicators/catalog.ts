@@ -42,8 +42,8 @@ export const INDICATORS: IndicatorInfo[] = [
     title: "Smart Money Concepts checkpoints",
     strategy: "smc",
     guide: "/guides/smc",
-    bestOn: "XAUUSD 4h. Put it on a 1h chart: it builds the app's UTC 4h candles itself",
-    backtest: "Playbook setup. 56 trades on MT5 gold since 2020, profit factor 1.56.",
+    bestOn: "XAUUSD 4h and FTSE100 4h. Put it on a 1h chart: it builds the app's UTC 4h candles itself",
+    backtest: "Playbook setups. 56 trades on MT5 gold since 2020, profit factor 1.56; 27 trades on MT5 FTSE 100 since July 2023, profit factor 3.03 (a small sample).",
     steps: [
       { label: "1 Sweep", text: "A 4h low dips below the latest swing low and closes no more than 0.2% below it." },
       { label: "2 CHoCH", text: "Within 40 candles, a close above the swing high that was latest at the sweep." },

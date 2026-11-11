@@ -42,13 +42,16 @@ export const RECENT_MS = 3 * 24 * 60 * 60_000;
 // The 2% risk cap still applies to every trade with a stop.
 //
 // Markets the FundingPips account trades (BTC, ETH, gold, silver, currency
-// pairs, Nasdaq 100, S&P 500) are charged that account's real costs instead:
+// pairs, Nasdaq 100, S&P 500, and the MT5-feed markets FTSE 100, Brent,
+// EUR/JPY, GBP/AUD) are charged that account's real costs instead:
 // commission measured from the user's MT5 report plus spread, at the latest
 // price (src/lib/costs/fundingpips.ts). The table below covers the rest.
 export const MARKET_COSTS: Record<AssetClass, { feeRate: number; leverage: number }> = {
   crypto: { feeRate: 0.00059, leverage: 1 },
   forex: { feeRate: 0.0001, leverage: 10 },
   index: { feeRate: 0.0001, leverage: 5 },
+  // Brent (MT5 feed only): its measured round trip is charged instead, so this is a fallback.
+  commodity: { feeRate: 0.0003, leverage: 5 },
 };
 export const SIGNAL_FEE_RATE = MARKET_COSTS.crypto.feeRate;
 export const feeRateFor = (symbol: string, price?: number) =>

@@ -323,6 +323,7 @@ export default function SignalsBoard() {
               { label: "Crypto and metals", symbols: (data?.symbols ?? []).filter((s) => assetClass(s) === "crypto") },
               { label: "Currency pairs", symbols: (data?.symbols ?? []).filter(isForex) },
               { label: "Indices", symbols: (data?.symbols ?? []).filter(isIndex) },
+              { label: "Commodities", symbols: (data?.symbols ?? []).filter((s) => assetClass(s) === "commodity") },
             ].map((g) => (
               <optgroup key={g.label} label={g.label}>
                 {g.symbols.map((s) => (

@@ -12,10 +12,12 @@ import type { PlaybookView } from "@/lib/playbook/store";
 import { fmtPrice } from "@/lib/plan/weeklyPlan";
 import { cn } from "@/lib/utils";
 import { CloseTradeDialog, EditTradeDialog, PLAYBOOK_KEY, PLAYBOOK_SIGNALS_KEY, PlanTradeDialog, type PlanDefaults } from "./TradeDialogs";
+import { registerSpecs, type SymbolSpec } from "@/lib/mt5/specs";
 
 interface SignalsResponse {
   asOf: number;
   signals: RankedSignal[];
+  specs?: Record<string, SymbolSpec>;
   errors: string[];
 }
 
@@ -263,7 +265,12 @@ function SignalCard({ item, rank, onPlan }: { item: RankedSignal; rank: number; 
 function SignalsPanel({ accountId, onPlan, freeSlots }: { accountId: string; onPlan: (d: PlanDefaults) => void; freeSlots: number }) {
   const { data, error, isLoading } = useQuery({
     queryKey: [...PLAYBOOK_SIGNALS_KEY, accountId],
-    queryFn: () => fetchJson<SignalsResponse>(`/api/playbook/signals?account=${encodeURIComponent(accountId)}`),
+    queryFn: async () => {
+      const res = await fetchJson<SignalsResponse>(`/api/playbook/signals?account=${encodeURIComponent(accountId)}`);
+      // MT5's contract specs, so the trade dialogs can size FTSE 100 here too.
+      registerSpecs(res.specs);
+      return res;
+    },
     refetchInterval: 60_000,
   });
   const fresh = data?.signals.filter((x) => x.signal.status === "new") ?? [];

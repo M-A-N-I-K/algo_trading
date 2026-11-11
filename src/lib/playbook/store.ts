@@ -1,6 +1,7 @@
 import type { PlaybookTrade } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { appError } from "@/lib/errors";
+import { loadFeedSpecs } from "@/lib/mt5/feed";
 import { accountById, lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, activeSetupById, setupById, type PlaybookAccount } from "./config";
 import { accountStatus, adherence, hardFailures, preTradeChecks, scorecard, usdPerUnitMove, type AccountStatus, type Check, type JournalEntry } from "./rules";
 
@@ -157,6 +158,9 @@ export interface OpenResult {
   rulesFollowed: boolean;
 }
 
+// FTSE 100 (quoted in pounds) is sized from the MT5 terminal's symbol spec.
+const MT5_SPEC_NEEDED = "This market is sized from MT5's contract spec. Start the PB_BarFeed service in MT5 and try again.";
+
 /**
  * Logs a trade from the playbook. The checks are rerun here against the
  * current open trades, so a stale page can't skip one. A trade that breaks a
@@ -176,7 +180,9 @@ export async function openTrade(userId: string, body: Body, now = Date.now()): P
   const lots = num(body, "lots", false);
   const riskInput = num(body, "riskAmount", false);
   const entryTime = time(body, "entryTime", now);
+  await loadFeedSpecs(now);
   const perUnitRisk = Math.abs(entry - stop) * usdPerUnitMove(setup.symbol, stop);
+  if (!Number.isFinite(perUnitRisk)) throw appError("INVALID_INPUT", MT5_SPEC_NEEDED);
   if (!(perUnitRisk > 0)) throw appError("INVALID_INPUT", "Entry and stop can't be the same price.");
   // Size from the lots actually traded when given, else from the $ risk.
   const quantity = lots !== null && lots > 0 ? lots * lotUnits(setup.symbol) : (riskInput ?? 0) / perUnitRisk;
@@ -249,7 +255,9 @@ export async function updateTrade(userId: string, id: string, body: Body, now = 
     const lots = body.lots !== undefined ? num(body, "lots", false) : existing.lots;
     const entryTime = time(body, "entryTime", existing.entryTime.getTime());
     if (entryTime > now) throw appError("INVALID_INPUT", "The entry can't be in the future.");
+    await loadFeedSpecs(now);
     const perUnitRisk = Math.abs(entry - stop) * usdPerUnitMove(existing.symbol, stop);
+    if (!Number.isFinite(perUnitRisk)) throw appError("INVALID_INPUT", MT5_SPEC_NEEDED);
     if (!(perUnitRisk > 0)) throw appError("INVALID_INPUT", "Entry and stop can't be the same price.");
     if (lots !== null && !(lots > 0)) throw appError("INVALID_INPUT", "Lots must be more than 0.");
     const quantity = lots !== null ? lots * lotUnits(existing.symbol) : existing.quantity;

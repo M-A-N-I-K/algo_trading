@@ -125,6 +125,7 @@ export default function WeeklyPlanBoard() {
         { title: "Crypto and metals", coins: data.coins.filter((c) => assetClass(c.symbol) === "crypto") },
         { title: "Currency pairs", coins: data.coins.filter((c) => assetClass(c.symbol) === "forex") },
         { title: "Indices", coins: data.coins.filter((c) => assetClass(c.symbol) === "index") },
+        { title: "Commodities", coins: data.coins.filter((c) => assetClass(c.symbol) === "commodity") },
       ].map((g) =>
         g.coins.length ? (
           <section key={g.title} className="flex flex-col gap-3">

@@ -7,7 +7,8 @@
 //|   MQL5/Files/PlaybookFeed/<SYMBOL>_<TF>.csv                      |
 //| in the same layout as View → Symbols → Bars → Export Bars        |
 //| (<DATE> <TIME> <OPEN> <HIGH> <LOW> <CLOSE> <TICKVOL> <VOL>       |
-//| <SPREAD>, server time), plus heartbeat.txt. The app reads these  |
+//| <SPREAD>, server time), plus heartbeat.txt and symbols.csv (each |
+//| symbol's contract size and $ per tick, for position sizing).     | The app reads these  |
 //| files instead of Yahoo/Binance while heartbeat.txt is fresh, so  |
 //| signals are priced off the broker's own feed.                    |
 //| A file is rewritten only when a new bar has closed, and written  |
@@ -15,7 +16,7 @@
 //+------------------------------------------------------------------+
 #property service
 #property copyright "AuraJournal"
-#property version   "1.00"
+#property version   "1.10"
 
 input string InpSymbols   = "XAUUSD,XAGUSD,BTCUSD,ETHUSD,EURUSD,GBPUSD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD,NDX100,SPX500,EURJPY,GBPAUD,FTSE100,UKOIL"; // Broker symbols (missing ones are skipped)
 input bool   InpM5        = false;  // Write M5
@@ -98,6 +99,33 @@ bool WriteSeries(int s, int k)
    return true;
 }
 
+// Contract specs the app sizes positions from: lot size, tick size and what a
+// tick is worth per lot in the account currency (MT5 converts pounds, yen…).
+void WriteSpecs()
+{
+   int h = FileOpen(DIR + "symbols.tmp", FILE_WRITE | FILE_TXT | FILE_ANSI);
+   if(h == INVALID_HANDLE) return;
+   FileWriteString(h, "SYMBOL\tDIGITS\tCONTRACT\tTICKSIZE\tTICKVALUE\tVOLUMEMIN\tVOLUMESTEP\tPROFITCCY\tACCOUNTCCY\r\n");
+   string acc = AccountInfoString(ACCOUNT_CURRENCY);
+   for(int s = 0; s < ArraySize(g_sym); s++)
+   {
+      string sym = g_sym[s];
+      if(!SymbolInfoInteger(sym, SYMBOL_SELECT)) continue;
+      double tv = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_VALUE_LOSS);
+      if(tv <= 0) tv = SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_VALUE);
+      FileWriteString(h, sym + "\t" +
+         IntegerToString(SymbolInfoInteger(sym, SYMBOL_DIGITS)) + "\t" +
+         DoubleToString(SymbolInfoDouble(sym, SYMBOL_TRADE_CONTRACT_SIZE), 8) + "\t" +
+         DoubleToString(SymbolInfoDouble(sym, SYMBOL_TRADE_TICK_SIZE), 10) + "\t" +
+         DoubleToString(tv, 10) + "\t" +
+         DoubleToString(SymbolInfoDouble(sym, SYMBOL_VOLUME_MIN), 4) + "\t" +
+         DoubleToString(SymbolInfoDouble(sym, SYMBOL_VOLUME_STEP), 4) + "\t" +
+         SymbolInfoString(sym, SYMBOL_CURRENCY_PROFIT) + "\t" + acc + "\r\n");
+   }
+   FileClose(h);
+   FileMove(DIR + "symbols.tmp", 0, DIR + "symbols.csv", FILE_REWRITE);
+}
+
 void WriteHeartbeat(int live)
 {
    int h = FileOpen(DIR + "heartbeat.tmp", FILE_WRITE | FILE_TXT | FILE_ANSI);
@@ -136,6 +164,7 @@ void OnStart()
    FolderCreate("PlaybookFeed");
    PrintFormat("PB_BarFeed: %d symbols × %d timeframes → MQL5\\Files\\%s", ArraySize(g_sym), ArraySize(g_tf), DIR);
 
+   int loops = 0;
    while(!IsStopped())
    {
       int live = 0;
@@ -152,6 +181,8 @@ void OnStart()
             if(!WriteSeries(s, k)) ok = false;
          if(ok) live++;
       }
+      // Tick values move with exchange rates: refresh them about once a minute.
+      if(loops++ % MathMax(1, 60 / MathMax(1, InpSeconds)) == 0) WriteSpecs();
       WriteHeartbeat(live);
       Sleep(MathMax(1, InpSeconds) * 1000);
    }

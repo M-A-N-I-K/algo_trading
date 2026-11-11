@@ -127,6 +127,20 @@ and touches `heartbeat.txt`. A file is rewritten only when a new bar closes,
 through a temporary file, so the app never reads half of one. The app builds 4h
 candles from H1 on the UTC grid, the same way the backtests did.
 
+About once a minute it also writes `symbols.csv`: each symbol's lot size, tick
+size and what a tick is worth per lot in your account currency (MT5 converts
+pounds and yen at today's rate). The Playbook sizes the FTSE 100 from it, so
+the app never guesses that contract.
+
+Markets only the feed carries: **FTSE100, UKOIL, EURJPY, GBPAUD**. No free web
+source has these CFDs, so the app scans them only while the service runs. The
+FTSE 100 Smart Money Concepts 4h setup is in the Playbook on that basis: no
+feed, no FTSE signals and no FTSE sizing. `PB_SMC.mq5` on an FTSE100 1h chart
+marks the same trades.
+
+If you added the service before version 1.10, remove it and add it again so it
+picks up the new `.ex5`.
+
 The app uses the feed while `heartbeat.txt` is under two minutes old and falls
 back to Binance/Yahoo otherwise (starting those series again from scratch, never
 mixing the two price sources). The Signals page says which markets came from

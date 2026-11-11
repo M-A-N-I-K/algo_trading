@@ -1,3 +1,5 @@
+import { specFor } from "@/lib/mt5/specs";
+
 // The playbook: the only setups these accounts trade, and the rules around
 // them. Every number here comes from a backtest, not from opinion:
 //
@@ -147,6 +149,15 @@ export const PLAYBOOK_SETUPS: PlaybookSetup[] = [
   // with both halves up, so the real edge is nearer PF 1.3 than 2.6; ranked
   // below the two 4h setups for that reason.
   setup("NAS100", "NDX100", "sr-sweep-trendline", "S/R Sweep + Trend-Line Break", "1h", { trades: 84, winRatePct: 46.4, avgR: 0.85, profitFactor: 2.57, perWeek: 0.23, maxDrawdownR: 7.1, maxLossStreak: 7, weeks: 358 }),
+  // MT5 only: FTSE 100 CFD bars from Jul 2023 (3.3 years), 4h on the UTC grid,
+  // at the measured 1.2-point round trip. PF 3.03 with both halves up
+  // (+18.5R, +8.4R); on MT5's server-time 4h grid PF 2.20, and all 9
+  // neighbouring rule settings made money on both grids. But only 27 trades,
+  // short of the 30-plus the other setups have, so the true edge is far less
+  // certain than the numbers say: ranked below the longer-tested setups.
+  // Scanned only while the MT5 PB_BarFeed service runs (no web source has
+  // this CFD); sized from the terminal's own contract spec.
+  setup("FTSE100", "FTSE100", "smc", "Smart Money Concepts", "4h", { trades: 27, winRatePct: 51.9, avgR: 1.0, profitFactor: 3.03, perWeek: 0.16, maxDrawdownR: 4.1, maxLossStreak: 4, weeks: 174 }),
   // MT5 6.5y: profit factor fell from 1.58 (2 years of Yahoo data) to 1.24 on
   // the platform's bars since 2020. Profitable in both halves and 6 of 7
   // years, so it stays, ranked lowest.
@@ -194,6 +205,9 @@ export function lotUnits(symbol: string): number {
   if (symbol.startsWith("XAU")) return 100; // ounces
   if (symbol.startsWith("XAG")) return 5000; // ounces
   if (symbol.startsWith("BTC") || symbol.startsWith("ETH")) return 1; // coins
+  // FTSE 100 and Brent: no measured size, so from the MT5 terminal's own
+  // symbol spec (PB_BarFeed sends it). Unknown until it has.
+  if (s === "FTSE100" || s === "UKOIL") return specFor(s)?.contract ?? NaN;
   return 100_000; // currency pairs
 }
 

@@ -16,6 +16,7 @@
 // model it, and on the funded account positions are closed daily anyway.
 
 import { lotUnits as playbookLotUnits } from "@/lib/playbook/config";
+import { specUsdPerUnitMove } from "@/lib/mt5/specs";
 
 export const COST_SOURCE =
   "Commission measured from your MT5 report (FundingPips-SIM1, 25 trades, 4–9 Nov 2026); spreads are estimates until replaced with MT5's Market Watch values.";
@@ -36,13 +37,46 @@ export function platformSymbol(symbol: string): string {
 const isMetal = (p: string) => p.startsWith("XAU") || p.startsWith("XAG");
 const isCrypto = (p: string) => p === "BTCUSD" || p === "ETHUSD";
 const isIndex = (p: string) => p === "NDX100" || p === "SPX500";
+// Markets only the MT5 feed carries (src/lib/markets/yahoo.ts MT5_ONLY_MARKETS).
+// Round trip in price units, measured from the MT5 bar exports (median of the
+// SPREAD column, 2020 – Nov 2026; FTSE from Jul 2023, Brent from Nov 2024),
+// plus $5 a lot commission on the two currency pairs. The same figures the
+// backtests charged. Indices and oil: no commission assumed (as on NDX100).
+export const MT5_ONLY_ROUND_TRIP: Record<string, { total: number; spread: number }> = {
+  EURJPY: { total: 0.018, spread: 0.01 },
+  GBPAUD: { total: 0.0002, spread: 0.00012 },
+  FTSE100: { total: 1.2, spread: 1.2 },
+  UKOIL: { total: 0.035, spread: 0.035 },
+};
+const isMt5Only = (p: string) => p in MT5_ONLY_ROUND_TRIP;
+// Quote currency of the markets that aren't currency pairs or quoted in dollars.
+const QUOTED_IN: Record<string, string> = { FTSE100: "GBP" };
 const CURRENCIES = new Set(["USD", "EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF"]);
 const isFx = (p: string) => p.length === 6 && CURRENCIES.has(p.slice(0, 3)) && CURRENCIES.has(p.slice(3));
 
 /** Markets the FundingPips account trades; the cost model covers only these. */
 export function coveredByPlatform(symbol: string): boolean {
   const p = platformSymbol(symbol);
-  return isMetal(p) || isCrypto(p) || isIndex(p) || isFx(p);
+  return isMetal(p) || isCrypto(p) || isIndex(p) || isFx(p) || isMt5Only(p);
+}
+
+/** The currency a market's price is quoted in ("JPY" for EURJPY, "GBP" for FTSE100). */
+export function quoteCurrency(symbol: string): string {
+  const p = platformSymbol(symbol);
+  return isFx(p) ? p.slice(3) : (QUOTED_IN[p] ?? "USD");
+}
+
+/**
+ * Dollars one unit of the base asset makes on a 1.0 move in price. Pairs
+ * quoted in another currency against the dollar (USD/JPY) are worth 1/price;
+ * the rest (EUR/JPY, GBP/AUD, FTSE 100 in pounds) need today's exchange rate,
+ * which comes from the MT5 terminal's symbol specs. NaN until it has sent them.
+ */
+export function usdPerUnitMove(symbol: string, price: number): number {
+  const p = platformSymbol(symbol);
+  if (quoteCurrency(p) === "USD") return 1;
+  if (p.startsWith("USD")) return price > 0 ? 1 / price : 1;
+  return specUsdPerUnitMove(p) ?? NaN;
 }
 
 export function commissionRule(symbol: string): CommissionRule {
@@ -50,6 +84,7 @@ export function commissionRule(symbol: string): CommissionRule {
   if (isMetal(p)) return { kind: "perLot", usdPerLot: 5, measured: true };
   if (p === "ETHUSD") return { kind: "percent", rate: 0.0004, measured: true };
   if (p === "BTCUSD") return { kind: "percent", rate: 0.0004, measured: false };
+  if (p === "FTSE100" || p === "UKOIL") return { kind: "none", measured: false };
   if (isIndex(p)) return { kind: "none", measured: true };
   return { kind: "perLot", usdPerLot: 5, measured: false }; // forex
 }
@@ -82,13 +117,19 @@ export function lotUnits(symbol: string): number {
   return playbookLotUnits(p);
 }
 
-// Pairs quoted in another currency (USD/JPY): a price unit is worth 1/price dollars.
-const quoteToUsd = (p: string, price: number) => (p.startsWith("USD") && isFx(p) && price > 0 ? 1 / price : 1);
+const quoteToUsd = usdPerUnitMove;
 
 /** Round-trip cost per unit of the base asset, in dollars. */
 export function roundTripCostPerUnitUsd(symbol: string, price: number): { commission: number; spread: number; total: number } {
   const p = platformSymbol(symbol);
   const rule = commissionRule(p);
+  const mt5 = MT5_ONLY_ROUND_TRIP[p];
+  if (mt5) {
+    const toUsd = quoteToUsd(p, price);
+    const total = mt5.total * toUsd;
+    const spread = mt5.spread * toUsd;
+    return { commission: total - spread, spread, total };
+  }
   const commission =
     rule.kind === "perLot" ? rule.usdPerLot / lotUnits(p) : rule.kind === "percent" ? rule.rate * price * quoteToUsd(p, price) : 0;
   const spread = (SPREAD[p] ?? 0) * quoteToUsd(p, price);
@@ -107,6 +148,8 @@ export function roundTripCostUsd(symbol: string, lots: number, price: number): n
 export function feeRatePerSide(symbol: string, price: number): number {
   if (!(price > 0)) return 0;
   const p = platformSymbol(symbol);
+  // Charged in price units, so no exchange rate is needed.
+  if (MT5_ONLY_ROUND_TRIP[p]) return MT5_ONLY_ROUND_TRIP[p].total / price / 2;
   const usdPerUnit = roundTripCostPerUnitUsd(p, price).total;
   const quotePerUnit = usdPerUnit / quoteToUsd(p, price);
   return quotePerUnit / price / 2;

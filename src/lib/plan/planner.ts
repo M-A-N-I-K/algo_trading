@@ -1,5 +1,5 @@
 import { loadSeries, SIGNAL_SYMBOLS } from "@/lib/signals/scanner";
-import { marketLabel } from "@/lib/markets/yahoo";
+import { isMt5OnlyMarket, marketLabel } from "@/lib/markets/yahoo";
 import { buildCoinPlan, marketSummary, type CoinPlan } from "./weeklyPlan";
 
 export interface WeeklyPlan {
@@ -18,6 +18,8 @@ export async function buildWeeklyPlan(now = Date.now()): Promise<WeeklyPlan> {
   for (const symbol of SIGNAL_SYMBOLS) {
     const plan = buildCoinPlan(symbol, series.get(symbol) ?? [], now);
     if (plan) coins.push(plan);
+    // Markets only the MT5 feed carries are simply left out while it's off.
+    else if (isMt5OnlyMarket(symbol) && !series.get(symbol)?.length) continue;
     else if (!errors.some((e) => e.startsWith(symbol))) errors.push(`${symbol}: not enough 1h history yet`);
   }
   return {

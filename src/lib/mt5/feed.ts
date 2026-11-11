@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { OHLC } from "@/indicators/utils";
 import { parseMt5Bars, resampleBars } from "@/backtest/mt5Bars";
 import { platformSymbol } from "@/lib/costs/fundingpips";
+import { parseSpecs, registerSpecs, type SymbolSpec } from "./specs";
 
 // Live candles from the MT5 terminal on this machine. The PB_BarFeed service
 // (mt5/PB_BarFeed.mq5) writes each symbol's closed bars to
@@ -73,4 +74,21 @@ export async function readFeedCandles(symbol: string, interval: string, dir = MT
   const resample = SOURCES[interval].resample;
   // Copies, so callers can't edit the cached bars.
   return resample ? resampleBars(hit.bars, resample) : hit.bars.map((b) => ({ ...b }));
+}
+
+/**
+ * The terminal's contract specs (symbols.csv), registered for sizing
+ * (src/lib/mt5/specs.ts) and returned for the browser. Empty when the feed
+ * isn't running; a stale file still holds valid lot sizes, but its tick
+ * values follow exchange rates, so it's ignored once the heartbeat stops.
+ */
+export async function loadFeedSpecs(now = Date.now(), dir = MT5_FEED_DIR): Promise<Record<string, SymbolSpec>> {
+  if (!(await feedLive(now, dir))) return {};
+  try {
+    const specs = parseSpecs(await readFile(join(dir, "symbols.csv"), "utf8"));
+    registerSpecs(specs);
+    return specs;
+  } catch {
+    return {};
+  }
 }

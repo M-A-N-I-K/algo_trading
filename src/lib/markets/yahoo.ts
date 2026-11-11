@@ -30,17 +30,34 @@ export const YAHOO_MARKETS: Record<string, { yahoo: string; kind: YahooKind; lab
   SPX500: { yahoo: "ES=F", kind: "index", label: "S&P 500" },
 };
 
-const kindOf = (symbol: string) => YAHOO_MARKETS[symbol.toUpperCase()]?.kind;
+// Markets only the MT5 terminal's feed carries (src/lib/mt5/feed.ts): no free
+// web source has the broker's FTSE 100 or Brent CFD, so they're scanned only
+// while the PB_BarFeed service runs. Named as the platform names them.
+export type Mt5Kind = YahooKind | "commodity";
+export const MT5_ONLY_MARKETS: Record<string, { kind: Mt5Kind; label: string }> = {
+  EURJPY: { kind: "forex", label: "EUR/JPY" },
+  GBPAUD: { kind: "forex", label: "GBP/AUD" },
+  FTSE100: { kind: "index", label: "FTSE 100" },
+  UKOIL: { kind: "commodity", label: "Brent oil" },
+};
+
+const kindOf = (symbol: string): Mt5Kind | undefined => {
+  const s = symbol.toUpperCase();
+  return YAHOO_MARKETS[s]?.kind ?? MT5_ONLY_MARKETS[s]?.kind;
+};
 export const isYahooMarket = (symbol: string) => symbol.toUpperCase() in YAHOO_MARKETS;
+export const isMt5OnlyMarket = (symbol: string) => symbol.toUpperCase() in MT5_ONLY_MARKETS;
 export const isForex = (symbol: string) => kindOf(symbol) === "forex";
 export const isIndex = (symbol: string) => kindOf(symbol) === "index";
 
-// Crypto and metals trade on Binance (and CoinDCX); the rest come from Yahoo.
-export type AssetClass = "crypto" | YahooKind;
+// Crypto and metals trade on Binance (and CoinDCX); the rest come from Yahoo
+// or the MT5 feed.
+export type AssetClass = "crypto" | Mt5Kind;
 export const assetClass = (symbol: string): AssetClass => kindOf(symbol) ?? "crypto";
 
 // "EURUSD" → "EUR/USD", "NAS100" → "Nasdaq 100"; crypto and metals drop the USDT ("XAUUSDT" → "XAU").
-export const marketLabel = (symbol: string) => YAHOO_MARKETS[symbol.toUpperCase()]?.label ?? symbol.replace(/USDT$/, "");
+export const marketLabel = (symbol: string) =>
+  YAHOO_MARKETS[symbol.toUpperCase()]?.label ?? MT5_ONLY_MARKETS[symbol.toUpperCase()]?.label ?? symbol.replace(/USDT$/, "");
 
 // Price decimals: forex quotes to the pipette (JPY pairs 3, others 5),
 // indices to 2; everything else by size.

@@ -7,6 +7,7 @@ import { scanStrategy, type SignalRow } from "./scan";
 import { locationGrade } from "@/lib/plan/weeklyPlan";
 import { PLAYBOOK_SETUP_IDS } from "@/lib/playbook/config";
 import { feedLive, feedSupports, readFeedCandles } from "@/lib/mt5/feed";
+import { isMt5OnlyMarket } from "@/lib/markets/yahoo";
 
 // Server-side signal scanner for the Signals page. Only strategies that
 // pass QUALIFY_RULE (src/lib/signals/scan.ts) on a market send signals. Every request refreshes
@@ -41,6 +42,11 @@ export const SIGNAL_SYMBOLS = [
   // Index futures (Nasdaq 100, S&P 500), also from Yahoo Finance.
   "NAS100",
   "SPX500",
+  // Only from the MT5 terminal's feed (src/lib/mt5/feed.ts); skipped while it isn't running.
+  "FTSE100",
+  "UKOIL",
+  "EURJPY",
+  "GBPAUD",
 ] as const;
 export const SIGNAL_HISTORY_DAYS = Number(process.env.SIGNAL_HISTORY_DAYS) || 730;
 
@@ -143,6 +149,13 @@ async function fetchSeries(symbol: string, interval: string, now: number): Promi
         return next;
       }
     }
+  }
+
+  // No web source for this market: nothing to scan until the feed is back.
+  if (isMt5OnlyMarket(symbol)) {
+    state.series.delete(key);
+    sources.delete(key);
+    return [];
   }
 
   // Binance/Yahoo. Their prices differ from the broker's (Yahoo's NAS100 is

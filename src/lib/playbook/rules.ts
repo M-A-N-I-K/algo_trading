@@ -1,4 +1,6 @@
 import { isForex } from "@/lib/markets/yahoo";
+import { usdPerUnitMove } from "@/lib/costs/fundingpips";
+import { specFor } from "@/lib/mt5/specs";
 import type { LatestSignal } from "@/lib/signals/scan";
 import {
   lotUnits,
@@ -158,10 +160,7 @@ export function riskBudget(symbol: string, grade: Grade | null, account: Playboo
 }
 
 /** $ gained per unit (coin, ounce, base currency) per 1.0 move in price. */
-export function usdPerUnitMove(symbol: string, price: number): number {
-  // USD/JPY, USD/CAD, USD/CHF are quoted in the other currency.
-  return symbol.startsWith("USD") && price > 0 ? 1 / price : 1;
-}
+export { usdPerUnitMove };
 
 export function pnlUsd(symbol: string, side: Side, units: number, entry: number, exit: number): number {
   const d = side === "LONG" ? 1 : -1;
@@ -185,11 +184,16 @@ export function sizePosition(symbol: string, entry: number, stop: number, riskAm
   const distance = Math.abs(entry - stop);
   if (!(distance > 0) || !(riskAmount > 0)) return null;
   const perUnit = distance * usdPerUnitMove(symbol, stop) + Math.max(0, costPerUnitUsd);
-  const units = riskAmount / perUnit;
   const unitsPerLot = lotUnits(symbol);
-  const lots = Math.floor((units / unitsPerLot) * 100 + 1e-9) / 100;
-  const belowMinLot = lots < 0.01;
-  const usedLots = belowMinLot ? 0.01 : lots;
+  // A market sized from MT5's specs (FTSE 100) can't be sized before the terminal sends them.
+  if (!Number.isFinite(perUnit) || !Number.isFinite(unitsPerLot)) return null;
+  const units = riskAmount / perUnit;
+  const spec = specFor(symbol);
+  const step = spec?.volumeStep || 0.01;
+  const minLot = spec?.volumeMin || 0.01;
+  const lots = +(Math.floor(units / unitsPerLot / step + 1e-9) * step).toFixed(4);
+  const belowMinLot = lots < minLot;
+  const usedLots = belowMinLot ? minLot : lots;
   const usedUnits = usedLots * unitsPerLot;
   return { units, lots: usedLots, riskAtLots: usedUnits * perUnit, costAtLots: usedUnits * Math.max(0, costPerUnitUsd), belowMinLot };
 }
