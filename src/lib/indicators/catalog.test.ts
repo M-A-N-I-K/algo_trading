@@ -10,5 +10,10 @@ describe("indicator catalog", () => {
     expect(existsSync(file)).toBe(true);
     expect(readFileSync(file, "utf8").startsWith("//@version=6")).toBe(true);
     expect(CODED_STRATEGIES[info.strategy]).toBeDefined();
+    if (info.mt5File) expect(existsSync(path.join(process.cwd(), "mt5", info.mt5File))).toBe(true);
+  });
+
+  it("gives every active Playbook indicator an MT5 version", () => {
+    for (const info of INDICATORS.filter((x) => x.status === "playbook")) expect(info.mt5File).toBeTruthy();
   });
 });

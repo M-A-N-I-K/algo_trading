@@ -25,38 +25,63 @@ async function copyText(text: string) {
   }
 }
 
-export default function IndicatorCard({ info, code }: { info: IndicatorInfo; code: string }) {
-  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
-  const lines = code.split("\n").length;
+function download(text: string, name: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
+type CopyState = "idle" | "copied" | "failed";
+
+function CopyButton({ text, label, primary }: { text: string; label: string; primary?: boolean }) {
+  const [state, setState] = useState<CopyState>("idle");
   const onCopy = async () => {
-    setState((await copyText(code)) ? "copied" : "failed");
+    setState((await copyText(text)) ? "copied" : "failed");
     setTimeout(() => setState("idle"), 2500);
   };
+  return (
+    <Button variant={primary ? "primary" : undefined} size="sm" onClick={onCopy} aria-live="polite">
+      {state === "copied" ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+      {state === "copied" ? "Copied" : state === "failed" ? "Copy failed: use Download" : label}
+    </Button>
+  );
+}
 
-  const onDownload = () => {
-    const url = URL.createObjectURL(new Blob([code], { type: "text/plain" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = info.file;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+export default function IndicatorCard({ info, code, mt5Code }: { info: IndicatorInfo; code: string; mt5Code?: string }) {
+  const lines = code.split("\n").length;
+  const retired = info.status === "retired";
 
   return (
     <Panel
       title={info.title}
-      note={<>Best on {info.bestOn}. Same rules and defaults as the backtest.</>}
+      note={
+        <>
+          <span className="mr-2 align-middle">
+            <Tag tone={retired ? "loss" : "gain"}>{retired ? "Retired" : "Playbook"}</Tag>
+          </span>
+          Best on {info.bestOn}. Same rules and defaults as the backtest.
+        </>
+      }
+      className={retired ? "opacity-75" : ""}
       aside={
         <div className="flex flex-wrap gap-2">
-          <Button variant="primary" size="sm" onClick={onCopy} aria-live="polite">
-            {state === "copied" ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
-            {state === "copied" ? "Copied" : state === "failed" ? "Copy failed: use Download" : "Copy script"}
-          </Button>
-          <Button size="sm" onClick={onDownload}>
+          <CopyButton text={code} label="Copy TradingView" primary={!retired} />
+          <Button size="sm" onClick={() => download(code, info.file)}>
             <Download size={14} aria-hidden="true" />
-            Download .pine
+            .pine
           </Button>
+          {mt5Code && info.mt5File && (
+            <>
+              <CopyButton text={mt5Code} label="Copy MT5" />
+              <Button size="sm" onClick={() => download(mt5Code, info.mt5File!)}>
+                <Download size={14} aria-hidden="true" />
+                .mq5
+              </Button>
+            </>
+          )}
         </div>
       }
     >
@@ -81,7 +106,7 @@ export default function IndicatorCard({ info, code }: { info: IndicatorInfo; cod
       </p>
 
       <details className="group mt-4 min-w-0">
-        <summary className="cursor-pointer text-[13px] text-fog hover:text-paper">Show the code ({lines} lines)</summary>
+        <summary className="cursor-pointer text-[13px] text-fog hover:text-paper">Show the TradingView code ({lines} lines)</summary>
         <div className="relative mt-2 max-h-[420px] min-w-0 overflow-auto rounded-md border border-rule bg-ink">
           <pre className="p-3 text-[12px] leading-relaxed text-paper">
             <code>{code}</code>
