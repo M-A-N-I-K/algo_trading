@@ -13,6 +13,7 @@ import {
   createTopDownStrategy,
   createNyOpenFvgStrategy,
   createVwapStrategy,
+  createSrSweepTrendlineStrategy,
 } from "./index";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each factory takes its own options shape
@@ -34,6 +35,7 @@ export const CODED_STRATEGIES: Record<string, StrategyFactory> = {
   "top-down": createTopDownStrategy,
   "ny-open-fvg": createNyOpenFvgStrategy,
   vwap: createVwapStrategy,
+  "sr-sweep-trendline": createSrSweepTrendlineStrategy,
 };
 
 // Strategies whose bias comes from a real higher-timeframe series, fetched

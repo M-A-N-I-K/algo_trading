@@ -20,6 +20,7 @@ export const STRATEGY_CATALOG: StrategyCatalogEntry[] = [
   { value: "top-down", label: "Top-Down Day Trade (Weekly Bias + 1h Range + 5m Entry)" },
   { value: "ny-open-fvg", label: "NY Open FVG (15m Trend + 1m Entry)" },
   { value: "vwap", label: "VWAP Retest + Liquidity Sweep" },
+  { value: "sr-sweep-trendline", label: "S/R Sweep + Trend-Line Break" },
   { value: "smc", label: "Smart Money Concepts" },
   { value: "session-london-bos", label: "Session-Based London Open BOS" },
 ];

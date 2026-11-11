@@ -11,3 +11,4 @@ export * from "./liquidityReversalMtfStrategy";
 export * from "./topDownStrategy";
 export * from "./nyOpenFvgStrategy";
 export * from "./vwapStrategy";
+export * from "./srSweepTrendlineStrategy";

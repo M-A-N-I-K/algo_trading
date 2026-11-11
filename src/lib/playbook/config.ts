@@ -140,6 +140,13 @@ export const PLAYBOOK_SETUPS: PlaybookSetup[] = [
   // first half (+19.5R, then +1.2R) and 2026 so far lost 7.3R; on the MT5
   // server-time grid it made PF 1.44 with both halves up (+11.4R, +7.1R).
   setup("XAUUSDT", "XAUUSD", "smc", "Smart Money Concepts", "4h", { trades: 56, winRatePct: 33.9, avgR: 0.37, profitFactor: 1.56, perWeek: 0.16, maxDrawdownR: 7.3, maxLossStreak: 8, weeks: 358 }),
+  // MT5 6.5y, NAS100 1h (Nov 2026, from a YouTube gold method that failed on
+  // gold). Picked from 216 rule variants, so it was checked out of sample:
+  // the best rules on 2020-23 alone still made +42R from 2023 on. Hourly
+  // candles rebuilt to start at :15, :30 and :45 gave PF 1.35, 1.46 and 1.20
+  // with both halves up, so the real edge is nearer PF 1.3 than 2.6; ranked
+  // below the two 4h setups for that reason.
+  setup("NAS100", "NDX100", "sr-sweep-trendline", "S/R Sweep + Trend-Line Break", "1h", { trades: 84, winRatePct: 46.4, avgR: 0.85, profitFactor: 2.57, perWeek: 0.23, maxDrawdownR: 7.1, maxLossStreak: 7, weeks: 358 }),
   // MT5 6.5y: profit factor fell from 1.58 (2 years of Yahoo data) to 1.24 on
   // the platform's bars since 2020. Profitable in both halves and 6 of 7
   // years, so it stays, ranked lowest.
