@@ -85,6 +85,7 @@ interface DashboardContextValue {
   openTradeForm: (trade?: Trade | null) => void;
   closeTradeForm: () => void;
   handleSaveTrade: (body: any) => Promise<void>;
+  isSavingTrade: boolean;
   handleDeleteTrade: (tradeId: string) => Promise<void>;
 
   isDrawerOpen: boolean;
@@ -255,6 +256,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   });
 
   const handleSaveTrade = async (body: any) => {
+    if (saveTradeMutation.isPending) return; // one save at a time
     try {
       await saveTradeMutation.mutateAsync(body);
     } catch {
@@ -262,11 +264,23 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Removed from the list at once; put back if the server refuses.
   const deleteTradeMutation = useMutation({
     mutationFn: (tradeId: string) =>
       fetch(`/api/trades/${tradeId}`, { method: "DELETE" }).then(res => {
-        if (!res.ok) throw new Error("Failed to delete record.");
+        // Already gone (a second click, another tab): that's what was wanted.
+        if (!res.ok && res.status !== 404) throw new Error("Failed to delete record.");
       }),
+    onMutate: async (tradeId: string) => {
+      await queryClient.cancelQueries({ queryKey: TRADES_QUERY_KEY });
+      const previous = queryClient.getQueryData<Trade[]>(TRADES_QUERY_KEY);
+      queryClient.setQueryData<Trade[]>(TRADES_QUERY_KEY, (old) => old?.filter((t) => t.id !== tradeId));
+      return { previous };
+    },
+    onError: (e: Error, _id, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(TRADES_QUERY_KEY, ctx.previous);
+      addNotification(e.message, "error");
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: TRADES_QUERY_KEY });
       // A trade linked to a prop account changes that account's Playbook view.
@@ -274,7 +288,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       queryClient.invalidateQueries({ queryKey: ["playbook-signals"] });
       addNotification("Trade record deleted.", "success");
     },
-    onError: (e: Error) => addNotification(e.message, "error"),
   });
 
   const handleDeleteTrade = async (tradeId: string) => {
@@ -348,6 +361,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         openTradeForm,
         closeTradeForm,
         handleSaveTrade,
+        isSavingTrade: saveTradeMutation.isPending,
         handleDeleteTrade,
         isDrawerOpen,
         notesTrade,

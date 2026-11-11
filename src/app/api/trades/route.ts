@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
     return authChallengeResponse();
   }
 
+  let requestId: string | undefined;
   try {
     const data = await request.json();
     if (!data.time || !data.symbol) {
@@ -78,9 +79,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(updated);
     }
 
-    // Create new trade
+    // Create new trade. The form sends one requestId per opening, used as the
+    // trade's id: a repeat of the same request returns the trade already saved.
+    requestId = typeof data.requestId === "string" && /^[0-9a-f-]{36}$/i.test(data.requestId) ? data.requestId : undefined;
+    if (requestId) {
+      const existing = await prisma.trade.findUnique({ where: { id: requestId } });
+      if (existing) {
+        if (existing.userId !== user.id) return NextResponse.json({ error: "Invalid request id" }, { status: 400 });
+        return NextResponse.json(existing, { status: 200 });
+      }
+    }
     const created = await prisma.trade.create({
       data: {
+        ...(requestId && { id: requestId }),
         time: new Date(data.time),
         balanceBefore: data.balanceBefore !== undefined ? data.balanceBefore : null,
         balanceAfter: data.balanceAfter !== undefined ? data.balanceAfter : null,
@@ -101,6 +112,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(created, { status: 201 });
   } catch (e: any) {
+    // Two copies of one request raced: the first saved it, return that one.
+    if (e?.code === "P2002" && requestId) {
+      const existing = await prisma.trade.findFirst({ where: { id: requestId, userId: user.id } });
+      if (existing) return NextResponse.json(existing, { status: 200 });
+    }
     console.error("POST Trades error:", e);
     return NextResponse.json({ error: "Failed to save trade: " + e.message }, { status: 500 });
   }

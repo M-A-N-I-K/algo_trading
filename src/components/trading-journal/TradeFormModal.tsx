@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Calculator } from "lucide-react";
 import {
   Dialog,
@@ -45,7 +45,11 @@ export default function TradeFormModal({
   activeTrade,
   onSave,
 }: TradeFormModalProps) {
-  const { defaultStrategy } = useDashboard();
+  const { defaultStrategy, isSavingTrade } = useDashboard();
+  // One id per opening of the form: the server saves a new trade once per id,
+  // so a double click or a retry can't log it twice.
+  const requestId = useRef<string>("");
+  const submitting = useRef(false);
   const [time, setTime] = useState("");
   const [symbol, setSymbol] = useState("");
   const [side, setSide] = useState<"LONG" | "SHORT">("LONG");
@@ -64,6 +68,7 @@ export default function TradeFormModal({
 
   // Synchronize form states on activeTrade change
   useEffect(() => {
+    if (isOpen) requestId.current = crypto.randomUUID();
     if (activeTrade) {
       try {
         const d = new Date(activeTrade.time);
@@ -137,6 +142,8 @@ export default function TradeFormModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Ignore clicks while a save is in flight (state updates a render late).
+    if (submitting.current || isSavingTrade) return;
     const entryNum = parseFloat(entry);
     const stopNum = parseFloat(stopLoss);
     const qtyNum = parseFloat(qty);
@@ -147,6 +154,7 @@ export default function TradeFormModal({
 
     const body = {
       id: activeTrade?.id || undefined,
+      requestId: activeTrade ? undefined : requestId.current,
       time: time.replace("T", " "),
       symbol: symbol.toUpperCase().trim(),
       side,
@@ -164,7 +172,12 @@ export default function TradeFormModal({
       playbookAccountId: account || null
     };
 
-    await onSave(body);
+    submitting.current = true;
+    try {
+      await onSave(body);
+    } finally {
+      submitting.current = false;
+    }
   };
 
   const net = parseFloat(pnl);
@@ -297,8 +310,8 @@ export default function TradeFormModal({
             <Button variant="ghost" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              {activeTrade ? "Save changes" : "Save trade"}
+            <Button type="submit" variant="primary" disabled={isSavingTrade} aria-busy={isSavingTrade}>
+              {isSavingTrade ? "Saving…" : activeTrade ? "Save changes" : "Save trade"}
             </Button>
           </div>
         </form>
