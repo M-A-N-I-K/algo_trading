@@ -205,7 +205,8 @@ method step(Side S, int t, float a, float e) =>
                         S.hit := true
                         S.stop := stop
                         S.target := c + rr * risk
-                    S.lvl.dead := true
+                    Lvl used = S.lvl   // Pine can't reassign S.lvl.dead directly
+                    used.dead := true
                     S.on := false
     if not S.on
         for L in S.levels

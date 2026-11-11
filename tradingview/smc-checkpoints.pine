@@ -125,6 +125,9 @@ method step(Engine E, float o, float h, float l, float c, int bx) =>
     E.swH.push(false)
     E.swL.push(false)
     int t = E.c.size() - 1
+    // Local references: Pine can't reassign a field through E.bullS.x directly.
+    Setup bu = E.bullS
+    Setup be = E.bearS
 
     // 1. The candle k back is now a known swing (or not).
     int r = t - k
@@ -147,38 +150,38 @@ method step(Engine E, float o, float h, float l, float c, int bx) =>
     if t >= WARMUP
         // 2. Sweeps (a newer sweep replaces the old setup)
         if not na(E.support) and l < E.support and c > E.support * 0.998
-            if E.bullS.active
-                endLine(E.bullS.ln, bx)
-            E.bullS.active := true
-            E.bullS.sweep := l
-            E.bullS.level := E.nearestHigh(t)
-            E.bullS.createdAt := t
+            if bu.active
+                endLine(bu.ln, bx)
+            bu.active := true
+            bu.sweep := l
+            bu.level := E.nearestHigh(t)
+            bu.createdAt := t
             E.evSweepL := true
             if showSteps and showLong
-                label.new(bx, l, "1 Sweep", color = color.new(colSweep, 100), textcolor = colSweep, style = label.style_label_up, size = size.tiny, tooltip = "Swept swing low " + fmt(E.support) + ". Long setup if a 4h candle closes above " + fmt(E.bullS.level) + " within " + str.tostring(setupLife) + " candles.")
-                E.bullS.ln := line.new(bx, E.bullS.level, bx + 1, E.bullS.level, color = colLong, style = line.style_dotted, extend = extend.right)
+                label.new(bx, l, "1 Sweep", color = color.new(colSweep, 100), textcolor = colSweep, style = label.style_label_up, size = size.tiny, tooltip = "Swept swing low " + fmt(E.support) + ". Long setup if a 4h candle closes above " + fmt(bu.level) + " within " + str.tostring(setupLife) + " candles.")
+                bu.ln := line.new(bx, bu.level, bx + 1, bu.level, color = colLong, style = line.style_dotted, extend = extend.right)
         if not na(E.resistance) and h > E.resistance and c < E.resistance * 1.002
-            if E.bearS.active
-                endLine(E.bearS.ln, bx)
-            E.bearS.active := true
-            E.bearS.sweep := h
-            E.bearS.level := E.nearestLow(t)
-            E.bearS.createdAt := t
+            if be.active
+                endLine(be.ln, bx)
+            be.active := true
+            be.sweep := h
+            be.level := E.nearestLow(t)
+            be.createdAt := t
             E.evSweepS := true
             if showSteps and showShort
-                label.new(bx, h, "1 Sweep", color = color.new(colSweep, 100), textcolor = colSweep, style = label.style_label_down, size = size.tiny, tooltip = "Swept swing high " + fmt(E.resistance) + ". Short setup if a 4h candle closes below " + fmt(E.bearS.level) + " within " + str.tostring(setupLife) + " candles.")
-                E.bearS.ln := line.new(bx, E.bearS.level, bx + 1, E.bearS.level, color = colShort, style = line.style_dotted, extend = extend.right)
+                label.new(bx, h, "1 Sweep", color = color.new(colSweep, 100), textcolor = colSweep, style = label.style_label_down, size = size.tiny, tooltip = "Swept swing high " + fmt(E.resistance) + ". Short setup if a 4h candle closes below " + fmt(be.level) + " within " + str.tostring(setupLife) + " candles.")
+                be.ln := line.new(bx, be.level, bx + 1, be.level, color = colShort, style = line.style_dotted, extend = extend.right)
 
         // Expiry
-        if E.bullS.active and t - E.bullS.createdAt > setupLife
-            E.bullS.active := false
-            endLine(E.bullS.ln, bx)
-        if E.bearS.active and t - E.bearS.createdAt > setupLife
-            E.bearS.active := false
-            endLine(E.bearS.ln, bx)
+        if bu.active and t - bu.createdAt > setupLife
+            bu.active := false
+            endLine(bu.ln, bx)
+        if be.active and t - be.createdAt > setupLife
+            be.active := false
+            endLine(be.ln, bx)
 
         // 3. CHoCH -> mark the gaps of the last 7 candles
-        if E.bullS.active and c > E.bullS.level
+        if bu.active and c > bu.level
             int found = 0
             for j = math.max(2, t - 6) to t
                 if E.c.get(j - 1) > E.o.get(j - 1) and E.h.get(j - 2) < E.l.get(j)
@@ -187,15 +190,15 @@ method step(Engine E, float o, float h, float l, float c, int bx) =>
                     box b = na
                     if showSteps and showLong
                         b := box.new(E.bx.get(j - 2), hi, bx, lo, border_color = colLong, bgcolor = color.new(colLong, 85), extend = extend.right, text = "3 FVG", text_color = colLong, text_size = size.tiny, text_halign = text.align_left)
-                    E.fvgs.push(Fvg.new(true, lo, hi, (lo + hi) / 2, t, E.bullS.sweep, b))
+                    E.fvgs.push(Fvg.new(true, lo, hi, (lo + hi) / 2, t, bu.sweep, b))
                     found += 1
-            E.bullS.active := false
+            bu.active := false
             E.evChochL := true
-            endLine(E.bullS.ln, bx)
+            endLine(bu.ln, bx)
             if showSteps and showLong
-                label.new(bx, h, "2 CHoCH", color = color.new(colLong, 100), textcolor = colLong, style = label.style_label_down, size = size.tiny, tooltip = found == 0 ? "Closed above " + fmt(E.bullS.level) + " but no bullish gap in the last 7 candles: no trade." : "Closed above " + fmt(E.bullS.level) + ". Buy when a candle dips to the middle of the gap.")
+                label.new(bx, h, "2 CHoCH", color = color.new(colLong, 100), textcolor = colLong, style = label.style_label_down, size = size.tiny, tooltip = found == 0 ? "Closed above " + fmt(bu.level) + " but no bullish gap in the last 7 candles: no trade." : "Closed above " + fmt(bu.level) + ". Buy when a candle dips to the middle of the gap.")
             alert(syminfo.ticker + " SMC: bullish CHoCH" + (found == 0 ? " but no gap, no trade." : ". Buy if a 4h candle dips to the middle of the gap and closes inside or above it."), alert.freq_once_per_bar_close)
-        if E.bearS.active and c < E.bearS.level
+        if be.active and c < be.level
             int found = 0
             for j = math.max(2, t - 6) to t
                 if E.c.get(j - 1) < E.o.get(j - 1) and E.l.get(j - 2) > E.h.get(j)
@@ -204,13 +207,13 @@ method step(Engine E, float o, float h, float l, float c, int bx) =>
                     box b = na
                     if showSteps and showShort
                         b := box.new(E.bx.get(j - 2), hi, bx, lo, border_color = colShort, bgcolor = color.new(colShort, 85), extend = extend.right, text = "3 FVG", text_color = colShort, text_size = size.tiny, text_halign = text.align_left)
-                    E.fvgs.push(Fvg.new(false, lo, hi, (lo + hi) / 2, t, E.bearS.sweep, b))
+                    E.fvgs.push(Fvg.new(false, lo, hi, (lo + hi) / 2, t, be.sweep, b))
                     found += 1
-            E.bearS.active := false
+            be.active := false
             E.evChochS := true
-            endLine(E.bearS.ln, bx)
+            endLine(be.ln, bx)
             if showSteps and showShort
-                label.new(bx, l, "2 CHoCH", color = color.new(colShort, 100), textcolor = colShort, style = label.style_label_up, size = size.tiny, tooltip = found == 0 ? "Closed below " + fmt(E.bearS.level) + " but no bearish gap in the last 7 candles: no trade." : "Closed below " + fmt(E.bearS.level) + ". Sell when a candle rises to the middle of the gap.")
+                label.new(bx, l, "2 CHoCH", color = color.new(colShort, 100), textcolor = colShort, style = label.style_label_up, size = size.tiny, tooltip = found == 0 ? "Closed below " + fmt(be.level) + " but no bearish gap in the last 7 candles: no trade." : "Closed below " + fmt(be.level) + ". Sell when a candle rises to the middle of the gap.")
             alert(syminfo.ticker + " SMC: bearish CHoCH" + (found == 0 ? " but no gap, no trade." : ". Sell if a 4h candle rises to the middle of the gap and closes inside or below it."), alert.freq_once_per_bar_close)
 
         // 4. Gaps die on age or on a close through them (removed here; the app skips them).
