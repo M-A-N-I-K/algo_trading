@@ -27,6 +27,7 @@ const GUIDE_RUNS: { key: string; interval: string; label: string }[] = [
   { key: "vwap", interval: "5m", label: "5m" },
   { key: "smc", interval: "15m", label: "15m" },
   { key: "ny-open-fvg", interval: "1m", label: "1m (15m trend)" },
+  { key: "ny-inside-bar", interval: "15m", label: "15m" },
 ];
 
 // The guides' BACKTEST_SETTINGS.

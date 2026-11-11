@@ -226,7 +226,7 @@ function SignalCard({ item, rank, onPlan }: { item: RankedSignal; rank: number; 
           <h3 className="font-display text-[17px] font-semibold text-paper">{setup.platformSymbol}</h3>
           <SideTag side={s.side} />
           <GradeTag grade={s.grade} />
-          {s.status === "new" ? <Tag tone="fees">New</Tag> : <Tag>Running {s.rMultiple !== null ? r(s.rMultiple) : ""}</Tag>}
+          {s.status === "new" ? <Tag tone="fees">{s.stopOrder ? (s.side === "LONG" ? "Buy stop" : "Sell stop") : "New"}</Tag> : <Tag>Running {s.rMultiple !== null ? r(s.rMultiple) : ""}</Tag>}
         </div>
         <span className="text-[13px] text-fog">
           {setup.strategyName} · {setup.interval}
@@ -239,6 +239,12 @@ function SignalCard({ item, rank, onPlan }: { item: RankedSignal; rank: number; 
         <div><dt className="text-mist">Reward : risk</dt><dd className="tabular-nums text-paper">{s.rr !== null ? `${s.rr.toFixed(1)} : 1` : "—"}</dd></div>
         <div><dt className="text-mist">Size</dt><dd className="tabular-nums text-paper">{tier === "C" ? "Skip" : sizing ? `${sizing.lots} lot · ${usd(sizing.riskAtLots)} (${item.riskPct}%)` : "—"}</dd></div>
       </dl>
+      {s.status === "new" && s.stopOrder && (
+        <p className="text-[13px] leading-snug text-fog">
+          <span className="text-paper">Pending order, not a market order:</span> place a {s.side === "LONG" ? "buy" : "sell"} stop at {price(s.entry)}, valid until {when.format(s.stopOrder.expires)}.
+          {s.stopOrder.cancelAt !== null && ` Cancel it if price reaches ${price(s.stopOrder.cancelAt)} first.`} If it doesn&apos;t fill, wait for the next signal.
+        </p>
+      )}
       <p className="text-[13px] leading-snug text-fog"><span className="text-paper">Tier {tier}:</span> {item.tierReason}</p>
       <p className="text-[13px] leading-snug">
         {item.takeable ? (

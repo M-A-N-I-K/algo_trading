@@ -185,6 +185,19 @@ export const PLAYBOOK_SETUPS: PlaybookSetup[] = [
   // the platform's bars since 2020. Profitable in both halves and 6 of 7
   // years, so it stays, ranked lowest.
   setup("EURUSD", "EURUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 124, winRatePct: 30.6, avgR: 0.17, profitFactor: 1.23, perWeek: 0.36, maxDrawdownR: 14.6, maxLossStreak: 10, weeks: 341 }),
+  // MT5 6.9y, NAS100 15m (Nov 2026, from a Hindi YouTube 1:1 video; the
+  // opening-range bias was added after testing the video's version, PF 1.11).
+  // Through the app's engine at measured costs: PF 1.31 over 1,512 trades,
+  // both halves up (+64R, +126R), every year from 2020 up. Held at 1.5× and
+  // 2× costs (PF 1.24, 1.18) and on 15m candles starting at :05 and :10 (PF
+  // 1.23, 1.26). Gold lost (PF 1.03, 0.91 at 1.5× costs). A small edge per
+  // trade (0.13R) on many trades: four a week. Stop-order entries.
+  setup("NAS100", "NDX100", "ny-inside-bar", "NY Inside Bar", "15m", { trades: 1512, winRatePct: 58.3, avgR: 0.13, profitFactor: 1.31, perWeek: 4.25, maxDrawdownR: 17.6, maxLossStreak: 8, weeks: 358 }),
+  // Same rules on SPX500 15m, built from MT5's 5m bars since 2020: PF 1.21,
+  // both halves up (+44R, +103R) but 2021 lost 4.9R, and at 1.5× costs PF
+  // 1.12 (2× costs: 1.03). The weakest setup here, and mostly the same bet
+  // as the NAS100 one above: both take the same side on most days.
+  setup("SPX500", "SPX500", "ny-inside-bar", "NY Inside Bar", "15m", { trades: 1615, winRatePct: 58.2, avgR: 0.09, profitFactor: 1.21, perWeek: 4.52, maxDrawdownR: 11.4, maxLossStreak: 7, weeks: 358 }),
 ];
 
 const retire = (s: PlaybookSetup, retired: string): PlaybookSetup => ({ ...s, retired });

@@ -22,6 +22,15 @@ export interface TradeTarget {
   // tightening, never loosening.
   trailTriggerR?: number;
   trailDistance?: number;
+  // Optional stop-order entry: instead of entering at the next candle's
+  // open, buy (sell) only if the next candle trades up to (down to)
+  // `entryStop`. Skipped if that candle also reaches `cancelEntryAt`.
+  // The signal is repeated on each candle the order should stay live.
+  entryStop?: number;
+  cancelEntryAt?: number;
+  // Optional time exit: close at the open of the first candle starting at
+  // or after this time (ms since the epoch).
+  exitAt?: number;
 }
 
 export interface Strategy {

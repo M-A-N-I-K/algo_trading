@@ -68,7 +68,7 @@ export interface LatestSignal {
   side: Side;
   signalTime: number; // close time of the signal candle
   // "new": the signal candle's close, a guide to the next open you'd fill
-  // at. Otherwise the backtest's fill at the next candle's open.
+  // at (or the stop order's price, see stopOrder). Otherwise the backtest's fill.
   entry: number;
   stop: number | null;
   target: number | null;
@@ -80,6 +80,10 @@ export interface LatestSignal {
   // size); B: the opposite (half size). Null where the grade doesn't apply.
   // Set by the scanner, see src/lib/plan/weeklyPlan.ts.
   grade?: "A" | "B" | null;
+  // Set on a "new" signal whose entry is a stop order, not a market order at
+  // the next open: place a buy (sell) stop at `entry`, valid until `expires`
+  // (the next candle's close). Cancel it if price reaches `cancelAt` first.
+  stopOrder?: { cancelAt: number | null; expires: number };
 }
 
 export interface BacktestStats {
@@ -204,17 +208,21 @@ export function scanStrategy(input: {
     if (valid && !blocked) {
       const stop = t?.stopLoss ?? null;
       const target = t?.takeProfit ?? null;
+      const entry = t?.entryStop ?? lastBar.close;
       signal = {
         status: "new",
         side,
         signalTime: lastBar.closeTime,
-        entry: lastBar.close,
+        entry,
         stop,
         target,
-        rr: rr(side, lastBar.close, stop, target),
+        rr: rr(side, entry, stop, target),
         exitPrice: null,
         exitTime: null,
         rMultiple: null,
+        ...(t?.entryStop !== undefined && {
+          stopOrder: { cancelAt: t.cancelEntryAt ?? null, expires: lastBar.closeTime + (lastBar.closeTime - lastBar.openTime) },
+        }),
       };
     }
   }

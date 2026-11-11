@@ -33,6 +33,7 @@ interface OpenPosition {
   partials: (PartialExit & { filled: boolean })[];
   trailing?: TrailingStop;
   trailingActive: boolean;
+  exitAt?: number;
   legs: Leg[];
   worstPrice: number;
   bestPrice: number;
@@ -41,7 +42,10 @@ interface OpenPosition {
 // Bar-by-bar simulation of one signal source over one candle series.
 //
 // Timing (per bar t):
-//   1. at the open: exits and entries decided at bar t-1's close fill here.
+//   1. at the open: exits and entries decided at bar t-1's close fill here
+//      (a time exit too). A stop-order entry (EntryIntent.trigger) fills
+//      during this bar instead, if its price trades, and the position then
+//      goes through this bar's intrabar checks like any other.
 //   2. intrabar: stop, then partial exits in order, then target. If one bar
 //      touches several levels, the stop wins. A gap through a level fills at
 //      the open instead of the level. The trailing stop then ratchets on this
@@ -121,6 +125,7 @@ export function simulate(candles: readonly OHLC[], source: SignalSource, executi
       partials: (levels.partials ?? []).map((l) => ({ ...l, filled: false })),
       trailing: levels.trailing,
       trailingActive: false,
+      exitAt: levels.exitAt,
       legs: [],
       worstPrice: fillPrice,
       bestPrice: fillPrice,
@@ -139,13 +144,17 @@ export function simulate(candles: readonly OHLC[], source: SignalSource, executi
       guardrails.maxDailyLossPercent !== undefined && dayRealized <= -(dayStartEquity * guardrails.maxDailyLossPercent) / 100;
 
     // 1. At the open.
-    if (position && prepared.exitAtOpen?.(t, view(position))) closeLeg(t, bar.open, position.remaining, "time");
-    else if (position && pending.exit) closeLeg(t, bar.open, position.remaining, "signal");
+    if (position && (prepared.exitAtOpen?.(t, view(position)) || (position.exitAt !== undefined && bar.openTime >= position.exitAt))) {
+      closeLeg(t, bar.open, position.remaining, "time");
+    } else if (position && pending.exit) closeLeg(t, bar.open, position.remaining, "signal");
     if (!position && pending.enter && !dailyLossHit) {
-      const { side } = pending.enter;
-      const fillPrice = slipEntry(bar.open, side);
-      const levels = pending.enter.levels(fillPrice);
-      if (levels) open(t, side, fillPrice, levels, bar.open);
+      const { side, trigger } = pending.enter;
+      const nominal = trigger ? triggerFill(bar, side, trigger) : bar.open;
+      if (nominal !== null) {
+        const fillPrice = slipEntry(nominal, side);
+        const levels = pending.enter.levels(fillPrice);
+        if (levels) open(t, side, fillPrice, levels, nominal);
+      }
     }
     pending = {};
 
@@ -210,6 +219,15 @@ export function simulate(candles: readonly OHLC[], source: SignalSource, executi
 }
 
 const DAY_MS = 86_400_000;
+
+// Where a stop-order entry fills on this bar, or null if it doesn't.
+function triggerFill(bar: OHLC, side: Side, trigger: { price: number; cancelPrice?: number }): number | null {
+  const isLong = side === "LONG";
+  const hit = isLong ? bar.high >= trigger.price : bar.low <= trigger.price;
+  const cancelled = trigger.cancelPrice !== undefined && (isLong ? bar.low <= trigger.cancelPrice : bar.high >= trigger.cancelPrice);
+  if (!hit || cancelled) return null;
+  return isLong ? Math.max(bar.open, trigger.price) : Math.min(bar.open, trigger.price);
+}
 
 // Quantity for a new position: the sizing rule, then every cap, then lot rounding.
 // Returns 0 when the entry can't be sized (e.g. risk sizing without a stop).

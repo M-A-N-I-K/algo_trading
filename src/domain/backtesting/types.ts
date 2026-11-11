@@ -31,13 +31,27 @@ export interface TradeLevels {
   target?: number;
   partials?: PartialExit[];
   trailing?: TrailingStop;
+  // Close at the open of the first bar that starts at or after this time (ms).
+  exitAt?: number;
+}
+
+// A stop order for the next bar only, instead of a fill at its open: a buy
+// fills when the bar's high reaches `price` (at the open if it gaps past it),
+// a sell when its low does. If the same bar also reaches `cancelPrice` (the
+// other side of a bracket) the order is skipped, since which side traded
+// first inside the bar is unknown.
+export interface EntryTrigger {
+  price: number;
+  cancelPrice?: number;
 }
 
 export interface EntryIntent {
   side: Side;
-  // Called with the actual entry fill (next bar's open, after slippage).
-  // Return null to abandon the entry.
+  // Called with the actual entry fill (next bar's open, or the trigger,
+  // after slippage). Return null to abandon the entry.
   levels(fillPrice: number): TradeLevels | null;
+  // Set for a stop order: fill only if the next bar trades through it.
+  trigger?: EntryTrigger;
 }
 
 export interface PositionView {

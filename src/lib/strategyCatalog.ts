@@ -21,6 +21,7 @@ export const STRATEGY_CATALOG: StrategyCatalogEntry[] = [
   { value: "ny-open-fvg", label: "NY Open FVG (15m Trend + 1m Entry)" },
   { value: "vwap", label: "VWAP Retest + Liquidity Sweep" },
   { value: "sr-sweep-trendline", label: "S/R Sweep + Trend-Line Break" },
+  { value: "ny-inside-bar", label: "NY Inside Bar (Opening-Range Bias, 1:1)" },
   { value: "smc", label: "Smart Money Concepts" },
   { value: "session-london-bos", label: "Session-Based London Open BOS" },
 ];

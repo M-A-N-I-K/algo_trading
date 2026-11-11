@@ -30,7 +30,11 @@ export function fromCodedStrategy(strategy: Strategy): SignalSource {
 
           const target = targets[t];
           if (!target || target.stopLoss === undefined || target.takeProfit === undefined) return {};
-          const enter: EntryIntent = { side, levels: () => toLevels(target) };
+          const enter: EntryIntent = {
+            side,
+            levels: () => toLevels(target),
+            ...(target.entryStop !== undefined && { trigger: { price: target.entryStop, cancelPrice: target.cancelEntryAt } }),
+          };
           return { enter };
         },
       };
@@ -47,5 +51,6 @@ function toLevels(target: TradeTarget): TradeLevels {
       target.trailTriggerR !== undefined && target.trailDistance !== undefined
         ? { triggerR: target.trailTriggerR, distance: target.trailDistance }
         : undefined,
+    exitAt: target.exitAt,
   };
 }

@@ -386,3 +386,52 @@ describe("simulate: slippage cost", () => {
     expect(rt.slippage).toBeCloseTo((0.1 + 0.11) * qty, 6);
   });
 });
+
+describe("simulate: stop-order entries and time exits", () => {
+  const buyStop = (price: number, levels: TradeLevels, cancelPrice?: number): Decision => ({
+    enter: { side: "LONG", levels: () => levels, trigger: { price, cancelPrice } },
+  });
+
+  it("fills a buy stop at its price when the next bar trades through it", () => {
+    const candles = bars([
+      [100, 101, 99, 100],
+      [100, 101, 99, 100], // order placed
+      [100, 104, 99.5, 103], // trades through 102
+      [103, 106, 102, 105], // target 105
+    ]);
+    const [rt] = simulate(candles, scripted({ 1: buyStop(102, { stop: 99, target: 105 }) }), noCosts).roundTrips;
+    expect(rt.entryIndex).toBe(2);
+    expect(rt.entryPrice).toBe(102);
+    expect(rt.exitType).toBe("target");
+    expect(rt.exitPrice).toBeCloseTo(105, 9);
+  });
+
+  it("fills at the open when the bar gaps past the trigger", () => {
+    const candles = bars([[100, 101, 99, 100], [100, 101, 99, 100], [103, 104, 102.5, 103.5], [103.5, 104, 103, 103.5]]);
+    const [rt] = simulate(candles, scripted({ 1: buyStop(102, { stop: 99, target: 110 }) }), noCosts).roundTrips;
+    expect(rt.entryPrice).toBe(103);
+  });
+
+  it("doesn't fill when the bar never reaches the trigger, or also reaches the cancel price", () => {
+    const missed = bars([[100, 101, 99, 100], [100, 101, 99, 100], [100, 101.5, 99, 100], [100, 101, 99, 100]]);
+    expect(simulate(missed, scripted({ 1: buyStop(102, { stop: 99, target: 105 }) }), noCosts).roundTrips).toHaveLength(0);
+    const both = bars([[100, 101, 99, 100], [100, 101, 99, 100], [100, 103, 98, 100], [100, 101, 99, 100]]);
+    expect(simulate(both, scripted({ 1: buyStop(102, { stop: 97, target: 105 }, 98.5) }), noCosts).roundTrips).toHaveLength(0);
+  });
+
+  it("can stop out on the bar it filled on", () => {
+    const candles = bars([[100, 101, 99, 100], [100, 101, 99, 100], [100, 103, 98, 99], [99, 100, 98, 99]]);
+    const [rt] = simulate(candles, scripted({ 1: buyStop(102, { stop: 98.5, target: 106 }) }), noCosts).roundTrips;
+    expect(rt.entryIndex).toBe(2);
+    expect(rt.exitType).toBe("stop");
+    expect(rt.exitPrice).toBeCloseTo(98.5, 9);
+  });
+
+  it("closes at the open of the first bar at or after exitAt", () => {
+    const candles = bars(flat(6));
+    const [rt] = simulate(candles, scripted({ 0: long({ stop: 90, target: 110, exitAt: 4 * BAR_MS }) }), noCosts).roundTrips;
+    expect(rt.entryIndex).toBe(1);
+    expect(rt.exitType).toBe("time");
+    expect(rt.exitTime).toBe(4 * BAR_MS);
+  });
+});

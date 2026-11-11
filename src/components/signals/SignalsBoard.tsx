@@ -204,7 +204,7 @@ function LatestCell({ row }: { row: SignalRow }) {
     <span className="flex flex-wrap items-center gap-1.5">
       <Tag tone={STATUS[s.status].tone}>{STATUS[s.status].label}</Tag>
       <span className="text-xs text-fog">
-        {s.side === "LONG" ? "long" : "short"} · {dayClock.format(s.signalTime)}
+        {s.stopOrder && s.status === "new" ? (s.side === "LONG" ? "buy stop" : "sell stop") : s.side === "LONG" ? "long" : "short"} · {dayClock.format(s.signalTime)}
         {s.rMultiple !== null && s.status !== "new" && ` · ${s.rMultiple >= 0 ? "+" : ""}${s.rMultiple.toFixed(2)}R`}
       </span>
     </span>
