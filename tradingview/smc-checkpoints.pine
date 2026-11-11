@@ -107,7 +107,7 @@ method nearestLow(Engine E, int t) =>
         i -= 1
     v
 
-method drawTrade(Engine E, bool isLong, float c, float sl, float tp, int bx, float px) =>
+drawTrade(bool isLong, float c, float sl, float tp, int bx, float px) =>
     string side = isLong ? "BUY " : "SELL "
     label.new(bx, px, side + fmt(c) + "\nSL " + fmt(sl) + "  TP " + fmt(tp) + "\n" + str.tostring(math.abs(tp - c) / math.abs(c - sl), "#.0") + "R", color = isLong ? colLong : colShort, textcolor = color.white, style = isLong ? label.style_label_up : label.style_label_down, size = size.small, tooltip = "Price came back to the middle of the gap after the sweep and CHoCH. The backtest enters at the next candle's open.")
     line.new(bx, c, bx + tradeLen, c, color = colMuted, style = line.style_dashed)
@@ -242,7 +242,7 @@ method step(Engine E, float o, float h, float l, float c, int bx) =>
                             if reward / risk >= minRr
                                 E.evLong := true
                                 if showLong
-                                    E.drawTrade(true, c, sl, c + reward, bx, l)
+                                    drawTrade(true, c, sl, c + reward, bx, l)
                                 fire := q
                                 break
                     if not f.bull and h >= f.mid and c <= f.high
@@ -253,7 +253,7 @@ method step(Engine E, float o, float h, float l, float c, int bx) =>
                             if reward / risk >= minRr
                                 E.evShort := true
                                 if showShort
-                                    E.drawTrade(false, c, sl, c - reward, bx, h)
+                                    drawTrade(false, c, sl, c - reward, bx, h)
                                 fire := q
                                 break
         if fire >= 0
