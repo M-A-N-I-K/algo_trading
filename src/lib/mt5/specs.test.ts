@@ -9,12 +9,13 @@ import { parseSpecs, registerSpecs, specFor } from "./specs";
 const CSV = [
   "SYMBOL\tDIGITS\tCONTRACT\tTICKSIZE\tTICKVALUE\tVOLUMEMIN\tVOLUMESTEP\tPROFITCCY\tACCOUNTCCY",
   "FTSE100\t2\t10.00000000\t0.0100000000\t0.1300000000\t0.1000\t0.1000\tGBP\tUSD",
+  "UKOIL\t3\t1000.00000000\t0.0010000000\t0.0010000000\t0.0100\t0.0100\tUSD\tUSD",
   "EURJPY\t3\t100000.00000000\t0.0010000000\t0.6500000000\t0.0100\t0.0100\tJPY\tUSD",
 ].join("\r\n");
 
 describe("MT5 symbol specs", () => {
   it("parses symbols.csv", () => {
-    expect(parseSpecs(CSV).FTSE100).toEqual({ digits: 2, contract: 10, tickSize: 0.01, tickValue: 0.13, volumeMin: 0.1, volumeStep: 0.1, profitCurrency: "GBP" });
+    expect(parseSpecs(CSV).FTSE100).toEqual({ digits: 2, contract: 10, tickSize: 0.01, tickValue: 0.13, volumeMin: 0.1, volumeStep: 0.1, profitCurrency: "GBP", accountCurrency: "USD" });
   });
 
   it("can't size FTSE 100 before the terminal has sent its spec", () => {
@@ -39,6 +40,12 @@ describe("MT5 symbol specs", () => {
     const c = roundTripCostPerUnitUsd("EURJPY", 170);
     expect(c.total).toBeCloseTo(0.018 * 0.0065, 10);
     expect(c.spread).toBeCloseTo(0.01 * 0.0065, 10);
+  });
+
+  it("ignores MT5's tick value on dollar-quoted CFDs (wrong on this terminal: Brent says $1 a point per 1000-barrel lot)", () => {
+    registerSpecs(parseSpecs(CSV));
+    expect(lotUnits("UKOIL")).toBe(1000);
+    expect(usdPerUnitMove("UKOIL", 90)).toBe(1);
   });
 
   it("leaves the measured sizes of the other markets alone", () => {

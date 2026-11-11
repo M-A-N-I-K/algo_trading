@@ -15,6 +15,7 @@ export interface SymbolSpec {
   volumeMin: number;
   volumeStep: number;
   profitCurrency: string;
+  accountCurrency?: string;
 }
 
 const g = globalThis as typeof globalThis & { __mt5Specs?: Map<string, SymbolSpec> };
@@ -30,9 +31,15 @@ export function registerSpecs(record: Record<string, SymbolSpec> | null | undefi
 export const specFor = (symbol: string): SymbolSpec | undefined => specs.get(platformSymbol(symbol));
 
 /** Dollars one unit of the base asset makes on a 1.0 price move, from the spec. */
+// Only the exchange rate is taken from MT5's tick value. On this terminal the
+// tick value of dollar-quoted CFDs is wrong (gold reports $0.01 a tick per
+// 100-oz lot; the account's real trades paid $1), so a market quoted in the
+// account's own currency is simply $1 per unit per point.
 export function specUsdPerUnitMove(symbol: string): number | undefined {
   const s = specFor(symbol);
-  return s ? s.tickValue / s.tickSize / s.contract : undefined;
+  if (!s) return undefined;
+  if (s.profitCurrency && s.profitCurrency === (s.accountCurrency || "USD")) return 1;
+  return s.tickValue / s.tickSize / s.contract;
 }
 
 /** Parse symbols.csv (tab-separated, with a header row). */
@@ -54,6 +61,7 @@ export function parseSpecs(text: string): Record<string, SymbolSpec> {
       volumeMin: Number(at(c, "VOLUMEMIN")),
       volumeStep: Number(at(c, "VOLUMESTEP")),
       profitCurrency: at(c, "PROFITCCY"),
+      accountCurrency: at(c, "ACCOUNTCCY") || undefined,
     };
   }
   return out;
