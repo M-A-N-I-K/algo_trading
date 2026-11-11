@@ -26,12 +26,12 @@ export const INDICATORS: IndicatorInfo[] = [
     strategy: "macd-200ema-sr",
     guide: "/guides/macd-200ema-sr",
     bestOn: "NAS100 4h. Put it on a 1h chart: it builds the app's UTC 4h candles itself",
-    backtest: "Playbook setup. 44 trades on MT5 NAS100 since 2020, profit factor 2.14, +0.47R per trade.",
+    backtest: "Playbook setup at a 2R target (the strategy's own is 1.5R). 38 trades on MT5 NAS100 since 2020, profit factor 1.98, +0.50R per trade; it held on MT5's own 4h candles and on 4h candles starting 1, 2 or 3 hours later.",
     steps: [
       { label: "1 Trend", text: "The 4h candle closes above the 200 EMA for longs, below it for shorts." },
       { label: "2 Level", text: "Support is a swing low lower than the 5 candles on each side, removed once a candle closes below it. Resistance is the mirror." },
       { label: "3 Touch", text: "A 4h candle closing above the EMA has its low at or below a live support (small dot)." },
-      { label: "4 Buy", text: "Within 10 candles of the touch, MACD (12, 26, 9) crosses up with both lines below zero. Stop at the 200 EMA, target 1.5 × the risk. Sells are the mirror." },
+      { label: "4 Buy", text: "Within 10 candles of the touch, MACD (12, 26, 9) crosses up with both lines below zero. Stop at the 200 EMA, target 2 × the risk (the Playbook's target; the strategy's own is 1.5). Sells are the mirror." },
     ],
   },
   {
@@ -59,14 +59,14 @@ export const INDICATORS: IndicatorInfo[] = [
     title: "S/R Sweep + Trend-Line Break checkpoints",
     strategy: "sr-sweep-trendline",
     guide: "/guides/sr-sweep-trendline",
-    bestOn: "NAS100 1h",
+    bestOn: "NAS100 1h (target 3R) and ETHUSD 4h (set the target to 1.5R)",
     backtest:
-      "Playbook setup. 84 trades on MT5 NAS100 1h since 2020, profit factor 2.57, +71R. With the hourly candles shifted to start at :15, :30 or :45 it made 1.20–1.46, so expect nearer 1.3 live.",
+      "Playbook setups. 84 trades on MT5 NAS100 1h since 2020, profit factor 2.57, +71R; with the hourly candles shifted to start at :15, :30 or :45 it made 1.20–1.46, so expect nearer 1.3 live. ETH 4h at 1.5R: 30 trades since 2020, profit factor 2.83 (a small sample).",
     steps: [
       { label: "1 Level", text: "Two swing lows within 0.25 × ATR, at most 100 candles apart, nothing lower between them. Support is the lower one." },
       { label: "2 Sweep", text: "A low trades below the level, then a candle closes back above it within 3 candles." },
       { label: "3 Trend line", text: "Through the last two falling swing highs at or before the sweep candle, extended to the right." },
-      { label: "4 Buy", text: "Within 48 candles, a green candle with a body of at least 1 ATR closes above the line and the 200 EMA. Stop 0.1 ATR under the lowest low since the sweep, target 3R. Sells are the mirror." },
+      { label: "4 Buy", text: "Within 48 candles, a green candle with a body of at least 1 ATR closes above the line and the 200 EMA. Stop 0.1 ATR under the lowest low since the sweep, target 3R (1.5R on ETH 4h). Sells are the mirror." },
     ],
   },
   {
@@ -77,14 +77,14 @@ export const INDICATORS: IndicatorInfo[] = [
     title: "Liquidity Reversal checkpoints",
     strategy: "liquidity-reversal",
     guide: "/guides/liquidity-reversal",
-    bestOn: "EURUSD 1h",
-    backtest: "Playbook setup. 124 trades on MT5 EURUSD since 2020, profit factor 1.23.",
+    bestOn: "EURUSD 1h; GBPUSD 1h and SPX500 4h with the fixed target set to 2",
+    backtest: "Playbook setups. 124 trades on MT5 EURUSD since 2020, profit factor 1.23. At a fixed 2R target: GBPUSD 1h 134 trades, profit factor 1.38; SPX500 4h 34 trades, profit factor 1.73.",
     steps: [
       { label: "1 Equal lows", text: "Two swing lows within 0.1 × ATR, at most 100 candles apart, nothing lower between them." },
       { label: "2 Sweep", text: "A wick trades below the level." },
       { label: "3 Shift", text: "A candle closes above the last swing high before the sweep low, within 48 candles." },
       { label: "4 Zone", text: "The last red candle at or before the sweep low, from its open down to the sweep low." },
-      { label: "5 Buy", text: "Price wicks into the zone, then a candle closes back above it. Stop under the sweep low, target the nearest untouched swing high paying at least 2R." },
+      { label: "5 Buy", text: "Price wicks into the zone, then a candle closes back above it. Stop under the sweep low, target the nearest untouched swing high paying at least 2R. On GBPUSD and SPX500 the Playbook takes exactly 2R instead (only when such a swing exists)." },
     ],
   },
   {

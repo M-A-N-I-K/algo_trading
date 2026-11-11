@@ -9,7 +9,7 @@
 //| BUY : close above the 200 EMA, a candle low touched a live swing |
 //|       low (support) within the last 10 candles, MACD(12,26,9)    |
 //|       crosses up through its signal with both lines below zero.  |
-//|       Stop = 200 EMA, target = entry + 1.5 x risk.               |
+//|       Stop = 200 EMA, target = entry + 2 x risk (the Playbook's target; the strategy's own is 1.5).               |
 //| SELL: the mirror image.                                          |
 //| Signals use closed candles only. The backtest enters at the open |
 //| of the next 4h candle.                                           |
@@ -31,7 +31,7 @@ input int    InpSlow       = 26;   // MACD slow
 input int    InpSignal     = 9;    // MACD signal
 input int    InpSwing      = 5;    // Swing lookback (candles each side)
 input int    InpTrigWin    = 10;   // Candles allowed between touch and crossover
-input double InpRR         = 1.5;  // Target (x risk)
+input double InpRR         = 2.0;  // Target (x risk; Playbook 2R, the strategy's own 1.5R)
 input group "Candles"
 input ENUM_GRID InpGrid    = GRID_UTC; // 4h candle grid
 input int    InpServerGmt  = 2;    // Server UTC offset in winter (hours)

@@ -116,10 +116,10 @@ const plan = (over: Partial<TradePlan> = {}): TradePlan => ({
 const status = (checks: ReturnType<typeof preTradeChecks>, id: string) => checks.find((c) => c.id === id)?.status;
 
 describe("playbook config", () => {
-  it("has 5 unique setups, and keeps retired ones apart, each with a reason", async () => {
+  it("has 8 unique setups, and keeps retired ones apart, each with a reason", async () => {
     const real = await vi.importActual<typeof import("./config")>("./config");
-    expect(real.PLAYBOOK_SETUPS).toHaveLength(5);
-    expect(new Set(real.PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(5);
+    expect(real.PLAYBOOK_SETUPS).toHaveLength(8);
+    expect(new Set(real.PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(8);
     for (const s of real.PLAYBOOK_SETUPS) expect(s.id).toBe(`${s.strategy}:${s.symbol}:${s.interval}`);
     const active = new Set(real.PLAYBOOK_SETUPS.map((s) => s.id));
     for (const s of real.RETIRED_SETUPS) {

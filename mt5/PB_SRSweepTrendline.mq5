@@ -31,7 +31,7 @@ input double InpEqTol      = 0.25; // Equal lows tolerance (x ATR)
 input int    InpSweepN     = 3;    // Candles allowed to close back above the level
 input int    InpLineSwing  = 3;    // Trend-line swing lookback (candles each side)
 input double InpBigBody    = 1.0;  // Break candle body (x ATR, 0 = any)
-input double InpRR         = 3.0;  // Target (x risk)
+input double InpRR         = 3.0;  // Target (x risk). Playbook: 3 on NDX100 1h, 1.5 on ETHUSD 4h
 input group "Data"
 input int    InpH1Bars     = 60000; // H1 bars of history to load
 input group "Show"

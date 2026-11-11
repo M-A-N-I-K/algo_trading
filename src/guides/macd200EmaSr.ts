@@ -54,7 +54,7 @@ export const macd200EmaSrGuide: StrategyGuide = {
 
   entry: "Enter at the open of the next 15m candle after the crossover candle closes.",
   stop: "The 200 EMA's value on the signal candle. Write it down as a fixed price; it doesn't follow the EMA afterwards.",
-  target: "1.5 × your risk. Long: signal close + 1.5 × (signal close − EMA). Short: signal close − 1.5 × (EMA − signal close).",
+  target: "1.5 × your risk. Long: signal close + 1.5 × (signal close − EMA). Short: signal close − 1.5 × (EMA − signal close). The Playbook trades it on NAS100 4h with a 2 × risk target instead: tested from 1R to 4R on the broker's MT5 bars since 2020, 2R held up best (38 trades, profit factor 1.98).",
 
   manage: [
     { title: "Set and forget", detail: "Stop and target as orders. Nothing moves." },

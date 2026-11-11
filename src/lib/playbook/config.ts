@@ -118,10 +118,13 @@ export interface PlaybookSetup {
   strategyName: string;
   interval: string;
   baseline: SetupBaseline;
+  // Fixed target in R, replacing the strategy's own (src/strategies/fixedTarget.ts).
+  // Picked by testing 1, 1.5, 2, 2.5, 3 and 4R on MT5 bars since 2020.
+  rr?: number;
   retired?: string; // why it no longer trades
 }
 
-const setup = (symbol: string, platformSymbol: string, strategy: string, strategyName: string, interval: string, baseline: SetupBaseline): PlaybookSetup => ({
+const setup = (symbol: string, platformSymbol: string, strategy: string, strategyName: string, interval: string, baseline: SetupBaseline, rr?: number): PlaybookSetup => ({
   id: `${strategy}:${symbol}:${interval}`,
   symbol,
   platformSymbol,
@@ -129,19 +132,29 @@ const setup = (symbol: string, platformSymbol: string, strategy: string, strateg
   strategyName,
   interval,
   baseline,
+  ...(rr !== undefined && { rr }),
 });
 
 // Ordered by average R, best first: when two signals compete for the last
 // slot at the same grade, take the one higher up.
 export const PLAYBOOK_SETUPS: PlaybookSetup[] = [
-  // MT5 6.5y, 4h candles on the UTC grid the scanner uses. On MT5's own
-  // server-time 4h grid it made PF 1.51 (+0.3R, then +10.1R), so the edge is
-  // real but grid-sensitive. Rare: one signal every 2 months.
-  setup("NAS100", "NDX100", "macd-200ema-sr", "MACD + 200 EMA + S/R", "4h", { trades: 44, winRatePct: 59.1, avgR: 0.47, profitFactor: 2.14, perWeek: 0.13, maxDrawdownR: 3.6, maxLossStreak: 3, weeks: 340 }),
+  // MT5 6.5y, 4h candles on the UTC grid the scanner uses, with a 2R target
+  // instead of the strategy's 1.5R (Nov 2026 target sweep). At 1.5R it made PF
+  // 2.02 but only 1.44 on MT5's server-time 4h grid with a losing half; at 2R
+  // it holds on that grid (PF 1.79) and on 4h candles starting 1, 2 and 3
+  // hours later (PF 2.33, 2.35, 1.43). 2.5R was as good. Rare: one signal
+  // every 2 months.
+  setup("NAS100", "NDX100", "macd-200ema-sr", "MACD + 200 EMA + S/R", "4h", { trades: 38, winRatePct: 50, avgR: 0.5, profitFactor: 1.98, perWeek: 0.11, maxDrawdownR: 4.1, maxLossStreak: 3, weeks: 358 }, 2),
   // MT5 6.5y (gold since 2020), UTC 4h grid. Most of the profit came in the
   // first half (+19.5R, then +1.2R) and 2026 so far lost 7.3R; on the MT5
   // server-time grid it made PF 1.44 with both halves up (+11.4R, +7.1R).
   setup("XAUUSDT", "XAUUSD", "smc", "Smart Money Concepts", "4h", { trades: 56, winRatePct: 33.9, avgR: 0.37, profitFactor: 1.56, perWeek: 0.16, maxDrawdownR: 7.3, maxLossStreak: 8, weeks: 358 }),
+  // MT5 6.5y, SPX500 4h (bars built from MT5's 1m export), 2R target. Every
+  // target from 1.5R to 4R passed; 4h candles starting 1, 2 and 3 hours
+  // later made PF 1.45, 1.51, 1.30 with both halves up. MT5 gave no H4 export
+  // for SPX500, so the server-time grid is only approximated by the 2-hour
+  // shift. Only 34 trades. Trades with NAS100's setups: often the same bet.
+  setup("SPX500", "SPX500", "liquidity-reversal", "Liquidity Reversal", "4h", { trades: 34, winRatePct: 47.1, avgR: 0.4, profitFactor: 1.73, perWeek: 0.1, maxDrawdownR: 3.2, maxLossStreak: 3, weeks: 358 }, 2),
   // MT5 6.5y, NAS100 1h (Nov 2026, from a YouTube gold method that failed on
   // gold). Picked from 216 rule variants, so it was checked out of sample:
   // the best rules on 2020-23 alone still made +42R from 2023 on. Hourly
@@ -158,6 +171,16 @@ export const PLAYBOOK_SETUPS: PlaybookSetup[] = [
   // Scanned only while the MT5 PB_BarFeed expert runs (no web source has
   // this CFD); sized from the terminal's own contract spec.
   setup("FTSE100", "FTSE100", "smc", "Smart Money Concepts", "4h", { trades: 27, winRatePct: 51.9, avgR: 1.0, profitFactor: 3.03, perWeek: 0.16, maxDrawdownR: 4.1, maxLossStreak: 4, weeks: 174 }),
+  // MT5 6.5y, ETH 4h, 1.5R target. PF 2.83 with both halves up (+3.7R,
+  // +15.3R), 2.10 on MT5's server-time grid, and 4h candles starting 1 and 2
+  // hours later held (PF 1.79, 1.88; 3 hours later the first half lost). Only
+  // 30 trades in 6.5 years, and most of the profit came after 2023.
+  setup("ETHUSDT", "ETHUSD", "sr-sweep-trendline", "S/R Sweep + Trend-Line Break", "4h", { trades: 30, winRatePct: 66.7, avgR: 0.63, profitFactor: 2.83, perWeek: 0.08, maxDrawdownR: 4.2, maxLossStreak: 4, weeks: 358 }, 1.5),
+  // MT5 6.5y, GBP/USD 1h, 2R target: PF 1.38 over 134 trades, both halves up
+  // (+13.6R, +17.1R). Hourly candles starting at :15 and :45 held (PF 1.34,
+  // 1.40), :30 made PF 1.31 with the first half up. Its own 3R target failed
+  // (two losing years in seven). A dollar bet like EUR/USD below.
+  setup("GBPUSD", "GBPUSD", "liquidity-reversal", "Liquidity Reversal", "1h", { trades: 134, winRatePct: 42.5, avgR: 0.23, profitFactor: 1.38, perWeek: 0.37, maxDrawdownR: 13.5, maxLossStreak: 7, weeks: 358 }, 2),
   // MT5 6.5y: profit factor fell from 1.58 (2 years of Yahoo data) to 1.24 on
   // the platform's bars since 2020. Profitable in both halves and 6 of 7
   // years, so it stays, ranked lowest.

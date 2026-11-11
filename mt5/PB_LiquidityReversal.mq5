@@ -22,7 +22,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Playbook"
 #property version   "1.00"
-#property description "Liquidity Reversal (Playbook EUR/USD 1h). Marks equal lows/highs, sweep, shift, zone, entry, stop and target."
+#property description "Liquidity Reversal (Playbook EUR/USD 1h; GBP/USD 1h and S&P 500 4h with Fixed target 2). Marks equal lows/highs, sweep, shift, zone, entry, stop and target."
 #property indicator_chart_window
 #property indicator_plots 0
 
@@ -35,6 +35,7 @@ input int    InpObSearch   = 10;   // Zone search (candles before the sweep low)
 input double InpStopBuf    = 0.1;  // Stop buffer (x ATR)
 input double InpMinRR      = 2.0;  // Minimum reward : risk
 input int    InpTargetLook = 200;  // Target search (candles back)
+input double InpFixedRR    = 0.0;  // Fixed target (x risk, 0 = swing target). Playbook: 2 on GBPUSD H1, SPX500 4h
 input int    InpMaxSetup   = 48;   // Setup expiry (candles)
 input group "Data"
 input int    InpH1Bars     = 60000; // H1 bars of history to load
@@ -222,6 +223,8 @@ void Scan(int s, const double &o[], const double &h[], const double &l[], const 
                      if(m < highs[i].price) target = highs[i].price;
                   }
                }
+               // The swing still has to pay InpMinRR for a trade; a fixed target then replaces it.
+               if(target != DBL_MAX && InpFixedRR > 0) target = entry + InpFixedRR * risk;
                if(target != DBL_MAX) { ArrayResize(hits, nhit + 1, 64); hits[nhit].t = t; hits[nhit].stop = stop; hits[nhit].target = target; nhit++; }
                phase = 0;
             }

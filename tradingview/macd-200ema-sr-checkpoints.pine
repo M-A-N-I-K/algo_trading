@@ -10,7 +10,7 @@
 //   (3) Touch      a candle that closes above the 200 EMA has its low at or below a live support
 //   (4) Entry      within 10 candles of that touch, MACD (12, 26, 9) crosses up through its
 //                  signal line while both lines are below zero.
-//                  stop = the 200 EMA, target = entry + 1.5 x risk
+//                  stop = the 200 EMA, target = entry + 2 x risk (the Playbook's target; the strategy's own is 1.5)
 //
 // Shorts are the mirror image (resistance touch below the EMA, MACD crosses down above zero).
 //
@@ -27,7 +27,7 @@ slowLen   = input.int(26, "MACD slow", minval = 1, group = grpR)
 sigLen    = input.int(9, "MACD signal", minval = 1, group = grpR)
 k         = input.int(5, "Swing lookback (candles each side)", minval = 1, group = grpR)
 trigWin   = input.int(10, "Candles allowed between touch and crossover", minval = 0, group = grpR)
-rr        = input.float(1.5, "Target (x risk)", minval = 0.1, step = 0.1, group = grpR)
+rr        = input.float(2.0, "Target (x risk)", minval = 0.1, step = 0.1, group = grpR)
 grpC      = "Candles"
 build4h   = input.bool(true, "Build 4h candles on the UTC clock from a lower-timeframe chart (matches the app)", group = grpC)
 grpS      = "Show"

@@ -27,7 +27,7 @@ eqTol     = input.float(0.25, "Equal lows tolerance (x ATR)", minval = 0, step =
 sweepN    = input.int(3, "Candles allowed to close back above the level", minval = 1, group = grpR)
 kLine     = input.int(3, "Trend-line swing lookback (candles each side)", minval = 1, group = grpR)
 bigBody   = input.float(1.0, "Break candle body (x ATR, 0 = any)", minval = 0, step = 0.25, group = grpR)
-rr        = input.float(3.0, "Target (x risk)", minval = 0.5, step = 0.5, group = grpR)
+rr        = input.float(3.0, "Target (x risk). Playbook: 3 on NAS100 1h, 1.5 on ETH 4h", minval = 0.5, step = 0.5, group = grpR)
 grpS      = "Show"
 showLong  = input.bool(true, "Long setups", group = grpS)
 showShort = input.bool(true, "Short setups", group = grpS)

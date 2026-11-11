@@ -68,7 +68,7 @@ export const srSweepTrendlineGuide: StrategyGuide = {
 
   entry: "Enter with a market order at the open of the candle after the signal candle closes. The backtest skips the trade if that open is already past the stop or the target.",
   stop: "Long: the lowest low since the sweep minus 0.1 × ATR(14). Short: the highest high since the sweep plus 0.1 × ATR. Place it as a real stop order straight away.",
-  target: "3 × the risk from the signal close. Fixed: it doesn't look for the next level.",
+  target: "3 × the risk from the signal close. Fixed: it doesn't look for the next level. The Playbook also trades it on ETH 4h with a 1.5 × risk target (30 trades on MT5 bars since 2020, profit factor 2.83, a small sample).",
 
   manage: [
     { title: "Set and forget", detail: "Place the stop and the target right after entry. The strategy never moves them." },

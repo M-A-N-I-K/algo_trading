@@ -27,6 +27,7 @@ obSearch   = input.int(10, "Zone search (candles before sweep low)", minval = 0,
 stopBuf    = input.float(0.1, "Stop buffer (x ATR)", minval = 0, step = 0.05, group = grpR)
 minRr      = input.float(2.0, "Minimum reward : risk", minval = 0.5, step = 0.5, group = grpR)
 targetLook = input.int(200, "Target search (candles back)", minval = 1, group = grpR)
+fixedRr    = input.float(0.0, "Fixed target (x risk, 0 = the swing target). Playbook: 2 on GBP/USD 1h and S&P 500 4h", minval = 0, step = 0.5, group = grpR)
 maxSetup   = input.int(48, "Setup expiry (candles)", minval = 1, group = grpR)
 
 grpS       = "Show"
@@ -227,7 +228,8 @@ method step(Side st, float atrNow) =>
                     st.evEntry := true
                     st.entry   := e
                     st.stop    := sp
-                    st.target  := tgt
+                    // The swing still has to pay minRr for a trade; a fixed target then replaces it.
+                    st.target  := fixedRr > 0 ? e + fixedRr * risk : tgt
                 else if vis and showCancel
                     label.new(t, s * pL(s, t), "x no " + str.tostring(minRr) + "R target", color = color.new(colMuted, 100), textcolor = colMuted, style = isLong ? label.style_label_up : label.style_label_down, size = size.tiny, tooltip = "Entry candle closed, but no untouched swing " + (isLong ? "high" : "low") + " pays " + str.tostring(minRr) + "R. The app skips this trade.")
 

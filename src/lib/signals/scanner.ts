@@ -2,10 +2,11 @@ import type { OHLC } from "@/indicators/utils";
 import { parseCandlesticks } from "@/indicators/utils";
 import { fetchCandlestickHistory, intervalToMs } from "@/backtest/fetchHistory";
 import { getCandleSticks } from "@/tools/getCandlesticks";
-import { CODED_STRATEGIES, HIGHER_TIMEFRAME } from "@/strategies/registry";
+import { CODED_STRATEGIES, createCodedStrategy, HIGHER_TIMEFRAME } from "@/strategies/registry";
+import { withFixedTarget } from "@/strategies/fixedTarget";
 import { scanStrategy, type SignalRow } from "./scan";
 import { locationGrade } from "@/lib/plan/weeklyPlan";
-import { PLAYBOOK_SETUP_IDS } from "@/lib/playbook/config";
+import { activeSetupById, PLAYBOOK_SETUP_IDS } from "@/lib/playbook/config";
 import { feedLive, feedSupports, readFeedCandles } from "@/lib/mt5/feed";
 import { isMt5OnlyMarket } from "@/lib/markets/yahoo";
 
@@ -266,7 +267,27 @@ async function scan(): Promise<SignalScan> {
       // Signals only ever leave the server for qualified strategies, each
       // graded by where it sits in the previous week's range.
       if (row) rows.push(row.qualified ? withGrade(row, series.get(`${symbol}:1h`) ?? []) : { ...row, signal: null });
-      if (row && PLAYBOOK_SETUP_IDS.has(id)) playbook.push(withGrade(row, series.get(`${symbol}:1h`) ?? []));
+      if (!PLAYBOOK_SETUP_IDS.has(id)) continue;
+      // A playbook setup with its own target is scanned again with it; the
+      // Signals page keeps judging the strategy at its default.
+      const rr = activeSetupById(id)?.rr;
+      let pbRow = row;
+      if (rr !== undefined) {
+        const pbId = `${id}@${rr}R`;
+        const pbMemo = state.rows.get(pbId);
+        pbRow = pbMemo && pbMemo.stamp === candleStamp ? pbMemo.row : undefined;
+        if (pbRow === undefined) {
+          try {
+            const base = createCodedStrategy(strategyKey, htfCandles);
+            pbRow = base ? scanStrategy({ strategyKey, symbol, interval, candles, htfCandles, now, strategy: withFixedTarget(base, rr) }) : null;
+          } catch (e) {
+            errors.push(`${pbId}: ${e instanceof Error ? e.message : String(e)}`);
+            pbRow = null;
+          }
+          state.rows.set(pbId, { stamp: candleStamp, row: pbRow });
+        }
+      }
+      if (pbRow) playbook.push(withGrade(pbRow, series.get(`${symbol}:1h`) ?? []));
     }
   }
 

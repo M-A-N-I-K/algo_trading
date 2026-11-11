@@ -63,7 +63,7 @@ export const liquidityReversalGuide: StrategyGuide = {
 
   entry: "Enter at the open of the candle right after the signal candle closes, with a market order. (The video places a limit order on the zone. The backtest can only fill at the next open, so it waits for a close back out of the zone instead.)",
   stop: "Long: the sweep low minus 0.1 × ATR(14). Short: the sweep high plus 0.1 × ATR. The stop goes beyond the whole sweep, not just the zone, to give price room to wick. Place it as a real stop order straight away.",
-  target: "The next liquidity on the other side: the nearest swing high (long) or swing low (short) that price hasn't traded through yet and that is at least 2R away. If there isn't one, there's no trade.",
+  target: "The next liquidity on the other side: the nearest swing high (long) or swing low (short) that price hasn't traded through yet and that is at least 2R away. If there isn't one, there's no trade. On GBP/USD 1h and S&P 500 4h the Playbook still needs that swing to take the trade, but then aims at exactly 2 × the risk instead (tested from 1R to 4R on MT5 bars since 2020: GBP/USD 134 trades, profit factor 1.38; S&P 500 34 trades, 1.73).",
 
   manage: [
     { title: "Set and forget", detail: "Place the stop and target as orders right after entry. The strategy never moves either." },
