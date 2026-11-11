@@ -16,10 +16,11 @@ vi.mock("./config", async (importOriginal) => {
     RETIRED_SETUPS,
     PLAYBOOK_SETUP_IDS: new Set(PLAYBOOK_SETUPS.map((s) => s.id)),
     activeSetupById,
-    setupById: (id: string) => activeSetupById(id) ?? RETIRED_SETUPS.find((s) => s.id === id),
+    setupById: (id: string) => activeSetupById(id) ?? RETIRED_SETUPS.find((s) => s.id === id) ?? real.customSetup(id),
+    loggableSetupById: (id: string) => activeSetupById(id) ?? real.customSetup(id),
   };
 });
-import { accountById, lotUnits, PLAYBOOK_ACCOUNT, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "./config";
+import { accountById, customSetupId, loggableSetupById, lotUnits, PLAYBOOK_ACCOUNT, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "./config";
 import {
   accountStatus as accountStatusOn,
   adherence,
@@ -235,6 +236,17 @@ describe("pre-trade checks", () => {
   });
   it("fails a setup that isn't in the playbook", () => {
     expect(status(preTradeChecks(plan({ setupId: "vwap:ETHUSDT:5m" }), []), "setup")).toBe("fail");
+  });
+  it("takes a custom trade as a rule break that still counts on the account", () => {
+    const id = customSetupId("BTCUSDT");
+    expect(loggableSetupById(id)?.platformSymbol).toBe("BTCUSD");
+    expect(setupById(id)?.strategyName).toBe("Custom trade");
+    expect(loggableSetupById("custom:NOPE")).toBeUndefined();
+    const checks = preTradeChecks(plan({ setupId: id, side: "SHORT", entry: 73000, stop: 73500, target: 72000 }), []);
+    expect(status(checks, "setup")).toBe("fail");
+    expect(hardFailures(checks).map((c) => c.id)).toEqual(["setup"]);
+    // Its market still counts for doubling up: an open ETH short is the same crypto bet.
+    expect(status(preTradeChecks(plan({ setupId: id, side: "SHORT", entry: 73000, stop: 73500 }), [entry({ side: "SHORT" })]), "overlap")).toBe("fail");
   });
   it("fails a stop on the wrong side and oversized risk", () => {
     const checks = preTradeChecks(plan({ stop: 3050, riskAmount: 40 }), []);

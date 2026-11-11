@@ -327,7 +327,7 @@ function OpenTrades({ trades, onClose, onEdit }: { trades: JournalEntry[]; onClo
                 return (
                   <tr key={t.id}>
                     <td className={tdClass}><span className="flex flex-wrap items-center gap-1.5">{marketOf(t)} <SideTag side={t.side} /> <GradeTag grade={t.grade} />{!t.rulesFollowed && <Tag tone="loss">Rule break</Tag>}</span></td>
-                    <td className={cn(tdClass, "text-fog")}>{s ? `${s.strategyName} ${s.interval}` : t.setupId}</td>
+                    <td className={cn(tdClass, "text-fog")}>{s ? `${s.strategyName} ${s.interval}`.trim() : t.setupId}</td>
                     <td className={cn(tdClass, "tabular-nums")}>{p(t.entryPrice)}</td>
                     <td className={cn(tdClass, "tabular-nums text-loss-ink")}>{p(t.stopLoss)}</td>
                     <td className={cn(tdClass, "tabular-nums text-gain-ink")}>{p(t.takeProfit)}</td>
@@ -366,7 +366,7 @@ function History({ trades, onEdit }: { trades: JournalEntry[]; onEdit: (t: Journ
                   <tr key={t.id}>
                     <td className={cn(tdClass, "whitespace-nowrap text-fog")}>{t.exitTime ? date.format(t.exitTime) : "—"}</td>
                     <td className={tdClass}><span className="flex flex-wrap items-center gap-1.5">{marketOf(t)} <SideTag side={t.side} /> <GradeTag grade={t.grade} /></span></td>
-                    <td className={cn(tdClass, "text-fog")}>{s ? `${s.strategyName} ${s.interval}` : t.setupId}</td>
+                    <td className={cn(tdClass, "text-fog")}>{s ? `${s.strategyName} ${s.interval}`.trim() : t.setupId}</td>
                     <td className={cn(tdClass, "tabular-nums", toneClass(t.rMultiple ?? 0))}>{t.rMultiple !== null ? r(t.rMultiple) : "—"}</td>
                     <td className={cn(tdClass, "tabular-nums", toneClass(t.pnl ?? 0))}>
                       {t.pnl !== null ? money(t.pnl) : "—"}

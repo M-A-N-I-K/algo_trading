@@ -212,8 +212,43 @@ export const RETIRED_SETUPS: PlaybookSetup[] = [
 export const PLAYBOOK_SIGNALS_PER_WEEK = PLAYBOOK_SETUPS.reduce((a, s) => a + s.baseline.perWeek, 0);
 
 export const PLAYBOOK_SETUP_IDS: ReadonlySet<string> = new Set(PLAYBOOK_SETUPS.map((s) => s.id));
-/** Any setup, retired ones included: for showing logged trades. */
-export const setupById = (id: string) => PLAYBOOK_SETUPS.find((s) => s.id === id) ?? RETIRED_SETUPS.find((s) => s.id === id);
+// Markets a custom trade (one that isn't a playbook setup) can be logged on:
+// every market the accounts trade. App data symbol, then the platform's name.
+export const CUSTOM_MARKETS: readonly { symbol: string; platformSymbol: string }[] = [
+  ["XAUUSDT", "XAUUSD"], ["XAGUSDT", "XAGUSD"], ["BTCUSDT", "BTCUSD"], ["ETHUSDT", "ETHUSD"],
+  ["NAS100", "NDX100"], ["SPX500", "SPX500"], ["FTSE100", "FTSE100"], ["UKOIL", "UKOIL"],
+  ["EURUSD", "EURUSD"], ["GBPUSD", "GBPUSD"], ["USDJPY", "USDJPY"], ["AUDUSD", "AUDUSD"], ["USDCAD", "USDCAD"],
+  ["USDCHF", "USDCHF"], ["NZDUSD", "NZDUSD"], ["EURJPY", "EURJPY"], ["GBPAUD", "GBPAUD"],
+].map(([symbol, platformSymbol]) => ({ symbol, platformSymbol }));
+
+export const CUSTOM_PREFIX = "custom:";
+export const customSetupId = (symbol: string) => `${CUSTOM_PREFIX}${symbol}`;
+export const isCustomSetupId = (id: string) => id.startsWith(CUSTOM_PREFIX);
+
+/**
+ * A custom trade as a setup, so it's logged, sized and counted against the
+ * account like any other. It has no backtest and no signals; taking one
+ * breaks the "playbook setup" rule, so it needs a reason.
+ */
+export function customSetup(id: string): PlaybookSetup | undefined {
+  if (!isCustomSetupId(id)) return undefined;
+  const m = CUSTOM_MARKETS.find((x) => x.symbol === id.slice(CUSTOM_PREFIX.length));
+  if (!m) return undefined;
+  return {
+    id,
+    symbol: m.symbol,
+    platformSymbol: m.platformSymbol,
+    strategy: "custom",
+    strategyName: "Custom trade",
+    interval: "",
+    baseline: { trades: 0, winRatePct: 0, avgR: 0, profitFactor: 0, perWeek: 0, maxDrawdownR: 0, maxLossStreak: 0, weeks: 0 },
+  };
+}
+
+/** Any setup, retired and custom ones included: for showing logged trades. */
+export const setupById = (id: string) => PLAYBOOK_SETUPS.find((s) => s.id === id) ?? RETIRED_SETUPS.find((s) => s.id === id) ?? customSetup(id);
+/** What a new trade can be logged on: a playbook setup or a custom trade. */
+export const loggableSetupById = (id: string) => activeSetupById(id) ?? customSetup(id);
 /** Only setups that still trade: for signals and new trades. */
 export const activeSetupById = (id: string) => PLAYBOOK_SETUPS.find((s) => s.id === id);
 

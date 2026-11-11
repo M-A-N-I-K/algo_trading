@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, CircleAlert, CircleX } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button, Callout, Field, Segmented, SelectInput, TextArea, TextInput, money, signedNumber, toneClass } from "@/components/kit";
-import { lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_SETUPS, activeSetupById, setupById, type PlaybookAccount } from "@/lib/playbook/config";
+import { CUSTOM_MARKETS, customSetupId, isCustomSetupId, lotUnits, loggableSetupById, MANUAL_CHECKS, MISTAKES, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "@/lib/playbook/config";
 import { hardFailures, pnlUsd, preTradeChecks, riskBudget, sizePosition, usdPerUnitMove, type Check, type Grade, type JournalEntry, type Side } from "@/lib/playbook/rules";
 import { roundTripCostPerUnitUsd } from "@/lib/costs/fundingpips";
 import { fmtPrice } from "@/lib/plan/weeklyPlan";
@@ -86,7 +86,7 @@ export function PlanTradeDialog({ open, onClose, defaults, entries, account, sto
 
 function PlanTradeForm({ defaults, entries, account, stoppedElsewhere, onDone }: { defaults: PlanDefaults; entries: JournalEntry[]; account: PlaybookAccount; stoppedElsewhere: string[]; onDone: () => void }) {
   const refresh = useRefresh();
-  const [setupId, setSetupId] = useState(activeSetupById(defaults.setupId ?? "")?.id ?? PLAYBOOK_SETUPS[0].id);
+  const [setupId, setSetupId] = useState(loggableSetupById(defaults.setupId ?? "")?.id ?? PLAYBOOK_SETUPS[0].id);
   const [side, setSide] = useState<Side>(defaults.side ?? "LONG");
   const [grade, setGrade] = useState<"A" | "B" | "none">(defaults.grade ?? "none");
   const [entry, setEntry] = useState(defaults.entry !== undefined ? String(defaults.entry) : "");
@@ -97,7 +97,8 @@ function PlanTradeForm({ defaults, entries, account, stoppedElsewhere, onDone }:
   const [notes, setNotes] = useState("");
   const [override, setOverride] = useState("");
 
-  const setup = activeSetupById(setupId) ?? PLAYBOOK_SETUPS[0];
+  const setup = loggableSetupById(setupId) ?? PLAYBOOK_SETUPS[0];
+  const custom = isCustomSetupId(setup.id);
   const g: Grade | null = grade === "none" ? null : grade;
   const budget = riskBudget(setup.symbol, g, account);
   const e = n(entry), s = n(stop), t = n(target);
@@ -160,13 +161,27 @@ function PlanTradeForm({ defaults, entries, account, stoppedElsewhere, onDone }:
       </DialogHeader>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Setup" htmlFor="pb-setup" className="sm:col-span-2">
+        <Field
+          label="Setup"
+          htmlFor="pb-setup"
+          className="sm:col-span-2"
+          hint={custom ? "A custom trade has no backtest behind it, so it's logged as a rule break and needs a reason. It still counts toward this account's balance, daily loss and open risk." : undefined}
+        >
           <SelectInput id="pb-setup" value={setupId} onChange={(ev) => { setSetupId(ev.target.value); setLotsText(null); }}>
-            {PLAYBOOK_SETUPS.map((x) => (
-              <option key={x.id} value={x.id}>
-                {x.platformSymbol} · {x.strategyName} · {x.interval}
-              </option>
-            ))}
+            <optgroup label="Playbook setups">
+              {PLAYBOOK_SETUPS.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.platformSymbol} · {x.strategyName} · {x.interval}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Custom trade (not in the playbook)">
+              {CUSTOM_MARKETS.map((m) => (
+                <option key={m.symbol} value={customSetupId(m.symbol)}>
+                  {m.platformSymbol} · Custom trade
+                </option>
+              ))}
+            </optgroup>
           </SelectInput>
         </Field>
         <Field label="Direction">

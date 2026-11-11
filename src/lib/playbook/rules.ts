@@ -7,6 +7,7 @@ import {
   MISTAKES,
   PLAYBOOK_ACCOUNT,
   activeSetupById,
+  customSetup,
   PLAYBOOK_SETUPS,
   RETIRED_SETUPS,
   setupById,
@@ -254,9 +255,21 @@ export function preTradeChecks(plan: TradePlan, entries: JournalEntry[], account
     checks.push({ id, label, status: ok === "warn" ? "warn" : ok ? "pass" : "fail", detail, hard });
 
   const setup = activeSetupById(plan.setupId);
-  const retired = setup ? undefined : setupById(plan.setupId)?.retired;
-  const symbol = setup?.symbol ?? "";
-  add("setup", "A playbook setup", Boolean(setup), setup ? `${setup.strategyName} on ${setup.platformSymbol} ${setup.interval}` : retired ? `Retired: ${retired}.` : "This strategy and market aren't in the playbook.");
+  const custom = setup ? undefined : customSetup(plan.setupId);
+  const retired = setup || custom ? undefined : setupById(plan.setupId)?.retired;
+  const symbol = (setup ?? custom)?.symbol ?? "";
+  add(
+    "setup",
+    "A playbook setup",
+    Boolean(setup),
+    setup
+      ? `${setup.strategyName} on ${setup.platformSymbol} ${setup.interval}`
+      : custom
+        ? `Custom trade on ${custom.platformSymbol}: no backtest behind it.`
+        : retired
+          ? `Retired: ${retired}.`
+          : "This strategy and market aren't in the playbook.",
+  );
 
   const budget = riskBudget(symbol, plan.grade, account);
   if (budget.skip) add("grade", "Grade", false, budget.skip);
@@ -277,7 +290,7 @@ export function preTradeChecks(plan: TradePlan, entries: JournalEntry[], account
   const open = entries.filter((e) => e.status === "OPEN");
   add("slots", "A free slot", open.length < rules.maxOpen, `${open.length} of ${rules.maxOpen} trades open`);
 
-  if (setup) {
+  if (symbol) {
     const sameMarket = open.find((e) => e.symbol === symbol);
     const keys = exposureKeys(symbol, plan.side);
     const overlap = open.find((e) => e.symbol !== symbol && exposureKeys(e.symbol, e.side).some((k) => keys.includes(k)));

@@ -2,7 +2,7 @@ import type { PlaybookTrade } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { appError } from "@/lib/errors";
 import { loadFeedSpecs } from "@/lib/mt5/feed";
-import { accountById, lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, activeSetupById, setupById, type PlaybookAccount } from "./config";
+import { accountById, lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, loggableSetupById, setupById, type PlaybookAccount } from "./config";
 import { accountStatus, adherence, hardFailures, preTradeChecks, scorecard, usdPerUnitMove, type AccountStatus, type Check, type JournalEntry } from "./rules";
 
 // Database side of the playbook journal: loading entries, opening a trade
@@ -169,8 +169,8 @@ const MT5_SPEC_NEEDED = "This market is sized from MT5's contract spec. Attach t
  */
 export async function openTrade(userId: string, body: Body, now = Date.now()): Promise<OpenResult> {
   const accountId = pickAccount(body.accountId).id;
-  const setup = activeSetupById(str(body, "setupId"));
-  if (!setup) throw appError("INVALID_INPUT", setupById(str(body, "setupId"))?.retired ? "That setup is retired. Pick one of the playbook setups." : "Pick one of the playbook setups.");
+  const setup = loggableSetupById(str(body, "setupId"));
+  if (!setup) throw appError("INVALID_INPUT", setupById(str(body, "setupId"))?.retired ? "That setup is retired. Pick one of the playbook setups or a custom trade." : "Pick one of the playbook setups or a custom trade.");
   const side = str(body, "side") === "SHORT" ? "SHORT" : "LONG";
   const g = str(body, "grade");
   const grade = g === "A" || g === "B" ? g : null;
