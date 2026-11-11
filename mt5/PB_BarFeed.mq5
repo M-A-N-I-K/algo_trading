@@ -1,22 +1,22 @@
 //+------------------------------------------------------------------+
 //| PB_BarFeed.mq5 — live candle feed for the AuraJournal scanner    |
 //|                                                                  |
-//| A service (Navigator → Services → right-click → Add Service): it |
-//| runs in the background with no chart. Every few seconds it       |
+//| An Expert Advisor: drag it onto ANY one chart (EURUSD H1 is      |
+//| fine) and leave that chart open. It places no trades and works   |
+//| with Algo Trading switched off. Every few seconds it             |
 //| writes each symbol's CLOSED bars to                              |
 //|   MQL5/Files/PlaybookFeed/<SYMBOL>_<TF>.csv                      |
 //| in the same layout as View → Symbols → Bars → Export Bars        |
 //| (<DATE> <TIME> <OPEN> <HIGH> <LOW> <CLOSE> <TICKVOL> <VOL>       |
 //| <SPREAD>, server time), plus heartbeat.txt and symbols.csv (each |
-//| symbol's contract size and $ per tick, for position sizing).     | The app reads these  |
-//| files instead of Yahoo/Binance while heartbeat.txt is fresh, so  |
+//| symbol's contract size and $ per tick, for position sizing).     |
+//| The app reads these files instead of Yahoo/Binance while heartbeat.txt is fresh, so  |
 //| signals are priced off the broker's own feed.                    |
 //| A file is rewritten only when a new bar has closed, and written  |
 //| to a .tmp first then moved, so the app never reads half a file.  |
 //+------------------------------------------------------------------+
-#property service
 #property copyright "AuraJournal"
-#property version   "1.10"
+#property version   "1.20"
 
 input string InpSymbols   = "XAUUSD,XAGUSD,BTCUSD,ETHUSD,EURUSD,GBPUSD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD,NDX100,SPX500,EURJPY,GBPAUD,FTSE100,UKOIL"; // Broker symbols (missing ones are skipped)
 input bool   InpM5        = false;  // Write M5
@@ -34,6 +34,7 @@ ENUM_TIMEFRAMES  g_tf[];
 string           g_tfName[];
 int              g_bars[];
 datetime         g_last[];   // last closed bar written, per symbol × timeframe
+int              g_count[];  // bars written then (more arrive while MT5 downloads history)
 bool             g_warned[]; // "not available" logged once per symbol
 
 void AddTf(bool on, ENUM_TIMEFRAMES tf, string name, int bars)
@@ -59,7 +60,8 @@ bool WriteSeries(int s, int k)
    // Index 0 is the bar still forming: start at 1 so only closed bars go out.
    datetime t[];
    if(CopyTime(sym, tf, 1, 1, t) != 1) return false;
-   if(t[0] == g_last[slot]) return true;
+   int avail = MathMin(Bars(sym, tf) - 1, g_bars[k]);
+   if(t[0] == g_last[slot] && avail <= g_count[slot]) return true;
 
    MqlRates r[];
    ArraySetAsSeries(r, false);
@@ -96,6 +98,7 @@ bool WriteSeries(int s, int k)
       return false;
    }
    g_last[slot] = r[got - 1].time;
+   g_count[slot] = got;
    return true;
 }
 
@@ -138,8 +141,14 @@ void WriteHeartbeat(int live)
    FileMove(DIR + "heartbeat.tmp", 0, DIR + "heartbeat.txt", FILE_REWRITE);
 }
 
-void OnStart()
+int g_loops = 0;
+
+int OnInit()
 {
+   ArrayResize(g_sym, 0);
+   ArrayResize(g_tf, 0);
+   ArrayResize(g_tfName, 0);
+   ArrayResize(g_bars, 0);
    string parts[];
    int n = StringSplit(InpSymbols, ',', parts);
    for(int i = 0; i < n; i++)
@@ -159,31 +168,43 @@ void OnStart()
    int slots = ArraySize(g_sym) * ArraySize(g_tf);
    ArrayResize(g_last, slots);
    ArrayInitialize(g_last, 0);
+   ArrayResize(g_count, slots);
+   ArrayInitialize(g_count, 0);
    ArrayResize(g_warned, ArraySize(g_sym));
    ArrayInitialize(g_warned, false);
+   g_loops = 0;
    FolderCreate("PlaybookFeed");
    PrintFormat("PB_BarFeed: %d symbols × %d timeframes → MQL5\\Files\\%s", ArraySize(g_sym), ArraySize(g_tf), DIR);
-
-   int loops = 0;
-   while(!IsStopped())
-   {
-      int live = 0;
-      for(int s = 0; s < ArraySize(g_sym) && !IsStopped(); s++)
-      {
-         if(!SymbolSelect(g_sym[s], true))
-         {
-            if(!g_warned[s]) PrintFormat("PB_BarFeed: %s is not offered by this broker, skipped", g_sym[s]);
-            g_warned[s] = true;
-            continue;
-         }
-         bool ok = true;
-         for(int k = 0; k < ArraySize(g_tf); k++)
-            if(!WriteSeries(s, k)) ok = false;
-         if(ok) live++;
-      }
-      // Tick values move with exchange rates: refresh them about once a minute.
-      if(loops++ % MathMax(1, 60 / MathMax(1, InpSeconds)) == 0) WriteSpecs();
-      WriteHeartbeat(live);
-      Sleep(MathMax(1, InpSeconds) * 1000);
-   }
+   EventSetTimer(MathMax(1, InpSeconds));
+   OnTimer(); // first write now, not in 10 seconds
+   return INIT_SUCCEEDED;
 }
+
+void OnDeinit(const int reason)
+{
+   EventKillTimer();
+}
+
+void OnTimer()
+{
+   int live = 0;
+   for(int s = 0; s < ArraySize(g_sym) && !IsStopped(); s++)
+   {
+      if(!SymbolSelect(g_sym[s], true))
+      {
+         if(!g_warned[s]) PrintFormat("PB_BarFeed: %s is not offered by this broker, skipped", g_sym[s]);
+         g_warned[s] = true;
+         continue;
+      }
+      bool ok = true;
+      for(int k = 0; k < ArraySize(g_tf); k++)
+         if(!WriteSeries(s, k)) ok = false;
+      if(ok) live++;
+   }
+   // Tick values move with exchange rates: refresh them about once a minute.
+   if(g_loops++ % MathMax(1, 60 / MathMax(1, InpSeconds)) == 0) WriteSpecs();
+   WriteHeartbeat(live);
+}
+
+// Bars come from the timer, not from this chart's ticks.
+void OnTick() {}

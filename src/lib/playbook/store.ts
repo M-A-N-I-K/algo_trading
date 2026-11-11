@@ -159,7 +159,7 @@ export interface OpenResult {
 }
 
 // FTSE 100 (quoted in pounds) is sized from the MT5 terminal's symbol spec.
-const MT5_SPEC_NEEDED = "This market is sized from MT5's contract spec. Start the PB_BarFeed service in MT5 and try again.";
+const MT5_SPEC_NEEDED = "This market is sized from MT5's contract spec. Attach the PB_BarFeed expert to a chart in MT5 and try again.";
 
 /**
  * Logs a trade from the playbook. The checks are rerun here against the

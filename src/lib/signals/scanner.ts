@@ -13,7 +13,7 @@ import { isMt5OnlyMarket } from "@/lib/markets/yahoo";
 // pass QUALIFY_RULE (src/lib/signals/scan.ts) on a market send signals. Every request refreshes
 // the candles that have closed since the last one (one small Binance call
 // per series), then rescans only the strategies whose candles changed.
-// While the MT5 terminal's PB_BarFeed service is running (src/lib/mt5/feed.ts)
+// While the MT5 terminal's PB_BarFeed expert is running (src/lib/mt5/feed.ts)
 // candles come from the broker's own feed instead, read from local files.
 // Everything lives in memory: the first request after the server starts
 // downloads the full history (about 30 seconds), later ones are quick.

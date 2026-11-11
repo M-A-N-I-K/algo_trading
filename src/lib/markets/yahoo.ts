@@ -32,7 +32,7 @@ export const YAHOO_MARKETS: Record<string, { yahoo: string; kind: YahooKind; lab
 
 // Markets only the MT5 terminal's feed carries (src/lib/mt5/feed.ts): no free
 // web source has the broker's FTSE 100 or Brent CFD, so they're scanned only
-// while the PB_BarFeed service runs. Named as the platform names them.
+// while the PB_BarFeed expert runs. Named as the platform names them.
 export type Mt5Kind = YahooKind | "commodity";
 export const MT5_ONLY_MARKETS: Record<string, { kind: Mt5Kind; label: string }> = {
   EURJPY: { kind: "forex", label: "EUR/JPY" },

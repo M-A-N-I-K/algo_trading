@@ -108,16 +108,17 @@ The indicators load 60,000 H1 bars by default (about 9 years). If your terminal 
 
 ## Live candle feed (PB_BarFeed)
 
-`PB_BarFeed.mq5` is a **service**, not an indicator: it runs in the background
-with no chart and feeds your broker's candles to the app's Signals and
-Playbook scanners, so their entries and stops are in the prices you actually
-trade (NDX100 CFD rather than the Nasdaq future Yahoo serves, XAUUSD rather
-than Binance's gold token).
+`PB_BarFeed.mq5` is an **Expert Advisor** that places no trades: it feeds your
+broker's candles to the app's Signals and Playbook scanners, so their entries
+and stops are in the prices you actually trade (NDX100 CFD rather than the
+Nasdaq future Yahoo serves, XAUUSD rather than Binance's gold token). (It began
+as a service, but MT5 for Mac didn't offer Add Service for it.)
 
-1. Copy `PB_BarFeed.mq5` into `MQL5/Services/` (File → Open Data Folder) and
+1. Copy `PB_BarFeed.mq5` into `MQL5/Experts/` (File → Open Data Folder) and
    compile it, or use the `.ex5` already there.
-2. Navigator → **Services** → right-click **PB_BarFeed** → **Add Service** →
-   OK. It starts at once and restarts with the terminal.
+2. Open any one chart (EURUSD H1 is fine) and drag **PB_BarFeed** from
+   Navigator → Expert Advisors onto it → OK. Leave that chart open; it doesn't
+   matter which symbol it shows. Algo Trading can stay off: it only writes files.
 3. The Experts tab shows `PB_BarFeed: 17 symbols × 2 timeframes …`. Symbols your
    broker doesn't offer are logged once and skipped.
 
@@ -137,9 +138,6 @@ source has these CFDs, so the app scans them only while the service runs. The
 FTSE 100 Smart Money Concepts 4h setup is in the Playbook on that basis: no
 feed, no FTSE signals and no FTSE sizing. `PB_SMC.mq5` on an FTSE100 1h chart
 marks the same trades.
-
-If you added the service before version 1.10, remove it and add it again so it
-picks up the new `.ex5`.
 
 The app uses the feed while `heartbeat.txt` is under two minutes old and falls
 back to Binance/Yahoo otherwise (starting those series again from scratch, never

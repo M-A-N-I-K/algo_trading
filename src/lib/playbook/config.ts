@@ -155,7 +155,7 @@ export const PLAYBOOK_SETUPS: PlaybookSetup[] = [
   // neighbouring rule settings made money on both grids. But only 27 trades,
   // short of the 30-plus the other setups have, so the true edge is far less
   // certain than the numbers say: ranked below the longer-tested setups.
-  // Scanned only while the MT5 PB_BarFeed service runs (no web source has
+  // Scanned only while the MT5 PB_BarFeed expert runs (no web source has
   // this CFD); sized from the terminal's own contract spec.
   setup("FTSE100", "FTSE100", "smc", "Smart Money Concepts", "4h", { trades: 27, winRatePct: 51.9, avgR: 1.0, profitFactor: 3.03, perWeek: 0.16, maxDrawdownR: 4.1, maxLossStreak: 4, weeks: 174 }),
   // MT5 6.5y: profit factor fell from 1.58 (2 years of Yahoo data) to 1.24 on

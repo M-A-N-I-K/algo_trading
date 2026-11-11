@@ -6,7 +6,7 @@ import { parseMt5Bars, resampleBars } from "@/backtest/mt5Bars";
 import { platformSymbol } from "@/lib/costs/fundingpips";
 import { parseSpecs, registerSpecs, type SymbolSpec } from "./specs";
 
-// Live candles from the MT5 terminal on this machine. The PB_BarFeed service
+// Live candles from the MT5 terminal on this machine. The PB_BarFeed expert
 // (mt5/PB_BarFeed.mq5) writes each symbol's closed bars to
 // MQL5/Files/PlaybookFeed/<SYMBOL>_<TF>.csv and touches heartbeat.txt every
 // few seconds. While the heartbeat is fresh the scanner reads these instead of
@@ -37,7 +37,7 @@ export const feedFile = (symbol: string, interval: string, dir = MT5_FEED_DIR): 
   return src ? join(dir, `${platformSymbol(symbol)}_${src.tf}.csv`) : null;
 };
 
-/** Is the PB_BarFeed service running (heartbeat written in the last two minutes)? */
+/** Is the PB_BarFeed expert running (heartbeat written in the last two minutes)? */
 export async function feedLive(now = Date.now(), dir = MT5_FEED_DIR): Promise<boolean> {
   try {
     const s = await stat(join(dir, "heartbeat.txt"));

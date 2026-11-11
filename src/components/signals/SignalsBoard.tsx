@@ -468,7 +468,7 @@ function FeedNote({ sources }: { sources: Record<string, CandleSource> }) {
     <p className="mt-1 max-w-[80ch] text-xs leading-relaxed text-fog">
       {mt5.length > 0
         ? `Candles from your MT5 terminal for ${mt5.map((s) => marketOf(s).label).join(", ")}; the rest from Binance and Yahoo Finance.`
-        : "Candles from Binance and Yahoo Finance. Start the PB_BarFeed service in MT5 to use your broker's own prices."}
+        : "Candles from Binance and Yahoo Finance. Attach the PB_BarFeed expert to a chart in MT5 to use your broker's own prices."}
     </p>
   );
 }
