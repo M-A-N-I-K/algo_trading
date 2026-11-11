@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { appError } from "@/lib/errors";
 import { loadFeedSpecs } from "@/lib/mt5/feed";
 import { accountById, lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, loggableSetupById, setupById, type PlaybookAccount } from "./config";
+import { journalToEntry } from "./journalLink";
 import { accountStatus, adherence, hardFailures, preTradeChecks, scorecard, usdPerUnitMove, type AccountStatus, type Check, type JournalEntry } from "./rules";
 
 // Database side of the playbook journal: loading entries, opening a trade
@@ -47,10 +48,14 @@ export function pickAccount(id: unknown): PlaybookAccount {
   return account;
 }
 
-/** Every trade this user logged, on every account, newest first. */
+/** Every trade this user logged, on every account, newest first: Playbook trades plus journal trades linked to an account. */
 export async function loadEntries(userId: string): Promise<JournalEntry[]> {
-  const rows = await prisma.playbookTrade.findMany({ where: { userId }, orderBy: { entryTime: "desc" } });
-  return rows.map(toEntry);
+  const [rows, linked] = await Promise.all([
+    prisma.playbookTrade.findMany({ where: { userId }, orderBy: { entryTime: "desc" } }),
+    prisma.trade.findMany({ where: { userId, playbookAccountId: { not: null } } }),
+  ]);
+  const fromJournal = linked.map(journalToEntry).filter((e): e is JournalEntry => e !== null);
+  return [...rows.map(toEntry), ...fromJournal].sort((a, b) => b.entryTime - a.entryTime);
 }
 
 const priorPnlsOf = (v: unknown): Record<string, number> =>
@@ -99,11 +104,12 @@ export async function setPlatformBalance(userId: string, body: Body): Promise<Pl
   const account = pickAccount(body.accountId);
   const balance = num(body, "balance")!;
   if (balance <= 0) throw appError("INVALID_INPUT", "Enter the balance your platform shows.");
-  const [closed, user] = await Promise.all([
+  const [closed, linked, user] = await Promise.all([
     prisma.playbookTrade.aggregate({ where: { userId, accountId: account.id, status: "CLOSED" }, _sum: { pnl: true } }),
+    prisma.trade.aggregate({ where: { userId, playbookAccountId: account.id }, _sum: { pnl: true } }),
     prisma.user.findUnique({ where: { id: userId }, select: { playbookPriorPnls: true } }),
   ]);
-  const priorPnl = Math.round((balance - account.size - (closed._sum.pnl ?? 0)) * 100) / 100;
+  const priorPnl = Math.round((balance - account.size - (closed._sum.pnl ?? 0) - (linked._sum.pnl ?? 0)) * 100) / 100;
   const prior = { ...priorPnlsOf(user?.playbookPriorPnls), [account.id]: priorPnl };
   await prisma.user.update({ where: { id: userId }, data: { playbookPriorPnls: prior } });
   return account;

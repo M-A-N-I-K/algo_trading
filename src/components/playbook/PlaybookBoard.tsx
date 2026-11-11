@@ -380,7 +380,13 @@ function History({ trades, onEdit }: { trades: JournalEntry[]; onEdit: (t: Journ
                         {t.mistakes.map((m) => <Tag key={m} tone="fees">{mistakeLabel(m)}</Tag>)}
                       </span>
                     </td>
-                    <td className={cn(tdClass, "text-right")}><Button size="sm" variant="ghost" onClick={() => onEdit(t)}>Review</Button></td>
+                    <td className={cn(tdClass, "text-right")}>
+                      {t.source === "journal" ? (
+                        <a href="/trades" className="text-[13px] text-fog underline-offset-2 hover:underline">From Trades page</a>
+                      ) : (
+                        <Button size="sm" variant="ghost" onClick={() => onEdit(t)}>Review</Button>
+                      )}
+                    </td>
                   </tr>
                 );
               })}

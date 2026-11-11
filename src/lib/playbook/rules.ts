@@ -48,6 +48,9 @@ export interface JournalEntry {
   exitReason: string | null;
   mistakes: string[];
   notes: string;
+  // "journal": a trade logged on the Trades page and linked to this account.
+  // Counted like any other; edited there, not here.
+  source?: "journal";
 }
 
 /* ---------- the firm's clock ---------- */

@@ -221,6 +221,14 @@ export const CUSTOM_MARKETS: readonly { symbol: string; platformSymbol: string }
   ["USDCHF", "USDCHF"], ["NZDUSD", "NZDUSD"], ["EURJPY", "EURJPY"], ["GBPAUD", "GBPAUD"],
 ].map(([symbol, platformSymbol]) => ({ symbol, platformSymbol }));
 
+const MARKET_ALIASES: Record<string, string> = { US100: "NAS100", USTEC: "NAS100", NDX100: "NAS100", US500: "SPX500", UK100: "FTSE100", BRENT: "UKOIL" };
+/** The market behind a symbol as typed in the journal (BTCUSD, XAUUSD, NDX100, ETHUSDT…). */
+export function marketForSymbol(raw: string): { symbol: string; platformSymbol: string } | undefined {
+  const s = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const key = MARKET_ALIASES[s] ?? s;
+  return CUSTOM_MARKETS.find((m) => m.symbol === key || m.platformSymbol === key || m.symbol === `${key}T`);
+}
+
 export const CUSTOM_PREFIX = "custom:";
 export const customSetupId = (symbol: string) => `${CUSTOM_PREFIX}${symbol}`;
 export const isCustomSetupId = (id: string) => id.startsWith(CUSTOM_PREFIX);

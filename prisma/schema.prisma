@@ -146,6 +146,11 @@ model Trade {
   // trips use "rt:<positionId>:<firstFillId>". Null for manually-entered trades.
   externalId    String?
 
+  // Prop account (src/lib/playbook/config.ts PLAYBOOK_ACCOUNTS id) this trade
+  // was taken on. Linked trades count in that account's Playbook balance,
+  // daily loss and history. Null = not a prop-account trade.
+  playbookAccountId String?
+
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId        String
   createdAt     DateTime @default(now())

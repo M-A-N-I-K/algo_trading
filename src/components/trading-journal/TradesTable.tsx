@@ -6,6 +6,7 @@ import { holdMinutesOf, rMultipleOf } from "@/lib/journal/metrics";
 import { duration, money, signedNumber, toneClass } from "@/components/viz/shared";
 import { Tag } from "@/components/kit";
 import { STRATEGY_CATALOG } from "@/lib/strategyCatalog";
+import { accountById } from "@/lib/playbook/config";
 
 const STRATEGY_LABEL = new Map<string, string>(STRATEGY_CATALOG.map((s) => [s.value, s.label]));
 
@@ -94,6 +95,12 @@ export default function TradesTable({
                 <td className="py-2.5 pr-4">
                   <span className="font-medium text-paper">{t.symbol}</span>{" "}
                   <Tag tone={t.side === "LONG" ? "gain" : "loss"}>{t.side === "LONG" ? "Long" : "Short"}</Tag>
+                  {t.playbookAccountId && (
+                    <>
+                      {" "}
+                      <Tag tone="neutral">{accountById(t.playbookAccountId)?.name ?? t.playbookAccountId}</Tag>
+                    </>
+                  )}
                   {t.exitType && t.exitType !== "tpsl" && (
                     <>
                       {" "}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { authenticateRequest, authChallengeResponse } from "@/lib/auth";
+import { linkedRisk, parsePlaybookAccountId } from "@/lib/playbook/journalLink";
 
 export async function GET(request: NextRequest) {
   const user = await authenticateRequest(request);
@@ -32,6 +33,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing time or symbol" }, { status: 400 });
     }
 
+    // A prop-account trade: quantity is the platform's lots, so risk comes
+    // from the contract size, not entry−stop × quantity.
+    let playbookAccountId: string | null;
+    try {
+      playbookAccountId = parsePlaybookAccountId(data.playbookAccountId);
+    } catch (e) {
+      return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+    }
+    const stop = data.stopLoss !== undefined && data.stopLoss !== null ? parseFloat(data.stopLoss) : null;
+    const risk = playbookAccountId
+      ? linkedRisk(data.symbol, parseFloat(data.entryPrice), stop, parseFloat(data.quantity))
+      : data.initialRiskAmount !== undefined && data.initialRiskAmount !== null ? parseFloat(data.initialRiskAmount) : null;
+
     if (data.id) {
       // Update existing trade
       // Verify ownership
@@ -56,8 +70,9 @@ export async function POST(request: NextRequest) {
           exitPrice: parseFloat(data.exitPrice),
           strategy: data.strategy,
           notes: data.notes || "",
-          stopLoss: data.stopLoss !== undefined && data.stopLoss !== null ? parseFloat(data.stopLoss) : null,
-          initialRiskAmount: data.initialRiskAmount !== undefined && data.initialRiskAmount !== null ? parseFloat(data.initialRiskAmount) : null
+          stopLoss: stop,
+          initialRiskAmount: risk,
+          playbookAccountId
         }
       });
       return NextResponse.json(updated);
@@ -77,8 +92,9 @@ export async function POST(request: NextRequest) {
         exitPrice: parseFloat(data.exitPrice),
         strategy: data.strategy || user.defaultStrategy,
         notes: data.notes || "",
-        stopLoss: data.stopLoss !== undefined && data.stopLoss !== null ? parseFloat(data.stopLoss) : null,
-        initialRiskAmount: data.initialRiskAmount !== undefined && data.initialRiskAmount !== null ? parseFloat(data.initialRiskAmount) : null,
+        stopLoss: stop,
+        initialRiskAmount: risk,
+        playbookAccountId,
         userId: user.id
       }
     });

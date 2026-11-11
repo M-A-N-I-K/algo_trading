@@ -7,6 +7,7 @@ import {
   DialogTitle
 } from "@/components/ui/dialog";
 import { STRATEGY_CATALOG } from "@/lib/strategyCatalog";
+import { PLAYBOOK_ACCOUNTS } from "@/lib/playbook/config";
 import { useDashboard } from "@/components/trading-journal/DashboardContext";
 import { Button, Field, Segmented, SelectInput, TextArea, TextInput, toneClass } from "@/components/kit";
 
@@ -28,6 +29,7 @@ interface Trade {
   stopLoss?: number | null;
   initialRiskAmount?: number | null;
   tags?: string[];
+  playbookAccountId?: string | null;
 }
 
 interface TradeFormModalProps {
@@ -58,6 +60,7 @@ export default function TradeFormModal({
   const [stopLoss, setStopLoss] = useState("");
   const [tags, setTags] = useState("");
   const [riskPercent, setRiskPercent] = useState("1");
+  const [account, setAccount] = useState(""); // "" = not a prop-account trade
 
   // Synchronize form states on activeTrade change
   useEffect(() => {
@@ -87,6 +90,7 @@ export default function TradeFormModal({
       setNotes(activeTrade.notes || "");
       setStopLoss(activeTrade.stopLoss != null ? activeTrade.stopLoss.toString() : "");
       setTags((activeTrade.tags || []).join(", "));
+      setAccount(activeTrade.playbookAccountId ?? "");
     } else {
       const d = new Date();
       const tzOffset = d.getTimezoneOffset() * 60000;
@@ -105,6 +109,7 @@ export default function TradeFormModal({
       setStopLoss("");
       setTags("");
       setRiskPercent("1");
+      setAccount("");
     }
   }, [activeTrade, isOpen]);
 
@@ -155,7 +160,8 @@ export default function TradeFormModal({
       notes,
       stopLoss: !isNaN(stopNum) && stopNum > 0 ? stopNum : undefined,
       initialRiskAmount,
-      tags: tags.split(",").map((t) => t.trim()).filter(Boolean)
+      tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+      playbookAccountId: account || null
     };
 
     await onSave(body);
@@ -195,6 +201,21 @@ export default function TradeFormModal({
                 ]}
               />
             </Field>
+            <Field
+              label="Prop account"
+              htmlFor="tf-account"
+              className="sm:col-span-2"
+              hint={account ? "Counts on this account in the Playbook: balance, daily loss and closed trades. Enter quantity in the platform's lots." : "Pick the prop account this trade was on, so the Playbook counts it."}
+            >
+              <SelectInput id="tf-account" value={account} onChange={(e) => setAccount(e.target.value)}>
+                <option value="">None (not a prop-account trade)</option>
+                {PLAYBOOK_ACCOUNTS.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </SelectInput>
+            </Field>
             <Field label="Strategy" htmlFor="tf-strategy">
               <SelectInput id="tf-strategy" value={strategy} onChange={(e) => setStrategy(e.target.value)} required>
                 {STRATEGY_CATALOG.map((s) => (
@@ -217,7 +238,7 @@ export default function TradeFormModal({
             <Field label="Exit price" htmlFor="tf-exit">
               <TextInput id="tf-exit" type="number" step="any" value={exit} onChange={(e) => setExit(e.target.value)} required />
             </Field>
-            <Field label="Quantity" htmlFor="tf-qty">
+            <Field label={account ? "Lots" : "Quantity"} htmlFor="tf-qty">
               <TextInput id="tf-qty" type="number" step="any" value={qty} onChange={(e) => setQty(e.target.value)} required />
             </Field>
             <div className="flex flex-col justify-end gap-1.5 sm:col-span-2">

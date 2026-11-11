@@ -35,6 +35,7 @@ export interface Trade {
   exitType?: "manual" | "tpsl" | "liquidation" | null;
   tags?: string[];
   checklist?: ChecklistItem[] | null;
+  playbookAccountId?: string | null; // prop account it counts on (Playbook)
 }
 
 export interface Notification {
@@ -244,6 +245,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       }),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: TRADES_QUERY_KEY });
+      // A trade linked to a prop account changes that account's Playbook view.
+      queryClient.invalidateQueries({ queryKey: ["playbook"] });
+      queryClient.invalidateQueries({ queryKey: ["playbook-signals"] });
       addNotification(variables.id ? "Trade updated!" : "Trade successfully logged!", "success");
       closeTradeForm();
     },
@@ -265,6 +269,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: TRADES_QUERY_KEY });
+      // A trade linked to a prop account changes that account's Playbook view.
+      queryClient.invalidateQueries({ queryKey: ["playbook"] });
+      queryClient.invalidateQueries({ queryKey: ["playbook-signals"] });
       addNotification("Trade record deleted.", "success");
     },
     onError: (e: Error) => addNotification(e.message, "error"),
