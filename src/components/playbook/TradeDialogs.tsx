@@ -100,7 +100,7 @@ function PlanTradeForm({ defaults, entries, account, stoppedElsewhere, onDone }:
   const setup = loggableSetupById(setupId) ?? PLAYBOOK_SETUPS[0];
   const custom = isCustomSetupId(setup.id);
   const g: Grade | null = grade === "none" ? null : grade;
-  const budget = riskBudget(setup.symbol, g, account);
+  const budget = riskBudget(setup.symbol, g, account, setup);
   const e = n(entry), s = n(stop), t = n(target);
   // Commission (measured from the MT5 report) and spread for the round trip, per unit.
   const costPerUnit = Number.isFinite(e) && e > 0 ? roundTripCostPerUnitUsd(setup.symbol, e).total : 0;

@@ -20,7 +20,7 @@ vi.mock("./config", async (importOriginal) => {
     loggableSetupById: (id: string) => activeSetupById(id) ?? real.customSetup(id),
   };
 });
-import { accountById, customSetupId, loggableSetupById, lotUnits, PLAYBOOK_ACCOUNT, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "./config";
+import { accountById, customSetupId, FEATURED_SETUP, loggableSetupById, lotUnits, PLAYBOOK_ACCOUNT, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "./config";
 import {
   accountStatus as accountStatusOn,
   adherence,
@@ -404,6 +404,15 @@ describe("the two FundingPips accounts", () => {
     expect(status(preTradeChecksOn(plan({ grade: "B", riskAmount: 18.75 }), [], pro), "grade")).toBe("fail");
     expect(hardFailures(preTradeChecksOn(flexPlan(), [], flex))).toEqual([]);
     expect(hardFailures(preTradeChecksOn(plan({ riskAmount: 37.5 }), [], pro))).toEqual([]);
+  });
+  it("takes the featured NAS100 NY Inside Bar at full risk though it has no grade", () => {
+    expect(FEATURED_SETUP?.id).toBe("ny-inside-bar:NAS100:15m");
+    expect(FEATURED_SETUP?.ungradedFullRisk).toBe(true);
+    expect(Object.keys(FEATURED_SETUP!.featured!.challenge).sort()).toEqual(["flex-10k", "pro-5k"]);
+    expect(riskBudgetOn("NAS100", null, flex, FEATURED_SETUP).amount).toBe(100);
+    expect(riskBudgetOn("NAS100", null, pro, FEATURED_SETUP)).toMatchObject({ amount: 37.5, skip: null });
+    // Other ungraded setups keep the B-grade rule.
+    expect(riskBudgetOn("NAS100", null, pro).skip).toMatch(/A-grade trades only/);
   });
   it("allows 2 open trades", () => {
     const open = [entry({ accountId: flex.id, setupId: XAU_SMC, riskAmount: 100 })];

@@ -150,9 +150,9 @@ export function accountStatus(entries: JournalEntry[], now: number, account: Pla
 /* ---------- sizing ---------- */
 
 /** What the plan lets this trade risk, from its grade. `skip` says why the account doesn't take it. */
-export function riskBudget(symbol: string, grade: Grade | null, account: PlaybookAccount = PLAYBOOK_ACCOUNT) {
+export function riskBudget(symbol: string, grade: Grade | null, account: PlaybookAccount = PLAYBOOK_ACCOUNT, setup?: PlaybookSetup) {
   const rules = account.rules;
-  const full = grade === "A";
+  const full = grade === "A" || (grade === null && !!setup?.ungradedFullRisk);
   const riskPct = full ? rules.riskPctA : (rules.riskPctB ?? 0);
   const skip =
     !full && rules.riskPctB === null
@@ -274,9 +274,10 @@ export function preTradeChecks(plan: TradePlan, entries: JournalEntry[], account
           : "This strategy and market aren't in the playbook.",
   );
 
-  const budget = riskBudget(symbol, plan.grade, account);
+  const budget = riskBudget(symbol, plan.grade, account, setup);
   if (budget.skip) add("grade", "Grade", false, budget.skip);
   else if (plan.grade === "A") add("grade", "Grade", true, `A-grade: full size, ${rules.riskPctA}% risk`);
+  else if (plan.grade === null && setup?.ungradedFullRisk) add("grade", "Grade", true, `No grade on this market; this setup's challenge replay took every trade at full size, ${rules.riskPctA}% risk`);
   else add("grade", "Grade", "warn", `${plan.grade === "B" ? "B-grade" : "No grade"}: half size, ${rules.riskPctB}% risk`, false);
 
   const d = plan.side === "LONG" ? 1 : -1;
@@ -374,9 +375,10 @@ const STRENGTH_LABEL: Record<SetupStrength, string> = {
 export function signalTier(setup: PlaybookSetup, grade: Grade | null, account: PlaybookAccount, chasing: boolean): { tier: Tier; reason: string } {
   const r = setup.baseline.avgR.toFixed(2);
   if (chasing) return { tier: "C", reason: "Price has run past the signal's entry: the backtest didn't pay a late fill. Skip it." };
-  const skip = riskBudget(setup.symbol, grade, account).skip;
+  const skip = riskBudget(setup.symbol, grade, account, setup).skip;
   if (skip) return { tier: "C", reason: `${skip}. Skip it.` };
   const strength = setupStrength(setup);
+  if (grade === null && setup.ungradedFullRisk) return { tier: "A", reason: `No grade on this market; taken at full risk like its challenge replay (backtest ${r}R a trade).` };
   if (grade !== "A") return { tier: "B", reason: `${grade === "B" ? "B-grade" : "No grade"} on ${STRENGTH_LABEL[strength]}, ${r}R. B risk.` };
   const tier: Tier = strength === "strong" ? "S" : strength === "mid" ? "A+" : "A";
   return { tier, reason: `A-grade on ${STRENGTH_LABEL[strength]}, ${r}R. Full risk.` };
@@ -411,7 +413,7 @@ export function rankSignals(rows: SignalInput[], entries: JournalEntry[], now: n
     let sizing: Sizing | null = null;
     let checks: Check[] = [];
     if (s.stop !== null) {
-      const budget = riskBudget(setup.symbol, grade, account);
+      const budget = riskBudget(setup.symbol, grade, account, setup);
       sizing = sizePosition(setup.symbol, entry, s.stop, budget.amount);
       plan = { setupId: setup.id, side: s.side, grade, entry, stop: s.stop, target: s.target, riskAmount: sizing?.riskAtLots ?? budget.amount, signalEntry: s.entry, time: now };
       checks = preTradeChecks(plan, entries, account, stoppedElsewhere);
@@ -419,7 +421,7 @@ export function rankSignals(rows: SignalInput[], entries: JournalEntry[], now: n
     const chasing = checks.some((c) => c.id === "chase" && c.status === "warn");
     const { tier, reason } = signalTier(setup, grade, account, chasing);
     const takeable = plan !== null && hardFailures(checks).length === 0;
-    out.push({ setup, signal: s, plan, sizing, checks, takeable, tier, tierReason: reason, riskPct: tier === "C" ? 0 : riskBudget(setup.symbol, grade, account).riskPct });
+    out.push({ setup, signal: s, plan, sizing, checks, takeable, tier, tierReason: reason, riskPct: tier === "C" ? 0 : riskBudget(setup.symbol, grade, account, setup).riskPct });
   }
   const order = (r: RankedSignal) => [r.takeable && r.tier !== "C" ? 0 : 1, TIERS.indexOf(r.tier), r.signal.status === "new" ? 0 : 1, -r.setup.baseline.avgR];
   return out.sort((a, b) => {

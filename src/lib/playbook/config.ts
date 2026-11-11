@@ -122,6 +122,20 @@ export interface PlaybookSetup {
   // Picked by testing 1, 1.5, 2, 2.5, 3 and 4R on MT5 bars since 2020.
   rr?: number;
   retired?: string; // why it no longer trades
+  // Take ungraded signals at full (A) risk. Only for a setup whose own replay
+  // took every trade at full risk; others size ungraded trades as B.
+  ungradedFullRisk?: boolean;
+  // Shown on its own at the top of the Playbook page.
+  featured?: FeaturedInfo;
+}
+
+// What a challenge replay of a featured setup found, per account, at that
+// account's A risk: its trade history replayed as a challenge started on every
+// Monday since 2020 (one year to finish), and again with half the edge.
+export interface FeaturedInfo {
+  headline: string;
+  rules: string[];
+  challenge: Record<string, { riskPct: number; passPct: number; failPct: number; medianWeeks: number; halfEdgePassPct: number; halfEdgeFailPct: number }>;
 }
 
 const setup = (symbol: string, platformSymbol: string, strategy: string, strategyName: string, interval: string, baseline: SetupBaseline, rr?: number): PlaybookSetup => ({
@@ -192,7 +206,29 @@ export const PLAYBOOK_SETUPS: PlaybookSetup[] = [
   // 2× costs (PF 1.24, 1.18) and on 15m candles starting at :05 and :10 (PF
   // 1.23, 1.26). Gold lost (PF 1.03, 0.91 at 1.5× costs). A small edge per
   // trade (0.13R) on many trades: four a week. Stop-order entries.
-  setup("NAS100", "NDX100", "ny-inside-bar", "NY Inside Bar", "15m", { trades: 1512, winRatePct: 58.3, avgR: 0.13, profitFactor: 1.31, perWeek: 4.25, maxDrawdownR: 17.6, maxLossStreak: 8, weeks: 358 }),
+  {
+    ...setup("NAS100", "NDX100", "ny-inside-bar", "NY Inside Bar", "15m", { trades: 1512, winRatePct: 58.3, avgR: 0.13, profitFactor: 1.31, perWeek: 4.25, maxDrawdownR: 17.6, maxLossStreak: 8, weeks: 358 }),
+    // NAS100 has no location grade (GRADE_REVERSED), and the challenge replay
+    // below took every trade at the account's full risk.
+    ungradedFullRisk: true,
+    // Challenge replay (Nov 2026): Flex at 1% and Pro at 0.75% were the best
+    // pass-to-fail trade-offs of 0.25–1.5%; above 1.25% the fail rate jumped
+    // (Pro at 1.5%: two losses in a day break its 3% daily limit).
+    featured: {
+      headline: "About 4 trades a week on one market, all inside the New York morning and early afternoon. Small edge per trade, so take every valid one at the same size.",
+      rules: [
+        "09:30–10:00 New York time sets the side: green → buys only, red → sells only.",
+        "After 10:00, a candle whose body sits inside the previous body is the setup.",
+        "Buy stop at its high (sell stop at its low), stop beyond both candles, target 1:1.",
+        "The order lives 3 candles; cancel it if the other side breaks first, move it to a newer inside candle.",
+        "At most 2 trades a day, no orders after 15:00 New York time, everything closed at 16:00.",
+      ],
+      challenge: {
+        "flex-10k": { riskPct: 1, passPct: 88, failPct: 3, medianWeeks: 13.5, halfEdgePassPct: 72, halfEdgeFailPct: 18 },
+        "pro-5k": { riskPct: 0.75, passPct: 87, failPct: 11, medianWeeks: 10.4, halfEdgePassPct: 77, halfEdgeFailPct: 22 },
+      },
+    },
+  },
   // Same rules on SPX500 15m, built from MT5's 5m bars since 2020: PF 1.21,
   // both halves up (+44R, +103R) but 2021 lost 4.9R, and at 1.5× costs PF
   // 1.12 (2× costs: 1.03). The weakest setup here, and mostly the same bet
@@ -225,6 +261,8 @@ export const RETIRED_SETUPS: PlaybookSetup[] = [
 export const PLAYBOOK_SIGNALS_PER_WEEK = PLAYBOOK_SETUPS.reduce((a, s) => a + s.baseline.perWeek, 0);
 
 export const PLAYBOOK_SETUP_IDS: ReadonlySet<string> = new Set(PLAYBOOK_SETUPS.map((s) => s.id));
+/** The setup shown on its own at the top of the Playbook page. */
+export const FEATURED_SETUP = PLAYBOOK_SETUPS.find((s) => s.featured);
 // Markets a custom trade (one that isn't a playbook setup) can be logged on:
 // every market the accounts trade. App data symbol, then the platform's name.
 export const CUSTOM_MARKETS: readonly { symbol: string; platformSymbol: string }[] = [
