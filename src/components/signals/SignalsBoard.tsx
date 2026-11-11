@@ -10,7 +10,7 @@ import { useDashboard } from "@/components/trading-journal/DashboardContext";
 import { fetchJson } from "@/lib/apiClient";
 import { getPulseMarket } from "@/domain/market-pulse/markets";
 import { STRATEGY_GUIDES } from "@/guides";
-import type { SignalScan } from "@/lib/signals/scanner";
+import type { CandleSource, SignalScan } from "@/lib/signals/scanner";
 import type { LatestSignal, QUALIFY_RULE, SignalRow } from "@/lib/signals/scan";
 
 const REFRESH_MS = 60_000;
@@ -314,6 +314,7 @@ export default function SignalsBoard() {
               made money in both halves of the period and never fell more than {data.rule.maxDrawdownPct}%.
             </p>
           )}
+          {data && <FeedNote sources={data.sources ?? {}} />}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <SelectInput aria-label="Market" value={market} onChange={(e) => setMarket(e.target.value)} className="w-auto py-1.5 text-[13px]">
@@ -455,5 +456,18 @@ export default function SignalsBoard() {
         </details>
       )}
     </div>
+  );
+}
+
+// Which markets are priced off the MT5 terminal's own feed (PB_BarFeed
+// service running) and which off Binance/Yahoo.
+function FeedNote({ sources }: { sources: Record<string, CandleSource> }) {
+  const mt5 = Object.keys(sources).filter((s) => sources[s] === "mt5");
+  return (
+    <p className="mt-1 max-w-[80ch] text-xs leading-relaxed text-fog">
+      {mt5.length > 0
+        ? `Candles from your MT5 terminal for ${mt5.map((s) => marketOf(s).label).join(", ")}; the rest from Binance and Yahoo Finance.`
+        : "Candles from Binance and Yahoo Finance. Start the PB_BarFeed service in MT5 to use your broker's own prices."}
+    </p>
   );
 }

@@ -6,11 +6,14 @@ import { CODED_STRATEGIES, HIGHER_TIMEFRAME } from "@/strategies/registry";
 import { scanStrategy, type SignalRow } from "./scan";
 import { locationGrade } from "@/lib/plan/weeklyPlan";
 import { PLAYBOOK_SETUP_IDS } from "@/lib/playbook/config";
+import { feedLive, feedSupports, readFeedCandles } from "@/lib/mt5/feed";
 
 // Server-side signal scanner for the Signals page. Only strategies that
 // pass QUALIFY_RULE (src/lib/signals/scan.ts) on a market send signals. Every request refreshes
 // the candles that have closed since the last one (one small Binance call
 // per series), then rescans only the strategies whose candles changed.
+// While the MT5 terminal's PB_BarFeed service is running (src/lib/mt5/feed.ts)
+// candles come from the broker's own feed instead, read from local files.
 // Everything lives in memory: the first request after the server starts
 // downloads the full history (about 30 seconds), later ones are quick.
 
@@ -73,6 +76,8 @@ export function scanTargets(): { strategyKey: string; interval: string }[] {
 interface CacheState {
   series: Map<string, OHLC[]>;
   rows: Map<string, { stamp: string; row: SignalRow | null }>;
+  // Where each cached series came from: "mt5" (the terminal's feed) or "web" (Binance/Yahoo).
+  source?: Map<string, CandleSource>;
   inFlight: Promise<SignalScan> | null;
   // Series downloads in progress, so the plan and the scan share one.
   loading?: Map<string, Promise<OHLC[]>>;
@@ -81,6 +86,8 @@ interface CacheState {
 // On globalThis so dev-mode module reloads don't throw the history away.
 const g = globalThis as typeof globalThis & { __signalScanner?: CacheState };
 const state: CacheState = (g.__signalScanner ??= { series: new Map(), rows: new Map(), inFlight: null });
+
+export type CandleSource = "mt5" | "web";
 
 const closedOnly = (candles: OHLC[], now: number) => candles.filter((c) => c.closeTime < now);
 
@@ -117,11 +124,35 @@ async function fetchSeries(symbol: string, interval: string, now: number): Promi
   const key = `${symbol}:${interval}`;
   const step = intervalToMs(interval);
   const bars = Math.ceil((SIGNAL_HISTORY_DAYS * DAY_MS) / step);
-  const cached = state.series.get(key);
-  const last = cached?.[cached.length - 1];
-
+  const sources = (state.source ??= new Map());
+  let cached = state.series.get(key);
+  let last = cached?.[cached.length - 1];
   // Nothing new has closed yet.
-  if (last && last.closeTime + step >= now) return cached!;
+  const upToDate = (c: OHLC | undefined) => !!c && c.closeTime + step >= now;
+
+  // The broker's feed, when the terminal is writing it and carries this market.
+  if (feedSupports(interval) && (await feedLive(now))) {
+    if (sources.get(key) === "mt5" && upToDate(last)) return cached!;
+    const feed = await readFeedCandles(symbol, interval);
+    if (feed?.length) {
+      let next = closedOnly(feed, now);
+      if (next.length > bars) next = next.slice(next.length - bars);
+      if (next.length) {
+        state.series.set(key, next);
+        sources.set(key, "mt5");
+        return next;
+      }
+    }
+  }
+
+  // Binance/Yahoo. Their prices differ from the broker's (Yahoo's NAS100 is
+  // the future, not the CFD), so candles from the feed are never topped up
+  // from them: start again.
+  if (sources.get(key) === "mt5") {
+    cached = undefined;
+    last = undefined;
+  }
+  if (upToDate(last)) return cached!;
 
   let next: OHLC[];
   const missing = last ? Math.ceil((now - last.closeTime) / step) : Infinity;
@@ -135,8 +166,21 @@ async function fetchSeries(symbol: string, interval: string, now: number): Promi
     next = [...cached, ...fresh];
   }
   if (next.length > bars) next = next.slice(next.length - bars);
-  if (next.length) state.series.set(key, next);
+  if (next.length) {
+    state.series.set(key, next);
+    sources.set(key, "web");
+  }
   return next.length ? next : (cached ?? []);
+}
+
+/** Where each market's hourly candles came from in the latest load. */
+export function candleSources(symbols: readonly string[] = SIGNAL_SYMBOLS): Record<string, CandleSource> {
+  const out: Record<string, CandleSource> = {};
+  for (const s of symbols) {
+    const src = state.source?.get(`${s}:1h`);
+    if (src) out[s] = src;
+  }
+  return out;
 }
 
 // --- scan ------------------------------------------------------------------------
@@ -149,6 +193,8 @@ export interface SignalScan {
   // The playbook's setups with their latest signal whether or not they pass
   // QUALIFY_RULE: they were picked at prop-firm costs, not CoinDCX's.
   playbook: SignalRow[];
+  // Per market: "mt5" when its candles came from the terminal's feed.
+  sources: Record<string, CandleSource>;
   errors: string[];
 }
 
@@ -211,7 +257,7 @@ async function scan(): Promise<SignalScan> {
     }
   }
 
-  return { asOf: now, symbols: SIGNAL_SYMBOLS, historyDays: SIGNAL_HISTORY_DAYS, rows, playbook, errors };
+  return { asOf: now, symbols: SIGNAL_SYMBOLS, historyDays: SIGNAL_HISTORY_DAYS, rows, playbook, sources: candleSources(), errors };
 }
 
 function withGrade(row: SignalRow, h1: OHLC[]): SignalRow {

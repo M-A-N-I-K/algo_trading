@@ -105,3 +105,33 @@ EURUSD, Liquidity Reversal, 1h (133 signals since 2020):
 The indicator marks every signal. The backtest holds one trade at a time per setup, so a signal that comes while an earlier trade is still open was not counted there.
 
 The indicators load 60,000 H1 bars by default (about 9 years). If your terminal holds less history, early signals will be missing and the first stops can differ slightly while the EMA and ATR warm up. Raise **Max bars in chart** under **Tools → Options → Charts** if needed.
+
+## Live candle feed (PB_BarFeed)
+
+`PB_BarFeed.mq5` is a **service**, not an indicator: it runs in the background
+with no chart and feeds your broker's candles to the app's Signals and
+Playbook scanners, so their entries and stops are in the prices you actually
+trade (NDX100 CFD rather than the Nasdaq future Yahoo serves, XAUUSD rather
+than Binance's gold token).
+
+1. Copy `PB_BarFeed.mq5` into `MQL5/Services/` (File → Open Data Folder) and
+   compile it, or use the `.ex5` already there.
+2. Navigator → **Services** → right-click **PB_BarFeed** → **Add Service** →
+   OK. It starts at once and restarts with the terminal.
+3. The Experts tab shows `PB_BarFeed: 17 symbols × 2 timeframes …`. Symbols your
+   broker doesn't offer are logged once and skipped.
+
+Every 10 seconds it writes each symbol's **closed** M15 and H1 bars (about two
+years) to `MQL5/Files/PlaybookFeed/<SYMBOL>_<TF>.csv`, in the Export Bars layout,
+and touches `heartbeat.txt`. A file is rewritten only when a new bar closes,
+through a temporary file, so the app never reads half of one. The app builds 4h
+candles from H1 on the UTC grid, the same way the backtests did.
+
+The app uses the feed while `heartbeat.txt` is under two minutes old and falls
+back to Binance/Yahoo otherwise (starting those series again from scratch, never
+mixing the two price sources). The Signals page says which markets came from
+MT5. Set `MT5_FEED_DIR` if your terminal's data folder is elsewhere.
+
+Limits: MT5 has to be running and the Mac awake. It only works while the app
+runs on the same machine; a hosted app would need the terminal to push bars
+over WebRequest instead.
