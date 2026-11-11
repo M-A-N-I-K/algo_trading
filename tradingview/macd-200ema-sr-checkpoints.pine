@@ -1,0 +1,263 @@
+//@version=6
+// MACD + 200 EMA + Support/Resistance checkpoints (Playbook: NAS100 4h)
+//
+// Port of src/strategies/macd200EmaSrStrategy.ts with its defaults, so the signals here
+// are the trades the backtest measured:
+//
+//   (1) Trend      the 4h candle closes above the 200 EMA (longs) or below it (shorts)
+//   (2) Level      support = a swing low lower than the 5 candles on each side, removed once
+//                  a candle closes below it. Resistance = the mirror (swing high).
+//   (3) Touch      a candle that closes above the 200 EMA has its low at or below a live support
+//   (4) Entry      within 10 candles of that touch, MACD (12, 26, 9) crosses up through its
+//                  signal line while both lines are below zero.
+//                  stop = the 200 EMA, target = entry + 1.5 x risk
+//
+// Shorts are the mirror image (resistance touch below the EMA, MACD crosses down above zero).
+//
+// The app builds 4h candles on the UTC clock (00:00, 04:00, 08:00 ...). Put this on a 1h
+// chart and it builds the same candles from the chart's bars. On a 4h chart it uses the
+// chart's own candles, whose start times depend on the feed. Closed candles only, nothing
+// repaints. The backtest enters at the next candle's open.
+indicator("MACD + 200 EMA + S/R checkpoints", shorttitle = "MACD 200 S/R", overlay = true, max_bars_back = 5000, max_lines_count = 500, max_labels_count = 500)
+
+grpR      = "Rules (keep defaults to match the backtest)"
+emaLen    = input.int(200, "Trend EMA", minval = 1, group = grpR)
+fastLen   = input.int(12, "MACD fast", minval = 1, group = grpR)
+slowLen   = input.int(26, "MACD slow", minval = 1, group = grpR)
+sigLen    = input.int(9, "MACD signal", minval = 1, group = grpR)
+k         = input.int(5, "Swing lookback (candles each side)", minval = 1, group = grpR)
+trigWin   = input.int(10, "Candles allowed between touch and crossover", minval = 0, group = grpR)
+rr        = input.float(1.5, "Target (x risk)", minval = 0.1, step = 0.1, group = grpR)
+grpC      = "Candles"
+build4h   = input.bool(true, "Build 4h candles on the UTC clock from a lower-timeframe chart (matches the app)", group = grpC)
+grpS      = "Show"
+showLong  = input.bool(true, "Long signals", group = grpS)
+showShort = input.bool(true, "Short signals", group = grpS)
+showTouch = input.bool(true, "Support / resistance touches (small dots)", group = grpS)
+showEma   = input.bool(true, "200 EMA of the 4h candles", group = grpS)
+showLvls  = input.bool(true, "Nearest live support / resistance", group = grpS)
+showPanel = input.bool(true, "Checkpoint panel", group = grpS)
+tradeLen  = input.int(24, "Entry / stop / target line length (chart candles)", minval = 1, group = grpS)
+
+colLong  = color.new(#26a69a, 0)
+colShort = color.new(#ef5350, 0)
+colEma   = color.new(#ffa726, 0)
+colMuted = color.new(#9e9e9e, 0)
+fmt(float x) => str.tostring(x, format.mintick)
+
+// SMA-seeded EMA, like src/indicators/ema.ts: na for the first len-1 values,
+// the mean of the first len values at value number len, then the usual recursion.
+type Ema
+    int   len
+    int   count = 0
+    float sum = 0.0
+    float v = na
+
+method push(Ema e, float x) =>
+    e.count += 1
+    if e.count < e.len
+        e.sum += x
+    else if e.count == e.len
+        e.sum += x
+        e.v := e.sum / e.len
+    else
+        e.v := (x - e.v) * 2.0 / (e.len + 1) + e.v
+    e.v
+
+type Engine
+    array<float> o
+    array<float> h
+    array<float> l
+    array<float> c
+    array<int>   bx         // chart bar_index of each candle's last chart bar
+    array<float> sups
+    array<float> ress
+    Ema   ema
+    Ema   fast
+    Ema   slow
+    Ema   sig
+    float prevMacd = na
+    float prevSig = na
+    int   lastSupHit = -9999
+    int   lastResHit = -9999
+    // events on this chart bar, for alertcondition()
+    bool  evLong = false
+    bool  evShort = false
+    bool  evTouchS = false
+    bool  evTouchR = false
+
+// One closed strategy candle: the body of generateSignals' loop.
+method step(Engine E, float o, float h, float l, float c, int bx) =>
+    E.o.push(o)
+    E.h.push(h)
+    E.l.push(l)
+    E.c.push(c)
+    E.bx.push(bx)
+    int t = E.c.size() - 1
+
+    // 1. Levels broken by a close are gone.
+    int i = E.sups.size() - 1
+    while i >= 0
+        if c < E.sups.get(i)
+            E.sups.remove(i)
+        i -= 1
+    i := E.ress.size() - 1
+    while i >= 0
+        if c > E.ress.get(i)
+            E.ress.remove(i)
+        i -= 1
+
+    // 2. Swings, confirmed k candles late (strictly lower / higher than all 2k neighbours).
+    if t >= 2 * k
+        int ci = t - k
+        bool isLow = true
+        bool isHigh = true
+        for j = t - 2 * k to t
+            if j != ci
+                if E.l.get(j) <= E.l.get(ci)
+                    isLow := false
+                if E.h.get(j) >= E.h.get(ci)
+                    isHigh := false
+        if isLow
+            E.sups.push(E.l.get(ci))
+        if isHigh
+            E.ress.push(E.h.get(ci))
+
+    // Indicators. The signal line starts at the first defined MACD value.
+    float emaV = E.ema.push(c)
+    float f = E.fast.push(c)
+    float s = E.slow.push(c)
+    float m = na(f) or na(s) ? na : f - s
+    float g = na(m) ? na : E.sig.push(m)
+
+    if not (na(emaV) or na(m) or na(g) or na(E.prevMacd) or na(E.prevSig))
+        bool above = c > emaV
+        bool below = c < emaV
+        // 3. Touches
+        if above
+            for v in E.sups
+                if l <= v
+                    E.lastSupHit := t
+                    E.evTouchS := true
+                    if showTouch and showLong
+                        label.new(bx, l, "", color = colLong, style = label.style_circle, size = size.tiny, tooltip = "Support " + fmt(v) + " touched above the 200 EMA. Long if MACD crosses up below zero within " + str.tostring(trigWin) + " candles.")
+                        alert(syminfo.ticker + " MACD 200 S/R: support " + fmt(v) + " touched above the 200 EMA. Long if MACD crosses up below zero within " + str.tostring(trigWin) + " candles.", alert.freq_once_per_bar_close)
+                    break
+        if below
+            for v in E.ress
+                if h >= v
+                    E.lastResHit := t
+                    E.evTouchR := true
+                    if showTouch and showShort
+                        label.new(bx, h, "", color = colShort, style = label.style_circle, size = size.tiny, tooltip = "Resistance " + fmt(v) + " touched below the 200 EMA. Short if MACD crosses down above zero within " + str.tostring(trigWin) + " candles.")
+                        alert(syminfo.ticker + " MACD 200 S/R: resistance " + fmt(v) + " touched below the 200 EMA. Short if MACD crosses down above zero within " + str.tostring(trigWin) + " candles.", alert.freq_once_per_bar_close)
+                    break
+        // 4. Crossovers -> signals
+        bool bull = E.prevMacd <= E.prevSig and m > g
+        bool bear = E.prevMacd >= E.prevSig and m < g
+        if above and bull and t - E.lastSupHit <= trigWin and m < 0 and g < 0
+            E.evLong := true
+            float tp = c + rr * (c - emaV)
+            if showLong
+                label.new(bx, l, "BUY " + fmt(c) + "\nSL " + fmt(emaV) + "  TP " + fmt(tp), color = colLong, textcolor = color.white, style = label.style_label_up, size = size.small, tooltip = "MACD crossed up below zero within " + str.tostring(trigWin) + " candles of a support touch, above the 200 EMA. The backtest enters at the next candle's open.")
+                line.new(bx, c, bx + tradeLen, c, color = colMuted, style = line.style_dashed)
+                line.new(bx, emaV, bx + tradeLen, emaV, color = colShort, width = 2)
+                line.new(bx, tp, bx + tradeLen, tp, color = colLong, width = 2)
+                alert(syminfo.ticker + " MACD 200 S/R BUY " + fmt(c) + " SL " + fmt(emaV) + " TP " + fmt(tp), alert.freq_once_per_bar_close)
+        if below and bear and t - E.lastResHit <= trigWin and m > 0 and g > 0
+            E.evShort := true
+            float tp = c - rr * (emaV - c)
+            if showShort
+                label.new(bx, h, "SELL " + fmt(c) + "\nSL " + fmt(emaV) + "  TP " + fmt(tp), color = colShort, textcolor = color.white, style = label.style_label_down, size = size.small, tooltip = "MACD crossed down above zero within " + str.tostring(trigWin) + " candles of a resistance touch, below the 200 EMA. The backtest enters at the next candle's open.")
+                line.new(bx, c, bx + tradeLen, c, color = colMuted, style = line.style_dashed)
+                line.new(bx, emaV, bx + tradeLen, emaV, color = colShort, width = 2)
+                line.new(bx, tp, bx + tradeLen, tp, color = colLong, width = 2)
+                alert(syminfo.ticker + " MACD 200 S/R SELL " + fmt(c) + " SL " + fmt(emaV) + " TP " + fmt(tp), alert.freq_once_per_bar_close)
+    E.prevMacd := m
+    E.prevSig := g
+
+var Engine E = Engine.new(array.new<float>(), array.new<float>(), array.new<float>(), array.new<float>(), array.new<int>(), array.new<float>(), array.new<float>(), Ema.new(emaLen), Ema.new(fastLen), Ema.new(slowLen), Ema.new(sigLen))
+
+// ─── Candles the strategy runs on ───
+const int H4 = 4 * 60 * 60 * 1000
+int chartMs = timeframe.in_seconds() * 1000
+bool aggregate = build4h and chartMs < H4 and H4 % chartMs == 0
+
+var int   curBucket = na
+var float curO = na
+var float curH = na
+var float curL = na
+var float curC = na
+var int   curB = na
+var bool  curOpen = false
+
+E.evLong := false
+E.evShort := false
+E.evTouchS := false
+E.evTouchR := false
+
+if barstate.isconfirmed
+    if aggregate
+        int bucket = math.floor(time / H4)
+        if bucket != curBucket
+            if curOpen
+                E.step(curO, curH, curL, curC, curB)   // the previous 4h candle ended early (session close)
+            curBucket := bucket
+            curO := open
+            curH := high
+            curL := low
+            curOpen := true
+        else
+            curH := math.max(curH, high)
+            curL := math.min(curL, low)
+        curC := close
+        curB := bar_index
+        if time_close % H4 == 0
+            E.step(curO, curH, curL, curC, curB)
+            curOpen := false
+    else
+        E.step(open, high, low, close, bar_index)
+
+alertcondition(E.evLong, "Long entry", "{{ticker}}: MACD + 200 EMA + S/R BUY")
+alertcondition(E.evShort, "Short entry", "{{ticker}}: MACD + 200 EMA + S/R SELL")
+alertcondition(E.evTouchS, "Support touched (long setup)", "{{ticker}}: support touched above the 200 EMA")
+alertcondition(E.evTouchR, "Resistance touched (short setup)", "{{ticker}}: resistance touched below the 200 EMA")
+
+plot(showEma ? E.ema.v : na, "200 EMA (4h)", colEma, 2, plot.style_stepline)
+
+// Nearest live levels
+var line supLn = na
+var line resLn = na
+if showLvls and barstate.islast
+    line.delete(supLn)
+    line.delete(resLn)
+    float bestS = na
+    for v in E.sups
+        if v <= close and (na(bestS) or v > bestS)
+            bestS := v
+    float bestR = na
+    for v in E.ress
+        if v >= close and (na(bestR) or v < bestR)
+            bestR := v
+    if not na(bestS)
+        supLn := line.new(bar_index - 30, bestS, bar_index, bestS, color = colLong, style = line.style_dotted, extend = extend.right)
+    if not na(bestR)
+        resLn := line.new(bar_index - 30, bestR, bar_index, bestR, color = colShort, style = line.style_dotted, extend = extend.right)
+
+// ─── Panel ───
+var table panel = table.new(position.top_right, 2, 4, bgcolor = color.new(#131722, 10), border_color = color.new(colMuted, 60), border_width = 1)
+if showPanel and barstate.islast
+    int t = E.c.size() - 1
+    bool okTf = aggregate or chartMs == H4
+    string mode = aggregate ? "4h UTC candles built from the " + timeframe.period + " chart" : chartMs == H4 ? "chart's own 4h candles" : "Backtested on 4h. Use a 1h chart."
+    table.cell(panel, 0, 0, "MACD 200 S/R", text_color = color.white, text_size = size.small)
+    table.cell(panel, 1, 0, mode, text_color = okTf ? colMuted : colEma, text_size = size.small, text_halign = text.align_left)
+    string trend = na(E.ema.v) or t < 0 ? "warming up (needs 200 4h candles)" : E.c.last() > E.ema.v ? "above the 200 EMA: longs only" : "below the 200 EMA: shorts only"
+    table.cell(panel, 0, 1, "Trend", text_color = colEma, text_size = size.small)
+    table.cell(panel, 1, 1, trend, text_color = color.white, text_size = size.small, text_halign = text.align_left)
+    int leftS = trigWin - (t - E.lastSupHit)
+    int leftR = trigWin - (t - E.lastResHit)
+    table.cell(panel, 0, 2, "Long", text_color = colLong, text_size = size.small)
+    table.cell(panel, 1, 2, leftS >= 0 ? "Support touched. MACD must cross up below zero within " + str.tostring(leftS) + " more candles" : "Wait for a 4h low to touch support above the 200 EMA", text_color = color.white, text_size = size.small, text_halign = text.align_left)
+    table.cell(panel, 0, 3, "Short", text_color = colShort, text_size = size.small)
+    table.cell(panel, 1, 3, leftR >= 0 ? "Resistance touched. MACD must cross down above zero within " + str.tostring(leftR) + " more candles" : "Wait for a 4h high to touch resistance below the 200 EMA", text_color = color.white, text_size = size.small, text_halign = text.align_left)

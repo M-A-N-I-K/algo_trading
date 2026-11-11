@@ -1,0 +1,334 @@
+//@version=6
+// Smart Money Concepts checkpoints (Playbook: Gold 4h)
+//
+// Port of src/strategies/smartMoneyConceptsStrategy.ts with its defaults, so the signals
+// here are the trades the backtest measured:
+//
+//   (1) Sweep      a candle's low dips below the latest swing low (a low lower than the 5
+//                  candles on each side, known 5 candles later) but it closes no more than
+//                  0.2% below it. The latest swing high at that moment is the line to break.
+//   (2) CHoCH      within 40 candles, a close above that swing high (change of character)
+//   (3) FVG        on that candle, every bullish fair value gap in the last 7 candles is
+//                  marked: a green middle candle with candle 1's high below candle 3's low.
+//                  The gap lives 60 candles, or until a close below its bottom.
+//   (4) Entry      a later candle's low reaches the gap's midpoint and it closes at or above
+//                  the gap's bottom. Stop = the lower of the gap bottom and the sweep low,
+//                  minus 0.2%. Target = the latest swing high or 3R, whichever is further.
+//                  One trade per gap.
+//
+// Shorts are the mirror image (stop + 0.2%).
+//
+// The app builds 4h candles on the UTC clock (00:00, 04:00, 08:00 ...). Put this on a 1h
+// chart and it builds the same candles from the chart's bars. On a 4h chart it uses the
+// chart's own candles, whose start times depend on the feed. Closed candles only, nothing
+// repaints. The backtest enters at the next candle's open.
+indicator("Smart Money Concepts checkpoints", shorttitle = "SMC", overlay = true, max_bars_back = 5000, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 500)
+
+grpR      = "Rules (keep defaults to match the backtest)"
+k         = input.int(5, "Swing lookback (candles each side)", minval = 1, group = grpR)
+setupLife = input.int(40, "Candles allowed between sweep and CHoCH", minval = 1, group = grpR)
+fvgLife   = input.int(60, "Gap lifetime (candles)", minval = 1, group = grpR)
+fixedRr   = input.float(3.0, "Minimum target (x risk)", minval = 0.5, step = 0.5, group = grpR)
+minRr     = input.float(2.0, "Skip trades paying less than (x risk)", minval = 0.5, step = 0.5, group = grpR)
+grpC      = "Candles"
+build4h   = input.bool(true, "Build 4h candles on the UTC clock from a lower-timeframe chart (matches the app)", group = grpC)
+grpS      = "Show"
+showLong  = input.bool(true, "Long setups", group = grpS)
+showShort = input.bool(true, "Short setups", group = grpS)
+showSteps = input.bool(true, "Sweeps, CHoCH breaks and gaps", group = grpS)
+showPanel = input.bool(true, "Checkpoint panel", group = grpS)
+tradeLen  = input.int(24, "Entry / stop / target line length (chart candles)", minval = 1, group = grpS)
+
+colLong  = color.new(#26a69a, 0)
+colShort = color.new(#ef5350, 0)
+colMuted = color.new(#9e9e9e, 0)
+colSweep = color.new(#42a5f5, 0)
+fmt(float x) => str.tostring(x, format.mintick)
+const int WARMUP = 25   // swingLookback * 3 + 10 with the defaults; the app ignores earlier candles
+
+type Fvg
+    bool  bull
+    float low
+    float high
+    float mid
+    int   createdAt
+    float sweep
+    box   bx
+
+type Setup
+    bool  active = false
+    float sweep = na
+    float level = na     // swing high to close above (long) / swing low to close below (short)
+    int   createdAt = -1
+    line  ln
+
+type Engine
+    array<float> o
+    array<float> h
+    array<float> l
+    array<float> c
+    array<int>   bx
+    array<bool>  swH        // swing flags, filled k candles late
+    array<bool>  swL
+    array<Fvg>   fvgs
+    Setup bullS
+    Setup bearS
+    float support = na
+    float resistance = na
+    bool  evSweepL = false
+    bool  evSweepS = false
+    bool  evChochL = false
+    bool  evChochS = false
+    bool  evLong = false
+    bool  evShort = false
+
+endLine(line ln, int x) =>
+    if not na(ln)
+        line.set_extend(ln, extend.none)
+        line.set_x2(ln, x)
+
+method nearestHigh(Engine E, int t) =>
+    float v = E.h.get(t)
+    int i = t - k
+    while i >= 0
+        if E.swH.get(i)
+            v := E.h.get(i)
+            break
+        i -= 1
+    v
+
+method nearestLow(Engine E, int t) =>
+    float v = E.l.get(t)
+    int i = t - k
+    while i >= 0
+        if E.swL.get(i)
+            v := E.l.get(i)
+            break
+        i -= 1
+    v
+
+method drawTrade(Engine E, bool isLong, float c, float sl, float tp, int bx, float px) =>
+    string side = isLong ? "BUY " : "SELL "
+    label.new(bx, px, side + fmt(c) + "\nSL " + fmt(sl) + "  TP " + fmt(tp) + "\n" + str.tostring(math.abs(tp - c) / math.abs(c - sl), "#.0") + "R", color = isLong ? colLong : colShort, textcolor = color.white, style = isLong ? label.style_label_up : label.style_label_down, size = size.small, tooltip = "Price came back to the middle of the gap after the sweep and CHoCH. The backtest enters at the next candle's open.")
+    line.new(bx, c, bx + tradeLen, c, color = colMuted, style = line.style_dashed)
+    line.new(bx, sl, bx + tradeLen, sl, color = colShort, width = 2)
+    line.new(bx, tp, bx + tradeLen, tp, color = colLong, width = 2)
+    alert(syminfo.ticker + " SMC " + side + fmt(c) + " SL " + fmt(sl) + " TP " + fmt(tp), alert.freq_once_per_bar_close)
+
+// One closed strategy candle: the body of generateSignals' loop.
+method step(Engine E, float o, float h, float l, float c, int bx) =>
+    E.o.push(o)
+    E.h.push(h)
+    E.l.push(l)
+    E.c.push(c)
+    E.bx.push(bx)
+    E.swH.push(false)
+    E.swL.push(false)
+    int t = E.c.size() - 1
+
+    // 1. The candle k back is now a known swing (or not).
+    int r = t - k
+    if r >= k
+        bool isH = true
+        bool isL = true
+        for j = r - k to r + k
+            if j != r
+                if E.h.get(j) >= E.h.get(r)
+                    isH := false
+                if E.l.get(j) <= E.l.get(r)
+                    isL := false
+        E.swH.set(r, isH)
+        E.swL.set(r, isL)
+        if isL
+            E.support := E.l.get(r)
+        if isH
+            E.resistance := E.h.get(r)
+
+    if t >= WARMUP
+        // 2. Sweeps (a newer sweep replaces the old setup)
+        if not na(E.support) and l < E.support and c > E.support * 0.998
+            if E.bullS.active
+                endLine(E.bullS.ln, bx)
+            E.bullS.active := true
+            E.bullS.sweep := l
+            E.bullS.level := E.nearestHigh(t)
+            E.bullS.createdAt := t
+            E.evSweepL := true
+            if showSteps and showLong
+                label.new(bx, l, "1 Sweep", color = color.new(colSweep, 100), textcolor = colSweep, style = label.style_label_up, size = size.tiny, tooltip = "Swept swing low " + fmt(E.support) + ". Long setup if a 4h candle closes above " + fmt(E.bullS.level) + " within " + str.tostring(setupLife) + " candles.")
+                E.bullS.ln := line.new(bx, E.bullS.level, bx + 1, E.bullS.level, color = colLong, style = line.style_dotted, extend = extend.right)
+        if not na(E.resistance) and h > E.resistance and c < E.resistance * 1.002
+            if E.bearS.active
+                endLine(E.bearS.ln, bx)
+            E.bearS.active := true
+            E.bearS.sweep := h
+            E.bearS.level := E.nearestLow(t)
+            E.bearS.createdAt := t
+            E.evSweepS := true
+            if showSteps and showShort
+                label.new(bx, h, "1 Sweep", color = color.new(colSweep, 100), textcolor = colSweep, style = label.style_label_down, size = size.tiny, tooltip = "Swept swing high " + fmt(E.resistance) + ". Short setup if a 4h candle closes below " + fmt(E.bearS.level) + " within " + str.tostring(setupLife) + " candles.")
+                E.bearS.ln := line.new(bx, E.bearS.level, bx + 1, E.bearS.level, color = colShort, style = line.style_dotted, extend = extend.right)
+
+        // Expiry
+        if E.bullS.active and t - E.bullS.createdAt > setupLife
+            E.bullS.active := false
+            endLine(E.bullS.ln, bx)
+        if E.bearS.active and t - E.bearS.createdAt > setupLife
+            E.bearS.active := false
+            endLine(E.bearS.ln, bx)
+
+        // 3. CHoCH -> mark the gaps of the last 7 candles
+        if E.bullS.active and c > E.bullS.level
+            int found = 0
+            for j = math.max(2, t - 6) to t
+                if E.c.get(j - 1) > E.o.get(j - 1) and E.h.get(j - 2) < E.l.get(j)
+                    float lo = E.h.get(j - 2)
+                    float hi = E.l.get(j)
+                    box b = na
+                    if showSteps and showLong
+                        b := box.new(E.bx.get(j - 2), hi, bx, lo, border_color = colLong, bgcolor = color.new(colLong, 85), extend = extend.right, text = "3 FVG", text_color = colLong, text_size = size.tiny, text_halign = text.align_left)
+                    E.fvgs.push(Fvg.new(true, lo, hi, (lo + hi) / 2, t, E.bullS.sweep, b))
+                    found += 1
+            E.bullS.active := false
+            E.evChochL := true
+            endLine(E.bullS.ln, bx)
+            if showSteps and showLong
+                label.new(bx, h, "2 CHoCH", color = color.new(colLong, 100), textcolor = colLong, style = label.style_label_down, size = size.tiny, tooltip = found == 0 ? "Closed above " + fmt(E.bullS.level) + " but no bullish gap in the last 7 candles: no trade." : "Closed above " + fmt(E.bullS.level) + ". Buy when a candle dips to the middle of the gap.")
+            alert(syminfo.ticker + " SMC: bullish CHoCH" + (found == 0 ? " but no gap, no trade." : ". Buy if a 4h candle dips to the middle of the gap and closes inside or above it."), alert.freq_once_per_bar_close)
+        if E.bearS.active and c < E.bearS.level
+            int found = 0
+            for j = math.max(2, t - 6) to t
+                if E.c.get(j - 1) < E.o.get(j - 1) and E.l.get(j - 2) > E.h.get(j)
+                    float lo = E.h.get(j)
+                    float hi = E.l.get(j - 2)
+                    box b = na
+                    if showSteps and showShort
+                        b := box.new(E.bx.get(j - 2), hi, bx, lo, border_color = colShort, bgcolor = color.new(colShort, 85), extend = extend.right, text = "3 FVG", text_color = colShort, text_size = size.tiny, text_halign = text.align_left)
+                    E.fvgs.push(Fvg.new(false, lo, hi, (lo + hi) / 2, t, E.bearS.sweep, b))
+                    found += 1
+            E.bearS.active := false
+            E.evChochS := true
+            endLine(E.bearS.ln, bx)
+            if showSteps and showShort
+                label.new(bx, l, "2 CHoCH", color = color.new(colShort, 100), textcolor = colShort, style = label.style_label_up, size = size.tiny, tooltip = found == 0 ? "Closed below " + fmt(E.bearS.level) + " but no bearish gap in the last 7 candles: no trade." : "Closed below " + fmt(E.bearS.level) + ". Sell when a candle rises to the middle of the gap.")
+            alert(syminfo.ticker + " SMC: bearish CHoCH" + (found == 0 ? " but no gap, no trade." : ". Sell if a 4h candle rises to the middle of the gap and closes inside or below it."), alert.freq_once_per_bar_close)
+
+        // 4. Gaps die on age or on a close through them (removed here; the app skips them).
+        int i = E.fvgs.size() - 1
+        while i >= 0
+            Fvg f = E.fvgs.get(i)
+            if t - f.createdAt > fvgLife or (f.bull and c < f.low) or (not f.bull and c > f.high)
+                if not na(f.bx)
+                    box.set_extend(f.bx, extend.none)
+                    box.set_right(f.bx, bx)
+                E.fvgs.remove(i)
+            i -= 1
+
+        // 5. Retests -> at most one signal per candle, oldest gap first
+        int n = E.fvgs.size()
+        int fire = -1
+        if n > 0
+            for q = 0 to n - 1
+                Fvg f = E.fvgs.get(q)
+                if t > f.createdAt
+                    if f.bull and l <= f.mid and c >= f.low
+                        float sl = math.min(f.low, f.sweep) * 0.998
+                        float risk = c - sl
+                        if risk > 0
+                            float reward = math.max(E.nearestHigh(t) - c, risk * fixedRr)
+                            if reward / risk >= minRr
+                                E.evLong := true
+                                if showLong
+                                    E.drawTrade(true, c, sl, c + reward, bx, l)
+                                fire := q
+                                break
+                    if not f.bull and h >= f.mid and c <= f.high
+                        float sl = math.max(f.high, f.sweep) * 1.002
+                        float risk = sl - c
+                        if risk > 0
+                            float reward = math.max(c - E.nearestLow(t), risk * fixedRr)
+                            if reward / risk >= minRr
+                                E.evShort := true
+                                if showShort
+                                    E.drawTrade(false, c, sl, c - reward, bx, h)
+                                fire := q
+                                break
+        if fire >= 0
+            Fvg f = E.fvgs.get(fire)
+            if not na(f.bx)
+                box.set_extend(f.bx, extend.none)
+                box.set_right(f.bx, bx)
+            E.fvgs.remove(fire)
+
+var Engine E = Engine.new(array.new<float>(), array.new<float>(), array.new<float>(), array.new<float>(), array.new<int>(), array.new<bool>(), array.new<bool>(), array.new<Fvg>(), Setup.new(), Setup.new())
+
+// ─── Candles the strategy runs on ───
+const int H4 = 4 * 60 * 60 * 1000
+int chartMs = timeframe.in_seconds() * 1000
+bool aggregate = build4h and chartMs < H4 and H4 % chartMs == 0
+
+var int   curBucket = na
+var float curO = na
+var float curH = na
+var float curL = na
+var float curC = na
+var int   curB = na
+var bool  curOpen = false
+
+E.evSweepL := false
+E.evSweepS := false
+E.evChochL := false
+E.evChochS := false
+E.evLong := false
+E.evShort := false
+
+if barstate.isconfirmed
+    if aggregate
+        int bucket = math.floor(time / H4)
+        if bucket != curBucket
+            if curOpen
+                E.step(curO, curH, curL, curC, curB)   // the previous 4h candle ended early (session close)
+            curBucket := bucket
+            curO := open
+            curH := high
+            curL := low
+            curOpen := true
+        else
+            curH := math.max(curH, high)
+            curL := math.min(curL, low)
+        curC := close
+        curB := bar_index
+        if time_close % H4 == 0
+            E.step(curO, curH, curL, curC, curB)
+            curOpen := false
+    else
+        E.step(open, high, low, close, bar_index)
+
+alertcondition(E.evLong, "4 Long entry", "{{ticker}}: SMC BUY")
+alertcondition(E.evShort, "4 Short entry", "{{ticker}}: SMC SELL")
+alertcondition(E.evChochL, "2 Bullish CHoCH", "{{ticker}}: SMC bullish CHoCH after a sweep")
+alertcondition(E.evChochS, "2 Bearish CHoCH", "{{ticker}}: SMC bearish CHoCH after a sweep")
+alertcondition(E.evSweepL, "1 Swing low swept", "{{ticker}}: SMC swing low swept")
+alertcondition(E.evSweepS, "1 Swing high swept", "{{ticker}}: SMC swing high swept")
+
+// ─── Panel ───
+var table panel = table.new(position.top_right, 2, 4, bgcolor = color.new(#131722, 10), border_color = color.new(colMuted, 60), border_width = 1)
+if showPanel and barstate.islast
+    int t = E.c.size() - 1
+    bool okTf = aggregate or chartMs == H4
+    string mode = aggregate ? "4h UTC candles built from the " + timeframe.period + " chart" : chartMs == H4 ? "chart's own 4h candles" : "Backtested on 4h. Use a 1h chart."
+    table.cell(panel, 0, 0, "SMC", text_color = color.white, text_size = size.small)
+    table.cell(panel, 1, 0, mode, text_color = okTf ? colMuted : color.orange, text_size = size.small, text_halign = text.align_left)
+    int gL = 0
+    int gS = 0
+    for f in E.fvgs
+        if f.bull
+            gL += 1
+        else
+            gS += 1
+    string sL = gL > 0 ? str.tostring(gL) + " live bullish gap(s): buy when a 4h candle dips to a gap's middle" : E.bullS.active ? "Swept " + fmt(E.bullS.sweep) + ". Wait for a 4h close above " + fmt(E.bullS.level) + " within " + str.tostring(setupLife - (t - E.bullS.createdAt)) + " candles" : "Wait for a 4h candle to sweep the swing low " + (na(E.support) ? "" : fmt(E.support))
+    string sS = gS > 0 ? str.tostring(gS) + " live bearish gap(s): sell when a 4h candle rises to a gap's middle" : E.bearS.active ? "Swept " + fmt(E.bearS.sweep) + ". Wait for a 4h close below " + fmt(E.bearS.level) + " within " + str.tostring(setupLife - (t - E.bearS.createdAt)) + " candles" : "Wait for a 4h candle to sweep the swing high " + (na(E.resistance) ? "" : fmt(E.resistance))
+    table.cell(panel, 0, 1, "Long", text_color = colLong, text_size = size.small)
+    table.cell(panel, 1, 1, sL, text_color = color.white, text_size = size.small, text_halign = text.align_left)
+    table.cell(panel, 0, 2, "Short", text_color = colShort, text_size = size.small)
+    table.cell(panel, 1, 2, sS, text_color = color.white, text_size = size.small, text_halign = text.align_left)
