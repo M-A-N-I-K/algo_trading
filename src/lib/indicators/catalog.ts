@@ -52,6 +52,24 @@ export const INDICATORS: IndicatorInfo[] = [
     ],
   },
   {
+    id: "sr-sweep-trendline",
+    file: "sr-sweep-trendline-checkpoints.pine",
+    mt5File: "PB_SRSweepTrendline.mq5",
+    status: "playbook",
+    title: "S/R Sweep + Trend-Line Break checkpoints",
+    strategy: "sr-sweep-trendline",
+    guide: "/guides/sr-sweep-trendline",
+    bestOn: "NAS100 1h",
+    backtest:
+      "Playbook setup. 84 trades on MT5 NAS100 1h since 2020, profit factor 2.57, +71R. With the hourly candles shifted to start at :15, :30 or :45 it made 1.20–1.46, so expect nearer 1.3 live.",
+    steps: [
+      { label: "1 Level", text: "Two swing lows within 0.25 × ATR, at most 100 candles apart, nothing lower between them. Support is the lower one." },
+      { label: "2 Sweep", text: "A low trades below the level, then a candle closes back above it within 3 candles." },
+      { label: "3 Trend line", text: "Through the last two falling swing highs at or before the sweep candle, extended to the right." },
+      { label: "4 Buy", text: "Within 48 candles, a green candle with a body of at least 1 ATR closes above the line and the 200 EMA. Stop 0.1 ATR under the lowest low since the sweep, target 3R. Sells are the mirror." },
+    ],
+  },
+  {
     id: "liquidity-reversal",
     file: "liquidity-reversal-checkpoints.pine",
     mt5File: "PB_LiquidityReversal.mq5",

@@ -1,11 +1,12 @@
 # TradingView indicators
 
-The Playbook has three active setups. Each one has an indicator that marks entry, stop and target with the same rules and defaults as the backtest:
+The Playbook has four active setups. Each one has an indicator that marks entry, stop and target with the same rules and defaults as the backtest:
 
 | Playbook setup | TradingView (this folder) | MT5 (`../mt5`) | Chart |
 |---|---|---|---|
 | NAS100 MACD + 200 EMA + S/R, 4h | `macd-200ema-sr-checkpoints.pine` | `PB_MACD200EMA_SR.mq5` | 1h (builds the UTC 4h candles itself) |
 | Gold Smart Money Concepts, 4h | `smc-checkpoints.pine` | `PB_SMC.mq5` | 1h (builds the UTC 4h candles itself) |
+| NAS100 S/R Sweep + Trend-Line Break, 1h | `sr-sweep-trendline-checkpoints.pine` | `PB_SRSweepTrendline.mq5` | 1h |
 | EUR/USD Liquidity Reversal, 1h | `liquidity-reversal-checkpoints.pine` | `PB_LiquidityReversal.mq5` | 1h |
 
 `liquidity-sweep-checkpoints.pine` (ETH 1h) and `liquidity-reversal-mtf-checkpoints.pine` (5m) are for setups the Playbook has retired because they lost money on 6.5 years of MT5 data. They are kept for reference only.
@@ -69,6 +70,36 @@ App signals on MT5 XAUUSD, 112 since 2020:
 | 2026-11-06 12:00 | BUY | 4054.56 | 3957.26 | 4346.46 |
 
 The indicator marks every signal. The backtest holds one trade at a time, so a signal that comes while an earlier trade is still open (two came on 15 May, for example) was not taken there.
+
+## S/R Sweep + Trend-Line Break checkpoints (NAS100 1h)
+
+`sr-sweep-trendline-checkpoints.pine` ports `src/strategies/srSweepTrendlineStrategy.ts`:
+
+| Mark | Checkpoint | Rule |
+|---|---|---|
+| dashed line | Level | Two swing lows (3 candles each side) within 0.25 × ATR(14), at most 100 candles apart, nothing lower between them. Drawn when it gets swept. |
+| **Sweep** | Liquidity taken | A low trades below the level (up to 300 candles after it formed), and a candle closes back above it within 3 candles. |
+| dotted line | Trend line | Through the last two falling swing highs (3 candles each side) at or before the sweep candle, within 80 candles of it. Drawn on the signal. |
+| **BUY / SELL** | Entry | Within 48 candles of the reclaim, a green candle with a body of at least 1 × ATR closes above the line and above the 200 EMA. Stop = the lowest low since the sweep − 0.1 × ATR. Target = 3R. A new low that closes back at or below the level kills the setup. |
+
+Shorts are the mirror image. Use a **1h** chart.
+
+Alerts: **Any alert() function call** sends the entries with prices. Named conditions: **Long entry**, **Short entry**, **Support swept**, **Resistance swept**.
+
+App signals on MT5 NDX100 1h, 129 since 2020 (the backtest took 84, one trade at a time):
+
+| Candle open (UTC) | Side | Entry (close) | Stop | Target |
+|---|---|---|---|---|
+| 2026-07-15 14:00 | SELL | 29428.67 | 29874.69 | 28090.61 |
+| 2026-07-29 13:00 | SELL | 27585.59 | 28041.99 | 26216.40 |
+| 2026-08-30 23:00 | SELL | 29235.75 | 29763.97 | 27651.10 |
+| 2026-09-01 07:00 | SELL | 29383.75 | 29525.47 | 28958.58 |
+| 2026-09-01 08:00 | SELL | 29183.13 | 29511.74 | 28197.30 |
+| 2026-09-16 18:00 | SELL | 28923.09 | 29246.31 | 27953.44 |
+| 2026-09-17 12:00 | BUY | 29418.50 | 28740.36 | 31452.92 |
+| 2026-10-12 13:00 | SELL | 30735.63 | 31070.38 | 29731.38 |
+
+This setup depends on where the hourly candles start. TradingView's NAS100 feeds start them on the hour, like MT5, but their prices differ a little, so some signals will differ.
 
 ## Liquidity Reversal checkpoints (EUR/USD 1h)
 
