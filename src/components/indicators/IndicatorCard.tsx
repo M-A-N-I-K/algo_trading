@@ -50,8 +50,22 @@ function CopyButton({ text, label, primary }: { text: string; label: string; pri
   );
 }
 
-export default function IndicatorCard({ info, code, mt5Code }: { info: IndicatorInfo; code: string; mt5Code?: string }) {
-  const lines = code.split("\n").length;
+function CodeBlock({ label, code }: { label: string; code: string }) {
+  return (
+    <details className="group mt-3 min-w-0">
+      <summary className="cursor-pointer text-[13px] text-fog hover:text-paper">
+        Show the {label} code ({code.split("\n").length} lines)
+      </summary>
+      <div className="relative mt-2 max-h-[420px] min-w-0 overflow-auto rounded-md border border-rule bg-ink">
+        <pre className="p-3 text-[12px] leading-relaxed text-paper">
+          <code>{code}</code>
+        </pre>
+      </div>
+    </details>
+  );
+}
+
+export default function IndicatorCard({ info, code, strategyCode, mt5Code }: { info: IndicatorInfo; code?: string; strategyCode?: string; mt5Code?: string }) {
   const retired = info.status === "retired";
 
   return (
@@ -68,11 +82,24 @@ export default function IndicatorCard({ info, code, mt5Code }: { info: Indicator
       className={retired ? "opacity-75" : ""}
       aside={
         <div className="flex flex-wrap gap-2">
-          <CopyButton text={code} label="Copy TradingView" primary={!retired} />
-          <Button size="sm" onClick={() => download(code, info.file)}>
-            <Download size={14} aria-hidden="true" />
-            .pine
-          </Button>
+          {strategyCode && info.strategyFile && (
+            <>
+              <CopyButton text={strategyCode} label="Copy strategy" primary={!retired} />
+              <Button size="sm" onClick={() => download(strategyCode, info.strategyFile!)} aria-label={`Download ${info.strategyFile}`}>
+                <Download size={14} aria-hidden="true" />
+                strategy .pine
+              </Button>
+            </>
+          )}
+          {code && info.file && (
+            <>
+              <CopyButton text={code} label="Copy indicator" primary={!retired && !strategyCode} />
+              <Button size="sm" onClick={() => download(code, info.file!)} aria-label={`Download ${info.file}`}>
+                <Download size={14} aria-hidden="true" />
+                indicator .pine
+              </Button>
+            </>
+          )}
           {mt5Code && info.mt5File && (
             <>
               <CopyButton text={mt5Code} label="Copy MT5" />
@@ -86,6 +113,11 @@ export default function IndicatorCard({ info, code, mt5Code }: { info: Indicator
       }
     >
       {info.backtest && <p className="mb-4 max-w-[80ch] text-sm leading-relaxed text-paper">{info.backtest}</p>}
+      {info.strategySettings && (
+        <p className="mb-4 max-w-[80ch] rounded-md border border-rule bg-ink/40 px-3 py-2 text-[13px] leading-relaxed text-fog">
+          <span className="text-paper">Strategy Tester settings:</span> {info.strategySettings}
+        </p>
+      )}
       <ol className="flex flex-col gap-2">
         {info.steps.map((s) => (
           <li key={s.label} className="flex flex-col gap-1 text-sm sm:flex-row sm:gap-3">
@@ -105,14 +137,8 @@ export default function IndicatorCard({ info, code, mt5Code }: { info: Indicator
         .
       </p>
 
-      <details className="group mt-4 min-w-0">
-        <summary className="cursor-pointer text-[13px] text-fog hover:text-paper">Show the TradingView code ({lines} lines)</summary>
-        <div className="relative mt-2 max-h-[420px] min-w-0 overflow-auto rounded-md border border-rule bg-ink">
-          <pre className="p-3 text-[12px] leading-relaxed text-paper">
-            <code>{code}</code>
-          </pre>
-        </div>
-      </details>
+      {strategyCode && <CodeBlock label="strategy" code={strategyCode} />}
+      {code && <CodeBlock label="indicator" code={code} />}
     </Panel>
   );
 }

@@ -5,7 +5,9 @@
 
 export interface IndicatorInfo {
   id: string;
-  file: string; // Pine script under /tradingview
+  file?: string; // Pine indicator under /tradingview
+  strategyFile?: string; // Pine strategy (Strategy Tester) under /tradingview
+  strategySettings?: string; // what to change per market in the strategy's settings
   mt5File?: string; // MQL5 indicator under /mt5
   status: "playbook" | "retired";
   title: string;
@@ -18,8 +20,28 @@ export interface IndicatorInfo {
 
 export const INDICATORS: IndicatorInfo[] = [
   {
+    id: "ny-inside-bar",
+    strategyFile: "ny-inside-bar-strategy.pine",
+    strategySettings: "15-minute chart. NAS100: defaults (commission 0.0031). S&P 500: set the commission to 0.0037 in Properties.",
+    status: "playbook",
+    title: "NY Inside Bar",
+    strategy: "ny-inside-bar",
+    guide: "/guides/ny-inside-bar",
+    bestOn: "NAS100 15m and SPX500 15m. Times are New York's, daylight saving included",
+    backtest:
+      "Playbook setups. 1,512 trades on MT5 NAS100 15m since 2020, 58.3% won, profit factor 1.31, +0.13R a trade; SPX500 1,615 trades, profit factor 1.21. A small edge per trade, so it needs every valid trade at the same size.",
+    steps: [
+      { label: "1 Bias", text: "The 09:30 and 09:45 New York candles: the 09:45 close above the 09:30 open means buys only today, below means sells only." },
+      { label: "2 Inside", text: "After 10:00, a candle whose body (open to close) sits inside the previous candle's body. Wicks don't count here; any colour." },
+      { label: "3 Order", text: "Buy stop at the inside candle's high (sell stop at its low) for the next 3 candles. Cancel it if price reaches the other side first; a newer inside candle replaces it." },
+      { label: "4 Trade", text: "Stop beyond both candles' wicks, target 1:1. At most 2 trades a day, one at a time, no fills after 15:00, everything closed at 16:00 New York time." },
+    ],
+  },
+  {
     id: "macd-200ema-sr",
     file: "macd-200ema-sr-checkpoints.pine",
+    strategyFile: "macd-200ema-sr-strategy.pine",
+    strategySettings: "NAS100 on a 1h chart: keep the defaults (target 2, commission 0.0031).",
     mt5File: "PB_MACD200EMA_SR.mq5",
     status: "playbook",
     title: "MACD + 200 EMA + S/R checkpoints",
@@ -37,6 +59,8 @@ export const INDICATORS: IndicatorInfo[] = [
   {
     id: "smc",
     file: "smc-checkpoints.pine",
+    strategyFile: "smc-strategy.pine",
+    strategySettings: "1h chart. Gold: defaults (commission 0.0043). FTSE 100: set the commission to 0.0062 in Properties.",
     mt5File: "PB_SMC.mq5",
     status: "playbook",
     title: "Smart Money Concepts checkpoints",
@@ -54,6 +78,8 @@ export const INDICATORS: IndicatorInfo[] = [
   {
     id: "sr-sweep-trendline",
     file: "sr-sweep-trendline-checkpoints.pine",
+    strategyFile: "sr-sweep-trendline-strategy.pine",
+    strategySettings: "NAS100 on a 1h chart: defaults (target 3, commission 0.0031). ETH on a 4h chart: target 1.5, commission 0.0512.",
     mt5File: "PB_SRSweepTrendline.mq5",
     status: "playbook",
     title: "S/R Sweep + Trend-Line Break checkpoints",
@@ -72,6 +98,8 @@ export const INDICATORS: IndicatorInfo[] = [
   {
     id: "liquidity-reversal",
     file: "liquidity-reversal-checkpoints.pine",
+    strategyFile: "liquidity-reversal-strategy.pine",
+    strategySettings: "S&P 500 on a 4h chart: fixed target 2 (commission 0.0037 is the default). GBP/USD 1h: fixed target 2, commission 0.0057. EUR/USD 1h: fixed target 0, commission 0.0031.",
     mt5File: "PB_LiquidityReversal.mq5",
     status: "playbook",
     title: "Liquidity Reversal checkpoints",
