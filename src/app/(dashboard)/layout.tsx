@@ -18,6 +18,7 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   "/trades": { title: "Journal", subtitle: "Every closed trade, with its notes, tags and checklist." },
   "/review": { title: "Trade review", subtitle: "An honest look at your trades: what's losing you money and what to change." },
   "/strategies": { title: "Strategies", subtitle: "Build and version rule-based strategies." },
+  "/tester-reports": { title: "Tester reports", subtitle: "Each Playbook setup's MT5 Strategy Tester run: its numbers, losing streaks, worst day and the challenge attempts it needs." },
   "/backtest": { title: "Backtests", subtitle: "Run a strategy against historical candles." },
   "/insights": { title: "Backtest insights", subtitle: "Compare every backtest run side by side." },
   "/plan": { title: "Weekly plan", subtitle: "Top-down read of every market: last week's range, today's levels and which side is A-grade." },

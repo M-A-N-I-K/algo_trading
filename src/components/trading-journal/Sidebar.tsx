@@ -18,6 +18,7 @@ import {
   Settings,
   Target,
   FileCode,
+  ClipboardCheck,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -50,6 +51,7 @@ const NAV_GROUPS: { title: string; items: { href: string; label: string; icon: L
     title: "Research",
     items: [
       { href: "/strategies", label: "Strategies", icon: Layers },
+      { href: "/tester-reports", label: "Tester reports", icon: ClipboardCheck },
       { href: "/backtest", label: "Backtests", icon: FlaskConical },
       { href: "/insights", label: "Backtest insights", icon: Lightbulb },
       { href: "/plan", label: "Weekly plan", icon: Compass },
