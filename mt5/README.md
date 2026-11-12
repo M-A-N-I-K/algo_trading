@@ -12,6 +12,8 @@ One indicator for each of the Playbook's four active strategies, plus the retire
 
 The rules for each are written at the top of its file and in `../tradingview/README.md`.
 
+Each one also has an **Expert Advisor** version (`_EA.mq5`) for MT5's Strategy Tester: see [Backtest the Playbook setups](#backtest-the-playbook-setups-in-the-strategy-tester).
+
 ## Install
 
 1. In MT5: **File → Open Data Folder**, then open `MQL5/Indicators`.
@@ -107,6 +109,45 @@ The indicator marks every signal. The backtest holds one trade at a time per set
 
 The indicators load 60,000 H1 bars by default (about 9 years). If your terminal holds less history, early signals will be missing and the first stops can differ slightly while the EMA and ATR warm up. Raise **Max bars in chart** under **Tools → Options → Charts** if needed.
 
+## Backtest the Playbook setups in the Strategy Tester
+
+The indicators only draw, so the Strategy Tester can't run them. Each has an Expert Advisor twin with the same rules that places the trade itself: a market order at the open of the candle after the signal, with the signal's stop and target. One trade at a time; a signal while a trade is open is skipped, as in the app's backtest.
+
+| EA | Indicator it copies | Magic |
+|---|---|---|
+| `PB_MACD200EMA_SR_EA.mq5` | `PB_MACD200EMA_SR.mq5` | 260916 |
+| `PB_SMC_EA.mq5` | `PB_SMC.mq5` | 260917 |
+| `PB_SRSweepTrendline_EA.mq5` | `PB_SRSweepTrendline.mq5` | 260918 |
+| `PB_LiquidityReversal_EA.mq5` | `PB_LiquidityReversal.mq5` | 260919 |
+
+1. Save them in **File → Open Data Folder → MQL5/Experts** and compile each (F7), or right-click **Expert Advisors** in the Navigator and choose **Refresh**.
+2. Open the tester (**View → Strategy Tester**, Ctrl+R) and pick the EA, symbol and inputs from the table below. **Timeframe: H1** for all of them (the EAs read H1 bars and build 4h candles themselves). **Modelling: 1 minute OHLC** (or *Every tick based on real ticks* if you have the disk space), **Date: 2020.01.01** to today, **Deposit: 10000 USD**.
+3. **Risk per trade** 1% (the default) makes $100 one R, so the tester's results read like the app's R numbers. Leave the rules at their defaults except the inputs listed.
+4. Click **Start**. The **Journal** tab logs every trade and every skipped signal.
+
+| Setup | Symbol | Inputs to change | The app's backtest since 2020 |
+|---|---|---|---|
+| MACD + 200 EMA + S/R 4h | NDX100 | none (target 2) | 38 trades, 50% won, PF 1.98 |
+| SMC 4h | XAUUSD | none | 56 trades, 33.9% won, PF 1.56 |
+| SMC 4h | FTSE100 (from 2023.07.01) | none | 27 trades, 51.9% won, PF 3.03 |
+| S/R Sweep + Trend-Line Break 1h | NDX100 | none (target 3) | 84 trades, 46.4% won, PF 2.57 |
+| S/R Sweep + Trend-Line Break 4h | ETHUSD | **Timeframe** 4h on the UTC clock, **Target** 1.5 | 30 trades, 66.7% won, PF 2.83 |
+| Liquidity Reversal 1h | EURUSD | none (swing target) | 124 trades, 30.6% won, PF 1.23 |
+| Liquidity Reversal 1h | GBPUSD | **Fixed target** 2 | 134 trades, 42.5% won, PF 1.38 |
+| Liquidity Reversal 4h | SPX500 | **Timeframe** 4h on the UTC clock, **Fixed target** 2 | 34 trades, 47.1% won, PF 1.73 |
+
+Expect small differences from the app:
+
+- buys fill on the **ask** and the tester charges your account's real spread and commission;
+- the real tick order decides a candle that reaches both stop and target (the app always counts the stop);
+- a signal is skipped if the next candle opens already past its stop or target;
+- each hour the EAs re-read the last 12,000 H1 bars (**H1 bars of history**), so a support or resistance level older than that is not seen. The app reads everything. Raise it for a closer match at the cost of speed;
+- the first weeks need history before the start date to warm up the 200 EMA and ATR. If the tester has none, start the test a few months later.
+
+A big gap from the app's numbers (as NY Inside Bar showed) means the app's candle rules flatter the setup. Save the report (Results tab → right-click → Report → Open XML) to compare it trade by trade with the app's trades.
+
+The EAs can trade a demo or live account too, if your prop firm allows Expert Advisors. They're built for testing; watch one on a demo before trusting it with a challenge. Drawing is off in the tester's fast mode (turn on **Draw marks in the tester's non-visual mode** if you want it) and on in visual mode and on a live chart.
+
 ## NY Inside Bar (PB_NYInsideBar)
 
 **Retired (Nov 2026): it loses money.** The Strategy Tester run of `PB_NYInsideBar_EA` on NDX100 since 2020 made 1,696 trades, 51% won, profit factor 1.06, a 27% drawdown at 1% risk, against the app's 1.31. The app had cancelled orders on candles that reached both the trigger and the cancel level; real orders fill there and mostly lose. With that fixed the app shows NAS100 0.90 and SPX500 0.78. Kept for study.
@@ -133,9 +174,9 @@ The app's last NAS100 trades (fill candle in **server** time, as MT5 shows it):
 | 2026-11-02 18:45 | SELL | 28506.36 | 28567.81 | 28444.91 |
 | 2026-11-03 20:00 | BUY | 28257.19 | 28198.90 | 28315.48 |
 
-## Backtest in MT5's Strategy Tester (PB_NYInsideBar_EA)
+## Backtest NY Inside Bar in MT5's Strategy Tester (PB_NYInsideBar_EA)
 
-The indicators only draw, so the Strategy Tester can't run them. `PB_NYInsideBar_EA.mq5` is an Expert Advisor that places the NY Inside Bar orders itself: the stop order after each inside candle with its stop and target, deleted when price reaches the other side first, after 3 candles, when a newer inside candle replaces it or at 15:00 New York, and anything open closed at 16:00. Max 2 trades a day, one at a time.
+`PB_NYInsideBar_EA.mq5` is an Expert Advisor that places the NY Inside Bar orders itself: the stop order after each inside candle with its stop and target, deleted when price reaches the other side first, after 3 candles, when a newer inside candle replaces it or at 15:00 New York, and anything open closed at 16:00. Max 2 trades a day, one at a time.
 
 1. Save it in **File → Open Data Folder → MQL5/Experts** and compile it (F7).
 2. Open the tester: **View → Strategy Tester** (Ctrl+R). Choose **Expert: PB_NYInsideBar_EA**, **Symbol: NDX100** (or SPX500), **Timeframe: M15**, **Modelling: Every tick based on real ticks**, **Date: 2020.01.01** to today, **Deposit: 10000 USD**, leverage your account's.
