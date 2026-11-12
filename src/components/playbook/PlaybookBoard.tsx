@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { Button, Callout, EmptyState, Field, Panel, Stat, Tag, TextInput, money, signedNumber, tableClass, tdClass, thClass, toneClass } from "@/components/kit";
 import { fetchJson } from "@/lib/apiClient";
-import { PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, PLAYBOOK_SIGNALS_PER_WEEK, setupById } from "@/lib/playbook/config";
+import { OTHER_SETUP_RISK_SCALE, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "@/lib/playbook/config";
 import { MID_AVG_R, STRONG_AVG_R, type JournalEntry, type RankedSignal, type SetupVerdict, type Tier } from "@/lib/playbook/rules";
 import type { PlaybookView } from "@/lib/playbook/store";
 import { fmtPrice } from "@/lib/plan/weeklyPlan";
@@ -142,7 +142,7 @@ function AccountSwitcher({ view, onSelect }: { view: PlaybookView; onSelect: (id
               <span className={toneClass(status.todayPnl)}>{money(status.todayPnl)} today</span>
             </span>
             <span className="text-xs text-mist">
-              {account.rules.riskPctA}% ({usd((account.size * account.rules.riskPctA) / 100)}) a trade · stop at {money(-status.ownDailyStop)} a day · floor {usd(status.floor)}
+              {account.setups.length} setups · {account.rules.riskPctA}% ({usd((account.size * account.rules.riskPctA) / 100)}) a trade · stop at {money(-status.ownDailyStop)} a day · floor {usd(status.floor)}
             </span>
           </button>
         );
@@ -282,15 +282,20 @@ function useSignals(accountId: string) {
   });
 }
 
-function SignalsPanel({ accountId, onPlan, freeSlots }: { accountId: string; onPlan: (d: PlanDefaults) => void; freeSlots: number }) {
-  const { data, error, isLoading } = useSignals(accountId);
-  const others = data?.signals ?? [];
-  const fresh = others.filter((x) => x.signal.status === "new");
-  const running = others.filter((x) => x.signal.status === "open");
+function SignalsPanel({ account, onPlan, freeSlots }: { account: PlaybookAccount; onPlan: (d: PlanDefaults) => void; freeSlots: number }) {
+  const { data, error, isLoading } = useSignals(account.id);
+  const all = data?.signals ?? [];
+  const own = all.filter((x) => x.inPlan);
+  const other = all.filter((x) => !x.inPlan);
+  const fresh = own.filter((x) => x.signal.status === "new");
+  const running = own.filter((x) => x.signal.status === "open");
+  const ownCount = account.setups.length;
+  const perWeek = account.setups.reduce((a, s) => a + (setupById(s.id)?.baseline.perWeek ?? 0), 0);
+  const otherPct = Math.round(OTHER_SETUP_RISK_SCALE * 100);
   return (
     <Panel
       title="Today's signals"
-      note={`Only the ${PLAYBOOK_SETUPS.length} playbook setups, by priority: ones you can take first, then tier S, A+, A, B, C, new before running. ${freeSlots > 0 ? `You have ${freeSlots} free slot${freeSlots > 1 ? "s" : ""}: take from the top.` : "All slots are full."}`}
+      note={`This account's ${ownCount} setups, by priority: ones you can take first, then tier S, A+, A, B, C, new before running. ${freeSlots > 0 ? `You have ${freeSlots} free slot${freeSlots > 1 ? "s" : ""}: take from the top.` : "All slots are full."}`}
       aside={data && <span className="text-xs text-mist">Checked {when.format(data.asOf)}, every minute</span>}
     >
       {isLoading ? (
@@ -301,7 +306,7 @@ function SignalsPanel({ accountId, onPlan, freeSlots }: { accountId: string; onP
         <div className="flex flex-col gap-5">
           <TierLegend />
           {fresh.length === 0 ? (
-            <EmptyState>No new signal right now. Across all {PLAYBOOK_SETUPS.length} setups the backtests averaged about {Math.round(PLAYBOOK_SIGNALS_PER_WEEK)} a week, so most hours have none: that&apos;s normal, not a reason to look elsewhere.</EmptyState>
+            <EmptyState>No new signal on this account&apos;s setups right now. Their backtests averaged about {perWeek.toFixed(1)} a week, so most days have none: that&apos;s normal, not a reason to look elsewhere.</EmptyState>
           ) : (
             <div className="grid gap-3">{fresh.map((x, i) => <SignalCard key={x.setup.id} item={x} rank={i + 1} onPlan={onPlan} />)}</div>
           )}
@@ -310,6 +315,17 @@ function SignalsPanel({ accountId, onPlan, freeSlots }: { accountId: string; onP
               <h3 className="mb-2 text-sm font-medium text-paper">Already running in the backtest</h3>
               <p className="mb-3 text-[13px] text-fog">Signals from earlier candles. Entering now is usually chasing: the checks flag it when price has moved more than {0.25}R.</p>
               <div className="grid gap-3">{running.map((x, i) => <SignalCard key={x.setup.id} item={x} rank={fresh.length + i + 1} onPlan={onPlan} />)}</div>
+            </div>
+          )}
+          {other.length > 0 && (
+            <div className="flex flex-col gap-3 border-t border-rule pt-5">
+              <h3 className="text-sm font-medium text-paper">Other setups ({other.length})</h3>
+              <Callout tone="warning" title="Not part of this account's plan">
+                These come from playbook setups assigned to your other account, or left out of both. They passed the backtest, but their drawdowns or losing streaks
+                are a poor fit for this account&apos;s limits, or taking them here would double a bet your other account already makes. If you take one, it&apos;s
+                sized at {otherPct}% of the usual risk and still counts toward your slots and daily stop. Skipping them is the plan.
+              </Callout>
+              <div className="grid gap-3 opacity-90">{other.map((x, i) => <SignalCard key={x.setup.id} item={x} rank={own.length + i + 1} onPlan={onPlan} />)}</div>
             </div>
           )}
           {data.errors.length > 0 && <p className="text-xs text-mist">Some data didn&apos;t load: {data.errors.slice(0, 3).join("; ")}</p>}
@@ -506,7 +522,20 @@ function RulesPanel({ view }: { view: PlaybookView }) {
   return (
     <Panel title="The rules" note="Set from a replay of two years of the original 13 setups as one account. See the Guides page for how to trade each strategy.">
       <ul className="flex list-disc flex-col gap-1.5 pl-4 text-[13px] leading-relaxed text-paper marker:text-mist">
-        <li>Only the {PLAYBOOK_SETUPS.length} setups on this page. A chart that looks good elsewhere is not a trade.</li>
+        <li>
+          This account trades {view.account.setups.length} setups:{" "}
+          {view.account.setups.map((a, i) => {
+            const s = setupById(a.id);
+            return (
+              <span key={a.id}>
+                {i > 0 && ", "}
+                <span className="text-paper">{s ? `${s.platformSymbol} ${s.strategyName} ${s.interval}` : a.id}</span>
+                {a.riskScale !== 1 && ` (at ${Math.round(a.riskScale * 100)}% of the usual risk)`}
+              </span>
+            );
+          })}
+          . Signals from the other playbook setups show under &quot;Other setups&quot; at {Math.round(OTHER_SETUP_RISK_SCALE * 100)}% risk; skipping them is the plan. A chart that looks good elsewhere is not a trade.
+        </li>
         {k.riskPctB === null ? (
           <li>Risk {k.riskPctA}% ({usd((view.account.size * k.riskPctA) / 100)}) on A-grade trades only. Skip B-grade and ungraded signals: with {view.account.maxLossPct}% of total room, this account can&apos;t afford the weaker trades.</li>
         ) : (
@@ -571,7 +600,7 @@ export default function PlaybookBoard() {
       </div>
       <AccountSwitcher view={view} onSelect={selectAccount} />
       <AccountPanel view={view} />
-      <SignalsPanel accountId={view.account.id} onPlan={setPlan} freeSlots={Math.max(0, view.rules.maxOpen - view.status.openCount)} />
+      <SignalsPanel account={view.account} onPlan={setPlan} freeSlots={Math.max(0, view.rules.maxOpen - view.status.openCount)} />
       <OpenTrades trades={view.open} onClose={setClosing} onEdit={setEditing} />
       <Discipline view={view} />
       <Scorecard view={view} />

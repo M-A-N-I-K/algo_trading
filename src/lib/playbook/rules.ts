@@ -6,8 +6,10 @@ import {
   lotUnits,
   MISTAKES,
   PLAYBOOK_ACCOUNT,
+  accountSetup,
   activeSetupById,
   customSetup,
+  OTHER_SETUP_RISK_SCALE,
   PLAYBOOK_SETUPS,
   RETIRED_SETUPS,
   setupById,
@@ -149,11 +151,25 @@ export function accountStatus(entries: JournalEntry[], now: number, account: Pla
 
 /* ---------- sizing ---------- */
 
-/** What the plan lets this trade risk, from its grade. `skip` says why the account doesn't take it. */
+/**
+ * Whether a playbook setup is one of the account's own. Custom and retired
+ * setups aren't playbook setups, so they're never "other" setups either.
+ */
+export function inAccountPlan(account: PlaybookAccount, setupId: string): boolean {
+  return !activeSetupById(setupId) || !!accountSetup(account, setupId);
+}
+
+/** The share of the account's A/B risk a setup gets: its own riskScale, or OTHER_SETUP_RISK_SCALE for the other playbook setups. */
+export function setupRiskScale(account: PlaybookAccount, setupId: string | undefined): number {
+  if (!setupId || !activeSetupById(setupId)) return 1;
+  return accountSetup(account, setupId)?.riskScale ?? OTHER_SETUP_RISK_SCALE;
+}
+
+/** What the plan lets this trade risk, from its grade and whether the setup is one of the account's own. `skip` says why the account doesn't take it. */
 export function riskBudget(symbol: string, grade: Grade | null, account: PlaybookAccount = PLAYBOOK_ACCOUNT, setup?: PlaybookSetup) {
   const rules = account.rules;
   const full = grade === "A" || (grade === null && !!setup?.ungradedFullRisk);
-  const riskPct = full ? rules.riskPctA : (rules.riskPctB ?? 0);
+  const riskPct = +((full ? rules.riskPctA : (rules.riskPctB ?? 0)) * setupRiskScale(account, setup?.id)).toFixed(4);
   const skip =
     !full && rules.riskPctB === null
       ? `This account takes A-grade trades only (${grade === "B" ? "this one is B-grade" : "this one has no grade"})`
@@ -275,10 +291,25 @@ export function preTradeChecks(plan: TradePlan, entries: JournalEntry[], account
   );
 
   const budget = riskBudget(symbol, plan.grade, account, setup);
+  if (setup) {
+    const own = accountSetup(account, setup.id);
+    add(
+      "account-plan",
+      "One of this account's setups",
+      own ? true : "warn",
+      own
+        ? own.riskScale !== 1
+          ? `In this account's plan at ${Math.round(own.riskScale * 100)}% of the usual risk: ${own.why}`
+          : `In this account's plan: ${own.why}`
+        : `Not one of this account's setups, so it's sized at ${Math.round(OTHER_SETUP_RISK_SCALE * 100)}% of the usual risk. Its drawdown, or its overlap with your other account, made it a poor fit here`,
+      false,
+    );
+  }
+  const sizeNote = setupRiskScale(account, setup?.id) !== 1 ? `${budget.riskPct}% risk on this setup` : null;
   if (budget.skip) add("grade", "Grade", false, budget.skip);
-  else if (plan.grade === "A") add("grade", "Grade", true, `A-grade: full size, ${rules.riskPctA}% risk`);
-  else if (plan.grade === null && setup?.ungradedFullRisk) add("grade", "Grade", true, `No grade on this market; this setup's challenge replay took every trade at full size, ${rules.riskPctA}% risk`);
-  else add("grade", "Grade", "warn", `${plan.grade === "B" ? "B-grade" : "No grade"}: half size, ${rules.riskPctB}% risk`, false);
+  else if (plan.grade === "A") add("grade", "Grade", true, `A-grade: full size, ${sizeNote ?? `${rules.riskPctA}% risk`}`);
+  else if (plan.grade === null && setup?.ungradedFullRisk) add("grade", "Grade", true, `No grade on this market; this setup's challenge replay took every trade at full size, ${sizeNote ?? `${rules.riskPctA}% risk`}`);
+  else add("grade", "Grade", "warn", `${plan.grade === "B" ? "B-grade" : "No grade"}: half size, ${sizeNote ?? `${rules.riskPctB}% risk`}`, false);
 
   const d = plan.side === "LONG" ? 1 : -1;
   const stopOk = (plan.entry - plan.stop) * d > 0;
@@ -377,11 +408,14 @@ export function signalTier(setup: PlaybookSetup, grade: Grade | null, account: P
   if (chasing) return { tier: "C", reason: "Price has run past the signal's entry: the backtest didn't pay a late fill. Skip it." };
   const skip = riskBudget(setup.symbol, grade, account, setup).skip;
   if (skip) return { tier: "C", reason: `${skip}. Skip it.` };
+  const scale = setupRiskScale(account, setup.id);
+  const sized =
+    scale === 1 ? "" : inAccountPlan(account, setup.id) ? ` This account sizes it at ${Math.round(scale * 100)}% of that.` : ` Not one of this account's setups: ${Math.round(scale * 100)}% of that.`;
   const strength = setupStrength(setup);
-  if (grade === null && setup.ungradedFullRisk) return { tier: "A", reason: `No grade on this market; taken at full risk like its challenge replay (backtest ${r}R a trade).` };
-  if (grade !== "A") return { tier: "B", reason: `${grade === "B" ? "B-grade" : "No grade"} on ${STRENGTH_LABEL[strength]}, ${r}R. B risk.` };
+  if (grade === null && setup.ungradedFullRisk) return { tier: "A", reason: `No grade on this market; taken at full risk like its challenge replay (backtest ${r}R a trade).${sized}` };
+  if (grade !== "A") return { tier: "B", reason: `${grade === "B" ? "B-grade" : "No grade"} on ${STRENGTH_LABEL[strength]}, ${r}R. B risk.${sized}` };
   const tier: Tier = strength === "strong" ? "S" : strength === "mid" ? "A+" : "A";
-  return { tier, reason: `A-grade on ${STRENGTH_LABEL[strength]}, ${r}R. Full risk.` };
+  return { tier, reason: `A-grade on ${STRENGTH_LABEL[strength]}, ${r}R. Full risk.${sized}` };
 }
 
 export interface RankedSignal {
@@ -394,11 +428,12 @@ export interface RankedSignal {
   tier: Tier;
   tierReason: string;
   riskPct: number; // what the account risks on it (0 for C)
+  inPlan: boolean; // one of the account's own setups; the others show separately, at reduced risk
 }
 
 /**
- * New and running signals for playbook setups, best first: ones you can take
- * before blocked ones, then by tier (S, A+, A, B, C), new before running, and
+ * New and running signals for playbook setups, best first: the account's own
+ * setups before the others, ones you can take before blocked ones, then by tier (S, A+, A, B, C), new before running, and
  * the setup with the higher backtest average R.
  */
 export function rankSignals(rows: SignalInput[], entries: JournalEntry[], now: number, account: PlaybookAccount = PLAYBOOK_ACCOUNT, stoppedElsewhere: string[] = []): RankedSignal[] {
@@ -421,9 +456,9 @@ export function rankSignals(rows: SignalInput[], entries: JournalEntry[], now: n
     const chasing = checks.some((c) => c.id === "chase" && c.status === "warn");
     const { tier, reason } = signalTier(setup, grade, account, chasing);
     const takeable = plan !== null && hardFailures(checks).length === 0;
-    out.push({ setup, signal: s, plan, sizing, checks, takeable, tier, tierReason: reason, riskPct: tier === "C" ? 0 : riskBudget(setup.symbol, grade, account, setup).riskPct });
+    out.push({ setup, signal: s, plan, sizing, checks, takeable, tier, tierReason: reason, riskPct: tier === "C" ? 0 : riskBudget(setup.symbol, grade, account, setup).riskPct, inPlan: inAccountPlan(account, setup.id) });
   }
-  const order = (r: RankedSignal) => [r.takeable && r.tier !== "C" ? 0 : 1, TIERS.indexOf(r.tier), r.signal.status === "new" ? 0 : 1, -r.setup.baseline.avgR];
+  const order = (r: RankedSignal) => [r.inPlan ? 0 : 1, r.takeable && r.tier !== "C" ? 0 : 1, TIERS.indexOf(r.tier), r.signal.status === "new" ? 0 : 1, -r.setup.baseline.avgR];
   return out.sort((a, b) => {
     const x = order(a), y = order(b);
     for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i];

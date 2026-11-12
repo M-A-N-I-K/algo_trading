@@ -52,7 +52,19 @@ export interface PlaybookAccount {
   // matches the platform's. Set per user from the page (User.playbookPriorPnls).
   priorPnl: number;
   rules: PlaybookRules;
+  // The setups this account trades, each at a share of the account's risk.
+  // Signals from every other playbook setup still show, at OTHER_SETUP_RISK_SCALE.
+  setups: readonly AccountSetup[];
 }
+
+export interface AccountSetup {
+  id: string; // PlaybookSetup id
+  riskScale: number; // × the account's A/B risk
+  why: string;
+}
+
+// Risk share for a playbook setup that isn't in the account's own list.
+export const OTHER_SETUP_RISK_SCALE = 0.5;
 
 const SHARED_RULES = {
   maxOpen: 2,
@@ -82,6 +94,13 @@ export const PLAYBOOK_ACCOUNTS: readonly PlaybookAccount[] = [
     timeZone: FUNDINGPIPS_TZ,
     priorPnl: 0,
     rules: { ...SHARED_RULES, riskPctA: 1, riskPctB: 0.5, dailyStopPct: 2 },
+    // The more frequent setups (MT5 Strategy Tester, Nov 2026, 1% risk):
+    // deeper drawdowns that 12% of room can carry.
+    setups: [
+      { id: "sr-sweep-trendline:NAS100:1h", riskScale: 1, why: "Best tester result: PF 2.26, +48.8R, worst drawdown 7.8R" },
+      { id: "smc:XAUUSDT:4h", riskScale: 1, why: "Tester PF 1.50, but 8 losses in a row in the backtest: too deep for the Pro" },
+      { id: "liquidity-reversal:GBPUSD:1h", riskScale: 0.5, why: "Tester PF 1.37 with a 12.6R drawdown, the whole max loss at full risk: half size" },
+    ],
   },
   {
     id: "pro-5k",
@@ -93,11 +112,22 @@ export const PLAYBOOK_ACCOUNTS: readonly PlaybookAccount[] = [
     timeZone: FUNDINGPIPS_TZ,
     priorPnl: 0,
     rules: { ...SHARED_RULES, riskPctA: 0.75, riskPctB: null, dailyStopPct: 1.5 },
+    // 6% of room is 8R at 0.75%: only setups whose tester drawdown stayed
+    // near 4–6R and whose worst losing streak was 4 or fewer.
+    setups: [
+      { id: "macd-200ema-sr:NAS100:4h", riskScale: 1, why: "Tester PF 2.03, worst drawdown about 4R, longest losing streak 3" },
+      { id: "liquidity-reversal:SPX500:4h", riskScale: 1, why: "Tester PF 1.49, worst drawdown about 3.7R, longest losing streak 3" },
+      { id: "smc:FTSE100:4h", riskScale: 1, why: "Tester PF 2.84, worst drawdown about 5.7R; only 26 trades since 2023" },
+      { id: "sr-sweep-trendline:ETHUSDT:4h", riskScale: 1, why: "Backtest PF 2.83 at 1.5R, worst drawdown 4.2R; tester run at 1.5R still to do" },
+    ],
   },
 ];
 
 export const PLAYBOOK_ACCOUNT = PLAYBOOK_ACCOUNTS[0];
 export const accountById = (id: string | null | undefined) => PLAYBOOK_ACCOUNTS.find((a) => a.id === id);
+
+/** The account's own entry for a setup, or undefined when it's one of the other setups. */
+export const accountSetup = (account: PlaybookAccount, setupId: string) => account.setups.find((s) => s.id === setupId);
 
 export interface SetupBaseline {
   trades: number;

@@ -52,6 +52,8 @@ const ACCOUNT: PlaybookAccount = {
   dailyLossPct: 4,
   targetPct: 10,
   rules: { ...PLAYBOOK_ACCOUNT.rules, riskPctA: 0.5, riskPctB: 0.25, maxOpen: 4, dailyStopPct: 2, maxLossesPerDay: 99 },
+  // Every setup at full share, so the generic rules below aren't scaled.
+  setups: PLAYBOOK_SETUPS.map((s) => ({ id: s.id, riskScale: 1, why: "test" })),
 };
 const accountStatus = (e: JournalEntry[], now: number, account = ACCOUNT) => accountStatusOn(e, now, account);
 const preTradeChecks = (p: TradePlan, e: JournalEntry[], account = ACCOUNT, stopped: string[] = []) => preTradeChecksOn(p, e, account, stopped);
@@ -384,7 +386,10 @@ describe("scorecard", () => {
 describe("the two FundingPips accounts", () => {
   const flex = accountById("flex-10k")!;
   const pro = accountById("pro-5k")!;
-  const flexPlan = (over: Partial<TradePlan> = {}) => plan({ riskAmount: 100, ...over });
+  const FLEX_NAS = "sr-sweep-trendline:NAS100:1h"; // Flex's own
+  const nas = { entry: 25_000, stop: 24_950, target: 25_150 };
+  const flexPlan = (over: Partial<TradePlan> = {}) => plan({ setupId: FLEX_NAS, ...nas, riskAmount: 100, ...over });
+  const proPlan = (over: Partial<TradePlan> = {}) => plan({ setupId: NAS_MACD, ...nas, riskAmount: 37.5, ...over });
   const lossOn = (account: PlaybookAccount, pnl: number, over: Partial<JournalEntry> = {}) => closed(pnl, NOON - 1000, { accountId: account.id, riskAmount: Math.abs(pnl), ...over });
 
   it("matches the limits on the FundingPips dashboards", () => {
@@ -401,14 +406,15 @@ describe("the two FundingPips accounts", () => {
     expect(riskBudgetOn("ETHUSDT", "A", pro).amount).toBe(37.5);
     expect(riskBudgetOn("ETHUSDT", "B", pro).skip).toMatch(/A-grade trades only/);
     expect(riskBudgetOn("ETHUSDT", null, pro).skip).toMatch(/A-grade trades only/);
-    expect(status(preTradeChecksOn(plan({ grade: "B", riskAmount: 18.75 }), [], pro), "grade")).toBe("fail");
+    expect(status(preTradeChecksOn(proPlan({ grade: "B", riskAmount: 18.75 }), [], pro), "grade")).toBe("fail");
     expect(hardFailures(preTradeChecksOn(flexPlan(), [], flex))).toEqual([]);
-    expect(hardFailures(preTradeChecksOn(plan({ riskAmount: 37.5 }), [], pro))).toEqual([]);
+    expect(hardFailures(preTradeChecksOn(proPlan(), [], pro))).toEqual([]);
   });
   it("takes an ungradedFullRisk setup at full risk though it has no grade", () => {
-    const fullRisk = { ...PLAYBOOK_SETUPS[0], ungradedFullRisk: true };
-    expect(riskBudgetOn("NAS100", null, flex, fullRisk).amount).toBe(100);
-    expect(riskBudgetOn("NAS100", null, pro, fullRisk)).toMatchObject({ amount: 37.5, skip: null });
+    const onFlex = { ...setupById(FLEX_NAS)!, ungradedFullRisk: true };
+    const onPro = { ...setupById(NAS_MACD)!, ungradedFullRisk: true };
+    expect(riskBudgetOn("NAS100", null, flex, onFlex).amount).toBe(100);
+    expect(riskBudgetOn("NAS100", null, pro, onPro)).toMatchObject({ amount: 37.5, skip: null });
     // Other ungraded setups keep the B-grade rule.
     expect(riskBudgetOn("NAS100", null, pro).skip).toMatch(/A-grade trades only/);
   });
@@ -433,8 +439,8 @@ describe("the two FundingPips accounts", () => {
     // Two fresh trades fit exactly: −$200 worst case, with room for lot rounding.
     expect(status(preTradeChecksOn(flexPlan({ riskAmount: 103 }), [entry({ accountId: flex.id, setupId: XAU_SMC, riskAmount: 100 })], flex), "own-daily")).toBe("pass");
     // Pro: $37.50 open plus $37.50 new is its $75 stop.
-    expect(status(preTradeChecksOn(plan({ riskAmount: 37.5 }), [entry({ accountId: pro.id, setupId: XAU_SMC, riskAmount: 37.5 })], pro), "own-daily")).toBe("pass");
-    expect(status(preTradeChecksOn(plan({ riskAmount: 37.5 }), [lossOn(pro, -37.5), entry({ accountId: pro.id, setupId: XAU_SMC, riskAmount: 37.5 })], pro), "own-daily")).toBe("fail");
+    expect(status(preTradeChecksOn(proPlan(), [entry({ accountId: pro.id, setupId: XAU_SMC, riskAmount: 37.5 })], pro), "own-daily")).toBe("pass");
+    expect(status(preTradeChecksOn(proPlan(), [lossOn(pro, -37.5), entry({ accountId: pro.id, setupId: XAU_SMC, riskAmount: 37.5 })], pro), "own-daily")).toBe("fail");
   });
   it("blocks every account when another hit its daily stop", () => {
     const checks = preTradeChecksOn(flexPlan(), [], flex, [pro.name]);
@@ -444,10 +450,34 @@ describe("the two FundingPips accounts", () => {
   });
   it("uses the Pro's 6% floor", () => {
     // $250 lost overall: one more $37.50 loss would leave $4,712.50, still above $4,700; $270 lost would not.
-    expect(status(preTradeChecksOn(plan({ riskAmount: 37.5 }), [closed(-250, Date.UTC(2026, 10, 2), { accountId: pro.id })], pro), "floor")).toBe("pass");
-    const checks = preTradeChecksOn(plan({ riskAmount: 37.5 }), [closed(-270, Date.UTC(2026, 10, 2), { accountId: pro.id })], pro);
+    expect(status(preTradeChecksOn(proPlan(), [closed(-250, Date.UTC(2026, 10, 2), { accountId: pro.id })], pro), "floor")).toBe("pass");
+    const checks = preTradeChecksOn(proPlan(), [closed(-270, Date.UTC(2026, 10, 2), { accountId: pro.id })], pro);
     expect(status(checks, "floor")).toBe("fail");
     expect(checks.find((c) => c.id === "floor")?.label).toContain("6%");
+  });
+  it("gives each account its own setups, none shared, at their risk share", () => {
+    const ids = new Set(PLAYBOOK_SETUPS.map((s) => s.id));
+    for (const a of PLAYBOOK_ACCOUNTS) for (const x of a.setups) expect(ids.has(x.id), x.id).toBe(true);
+    const [f, p] = PLAYBOOK_ACCOUNTS.map((a) => a.setups.map((x) => x.id));
+    expect(f.filter((id) => p.includes(id))).toEqual([]);
+    const gbp = setupById("liquidity-reversal:GBPUSD:1h")!;
+    expect(riskBudgetOn("GBPUSD", "A", flex, gbp).amount).toBe(50);
+  });
+  it("sizes the other setups at half risk, with a warning that breaks no rule", () => {
+    expect(riskBudgetOn("NAS100", "A", flex, setupById(NAS_MACD)!).amount).toBe(50);
+    expect(riskBudgetOn("NAS100", "A", pro, setupById(FLEX_NAS)!).amount).toBe(18.75);
+    const checks = preTradeChecksOn(flexPlan({ setupId: NAS_MACD, riskAmount: 50 }), [], flex);
+    expect(checks.find((c) => c.id === "account-plan")).toMatchObject({ status: "warn", hard: false });
+    expect(hardFailures(checks)).toEqual([]);
+    // Full risk on an other setup is oversized.
+    expect(status(preTradeChecksOn(flexPlan({ setupId: NAS_MACD, riskAmount: 100 }), [], flex), "risk")).toBe("fail");
+    expect(status(preTradeChecksOn(flexPlan(), [], flex), "account-plan")).toBe("pass");
+  });
+  it("ranks the account's own setups ahead of the others, and marks which is which", () => {
+    const row = (id: string) => ({ id, lastClose: 25_000, lastCloseTime: NOON, signal: { status: "new" as const, side: "LONG" as const, signalTime: NOON, entry: 25_000, stop: 24_950, target: 25_150, rr: 3, exitPrice: null, exitTime: null, rMultiple: null, grade: "A" as const } });
+    const ranked = rankSignalsOn([row(NAS_MACD), row(FLEX_NAS)], [], NOON, flex);
+    expect(ranked.map((r) => [r.setup.id, r.inPlan, r.riskPct])).toEqual([[FLEX_NAS, true, 1], [NAS_MACD, false, 0.5]]);
+    expect(ranked[1].tierReason).toMatch(/Not one of this account's setups/);
   });
 });
 

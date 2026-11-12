@@ -5,8 +5,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, CircleAlert, CircleX } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button, Callout, Field, Segmented, SelectInput, TextArea, TextInput, money, signedNumber, toneClass } from "@/components/kit";
-import { CUSTOM_MARKETS, customSetupId, isCustomSetupId, lotUnits, loggableSetupById, MANUAL_CHECKS, MISTAKES, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "@/lib/playbook/config";
-import { hardFailures, pnlUsd, preTradeChecks, riskBudget, sizePosition, usdPerUnitMove, type Check, type Grade, type JournalEntry, type Side } from "@/lib/playbook/rules";
+import { CUSTOM_MARKETS, customSetupId, isCustomSetupId, lotUnits, loggableSetupById, MANUAL_CHECKS, MISTAKES, OTHER_SETUP_RISK_SCALE, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "@/lib/playbook/config";
+import { hardFailures, inAccountPlan, pnlUsd, preTradeChecks, riskBudget, sizePosition, usdPerUnitMove, type Check, type Grade, type JournalEntry, type Side } from "@/lib/playbook/rules";
 import { roundTripCostPerUnitUsd } from "@/lib/costs/fundingpips";
 import { fmtPrice } from "@/lib/plan/weeklyPlan";
 import { cn } from "@/lib/utils";
@@ -86,7 +86,7 @@ export function PlanTradeDialog({ open, onClose, defaults, entries, account, sto
 
 function PlanTradeForm({ defaults, entries, account, stoppedElsewhere, onDone }: { defaults: PlanDefaults; entries: JournalEntry[]; account: PlaybookAccount; stoppedElsewhere: string[]; onDone: () => void }) {
   const refresh = useRefresh();
-  const [setupId, setSetupId] = useState(loggableSetupById(defaults.setupId ?? "")?.id ?? PLAYBOOK_SETUPS[0].id);
+  const [setupId, setSetupId] = useState(loggableSetupById(defaults.setupId ?? "")?.id ?? account.setups[0]?.id ?? PLAYBOOK_SETUPS[0].id);
   const [side, setSide] = useState<Side>(defaults.side ?? "LONG");
   const [grade, setGrade] = useState<"A" | "B" | "none">(defaults.grade ?? "none");
   const [entry, setEntry] = useState(defaults.entry !== undefined ? String(defaults.entry) : "");
@@ -168,8 +168,15 @@ function PlanTradeForm({ defaults, entries, account, stoppedElsewhere, onDone }:
           hint={custom ? "A custom trade has no backtest behind it, so it's logged as a rule break and needs a reason. It still counts toward this account's balance, daily loss and open risk." : undefined}
         >
           <SelectInput id="pb-setup" value={setupId} onChange={(ev) => { setSetupId(ev.target.value); setLotsText(null); }}>
-            <optgroup label="Playbook setups">
-              {PLAYBOOK_SETUPS.map((x) => (
+            <optgroup label="This account's setups">
+              {PLAYBOOK_SETUPS.filter((x) => inAccountPlan(account, x.id)).map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.platformSymbol} · {x.strategyName} · {x.interval}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label={`Other playbook setups (${Math.round(OTHER_SETUP_RISK_SCALE * 100)}% risk)`}>
+              {PLAYBOOK_SETUPS.filter((x) => !inAccountPlan(account, x.id)).map((x) => (
                 <option key={x.id} value={x.id}>
                   {x.platformSymbol} · {x.strategyName} · {x.interval}
                 </option>
