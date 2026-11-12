@@ -22,6 +22,10 @@ export interface TradeTarget {
   // tightening, never loosening.
   trailTriggerR?: number;
   trailDistance?: number;
+  // Optional stepped trailing stop instead: once price is k whole R in
+  // favour (k >= trailStepR), the stop moves to k - 1 R from entry
+  // (reach 3R: stop to 2R; 4R: 3R; ...). Overrides the two fields above.
+  trailStepR?: number;
   // Optional stop-order entry: instead of entering at the next candle's
   // open, buy (sell) only if the next candle trades up to (down to)
   // `entryStop`. Skipped if that candle opens at or past `cancelEntryAt`; a

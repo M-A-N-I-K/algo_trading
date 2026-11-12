@@ -323,7 +323,7 @@ function SignalsPanel({ account, onPlan, freeSlots }: { account: PlaybookAccount
               <Callout tone="warning" title="Not part of this account's plan">
                 These come from playbook setups assigned to your other account, or left out of both. They passed the backtest, but their drawdowns or losing streaks
                 are a poor fit for this account&apos;s limits, or taking them here would double a bet your other account already makes. If you take one, it&apos;s
-                sized at {otherPct}% of the usual risk and still counts toward your slots and daily stop. Skipping them is the plan.
+                sized at {otherPct}% of the usual risk (the 8/33 EMA setups at 25%) and still counts toward your slots and daily stop. Skipping them is the plan.
               </Callout>
               <div className="grid gap-3 opacity-90">{other.map((x, i) => <SignalCard key={x.setup.id} item={x} rank={own.length + i + 1} onPlan={onPlan} />)}</div>
             </div>

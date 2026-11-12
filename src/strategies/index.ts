@@ -13,4 +13,5 @@ export * from "./nyOpenFvgStrategy";
 export * from "./vwapStrategy";
 export * from "./srSweepTrendlineStrategy";
 export * from "./nyInsideBarStrategy";
+export * from "./ema833ZonesStrategy";
 export * from "./fixedTarget";

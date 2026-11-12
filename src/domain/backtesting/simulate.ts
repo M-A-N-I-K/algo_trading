@@ -188,7 +188,10 @@ export function simulate(candles: readonly OHLC[], source: SignalSource, executi
         const favourableMove = isLong ? bar.high - p.entryPrice : p.entryPrice - bar.low;
         if (p.trailingActive || (risk > 0 && favourableMove >= p.trailing.triggerR * risk)) {
           p.trailingActive = true;
-          const candidate = isLong ? bar.high - p.trailing.distance : bar.low + p.trailing.distance;
+          const d = isLong ? 1 : -1;
+          const candidate = p.trailing.step
+            ? p.entryPrice + d * (Math.floor(((p.bestPrice - p.entryPrice) * d) / risk) - 1) * risk
+            : isLong ? bar.high - p.trailing.distance : bar.low + p.trailing.distance;
           p.stop = isLong ? Math.max(p.stop ?? -Infinity, candidate) : Math.min(p.stop ?? Infinity, candidate);
         }
       }

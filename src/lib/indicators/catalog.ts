@@ -103,6 +103,25 @@ export const INDICATORS: IndicatorInfo[] = [
     ],
   },
   {
+    id: "ema833-zones",
+    strategyFile: "ema833-zones-strategy.pine",
+    strategySettings: "1h chart. Gold: defaults (commission 0.0043). NAS100: commission 0.0031. ETH: commission 0.0512.",
+    mt5EaFile: "PB_EMA833Zones_EA.mq5",
+    status: "playbook",
+    title: "8/33 EMA + Swing Zones",
+    strategy: "ema833-zones",
+    guide: "/guides/ema833-zones",
+    bestOn: "XAUUSD, NAS100 and ETHUSD 1h, London or New York hours. In the EA set Trail = true and Session = London or NY",
+    backtest:
+      "Playbook setups at a quarter of the usual risk. App backtest on MT5 1h bars since 2020: gold 135 trades, profit factor 1.51; NAS100 177, 1.23; ETH 165, 1.17. MT5 Strategy Tester: gold 1.33, NAS100 1.10. Found by testing many versions; the video's 5m version lost on every market.",
+    steps: [
+      { label: "1 Trend", text: "EMA 8 above EMA 33 and the candle closes above both." },
+      { label: "2 Candle", text: "A green candle with a body of at least 0.6 of its range closes above the previous candle's high, and it (or the candle before) touched the 8 EMA." },
+      { label: "3 Room", text: "No 100-candle high and no swing high or low (3 candles each side, last 200 candles) between entry and 3R + 0.25R." },
+      { label: "4 Buy", text: "Only if the candle closes in London (08:00–16:30) or New York (08:00–17:00) hours. Stop at the lowest low of the last 5 candles. At 3R move the stop to 2R, at 4R to 3R, and so on. Sells are the mirror." },
+    ],
+  },
+  {
     id: "ny-inside-bar",
     file: "ny-inside-bar-checkpoints.pine",
     strategyFile: "ny-inside-bar-strategy.pine",

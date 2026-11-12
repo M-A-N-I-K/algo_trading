@@ -61,7 +61,7 @@ export function buildDashboard(info: TesterReportInfo, file: ReportFile, sims = 
   const home = accounts.find((a) => a.own) ?? accounts[0];
   return {
     info,
-    setup: setupById(info.setupId),
+    setup: info.parts ? undefined : setupById(info.setupId), // a basket has no single app baseline
     meta: file.meta,
     trades,
     numbers: n,

@@ -23,6 +23,9 @@ export interface TrailingStop {
   triggerR: number;
   // Distance (price units) the stop trails behind the best price of each bar.
   distance: number;
+  // Stepped instead: once the best price is k whole R in favour (k >= triggerR),
+  // the stop moves to k - 1 R from entry. `distance` is ignored.
+  step?: boolean;
 }
 
 // Absolute price levels for one position, known once the entry fill price is.

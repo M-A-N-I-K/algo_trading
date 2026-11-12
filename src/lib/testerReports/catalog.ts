@@ -6,13 +6,16 @@
 
 export interface TesterReportInfo {
   slug: string;
-  file: string; // the .xlsx the user saved from the tester
+  file: string; // the .xlsx the user saved from the tester ("" for a basket)
   setupId: string; // PlaybookSetup id (active or retired), or a research id when `research` is set
   research?: boolean; // a strategy tested from outside the Playbook: not in either account's plan, judged at the "other setup" risk
   title: string;
   market: string;
   timeframe: string;
   note?: string; // a caveat about this run
+  // A basket: the trades of these reports (slugs) merged by close time, as one
+  // account trading all of them, one position per market. Built by the importer.
+  parts?: string[];
 }
 
 export const TESTER_REPORTS: TesterReportInfo[] = [
@@ -42,14 +45,41 @@ export const TESTER_REPORTS: TesterReportInfo[] = [
     note: "Retired: this run is what exposed it. Kept as the example of a setup that looked good in the app (PF 1.31) and didn't hold up on real ticks.",
   },
   {
+    slug: "ema833-zones-basket-1h",
+    file: "",
+    parts: ["ema833-zones-xauusd-1h", "ema833-zones-nas100-1h", "ema833-zones-ethusd-1h"],
+    setupId: "ema833-zones:XAUUSDT:1h",
+    title: "8/33 EMA + Swing Zones basket",
+    market: "Gold + NAS100 + ETH",
+    timeframe: "1h",
+    note: "The three 8/33 EMA runs below as one account: every trade by its close time, one position per market. The three markets were picked because they did best in the app's test of eight, so expect less live. The ETH run is all hours, not London or New York only like the other two and the live signals; re-run it with Session = London or NY.",
+  },
+  {
     slug: "ema833-zones-xauusd-1h",
     file: "833_EMA_LN_NY.xlsx",
-    setupId: "research:ema833-zones:XAUUSD:1h",
-    research: true,
-    title: "8/33 EMA + swing zones (trailing)",
+    setupId: "ema833-zones:XAUUSDT:1h",
+    title: "8/33 EMA + Swing Zones",
     market: "XAUUSD",
     timeframe: "1h",
-    note: "Research, not a Playbook setup: a YouTube strategy (PB_EMA833Zones_EA) with the filters that survived testing: swing-zone filter, London or New York hours only, stop trailed one R behind from 3R. The session and trail were chosen after looking at the app's results, so expect live results nearer the low end. The app's own run: 135 trades, PF 1.50.",
+    note: "A YouTube strategy (PB_EMA833Zones_EA) with the filters that survived testing: swing-zone filter, London or New York hours only, stop stepped up from 3R. The session and trail were chosen after looking at the app's results, so expect live results nearer the low end. Traded at a quarter of the account's risk.",
+  },
+  {
+    slug: "ema833-zones-nas100-1h",
+    file: "833_EMA_LN_NY_NDX100.xlsx",
+    setupId: "ema833-zones:NAS100:1h",
+    title: "8/33 EMA + Swing Zones",
+    market: "NAS100",
+    timeframe: "1h",
+    note: "London or New York hours, stepped trail from 3R. Traded at a quarter of the account's risk.",
+  },
+  {
+    slug: "ema833-zones-ethusd-1h",
+    file: "833EMA_ETH.xlsx",
+    setupId: "ema833-zones:ETHUSDT:1h",
+    title: "8/33 EMA + Swing Zones",
+    market: "ETHUSD",
+    timeframe: "1h",
+    note: "Run on all hours; the live signals only take London or New York hours (the app's backtest: PF 1.17 on 1h bars, weaker than this run). Re-run with Session = London or NY. History quality 90%. Traded at a quarter of the account's risk.",
   },
 ];
 

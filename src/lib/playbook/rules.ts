@@ -162,7 +162,7 @@ export function inAccountPlan(account: PlaybookAccount, setupId: string): boolea
 /** The share of the account's A/B risk a setup gets: its own riskScale, or OTHER_SETUP_RISK_SCALE for the other playbook setups. */
 export function setupRiskScale(account: PlaybookAccount, setupId: string | undefined): number {
   if (!setupId || !activeSetupById(setupId)) return 1;
-  return accountSetup(account, setupId)?.riskScale ?? OTHER_SETUP_RISK_SCALE;
+  return accountSetup(account, setupId)?.riskScale ?? activeSetupById(setupId)?.riskScale ?? OTHER_SETUP_RISK_SCALE;
 }
 
 /** What the plan lets this trade risk, from its grade and whether the setup is one of the account's own. `skip` says why the account doesn't take it. */
@@ -301,7 +301,7 @@ export function preTradeChecks(plan: TradePlan, entries: JournalEntry[], account
         ? own.riskScale !== 1
           ? `In this account's plan at ${Math.round(own.riskScale * 100)}% of the usual risk: ${own.why}`
           : `In this account's plan: ${own.why}`
-        : `Not one of this account's setups, so it's sized at ${Math.round(OTHER_SETUP_RISK_SCALE * 100)}% of the usual risk. Its drawdown, or its overlap with your other account, made it a poor fit here`,
+        : `Not one of this account's setups, so it's sized at ${Math.round(setupRiskScale(account, setup?.id) * 100)}% of the usual risk. Its drawdown, or its overlap with your other account, made it a poor fit here`,
       false,
     );
   }

@@ -48,9 +48,11 @@ function toLevels(target: TradeTarget): TradeLevels {
     target: target.takeProfit,
     partials: target.partialExits,
     trailing:
-      target.trailTriggerR !== undefined && target.trailDistance !== undefined
-        ? { triggerR: target.trailTriggerR, distance: target.trailDistance }
-        : undefined,
+      target.trailStepR !== undefined
+        ? { triggerR: target.trailStepR, distance: 0, step: true }
+        : target.trailTriggerR !== undefined && target.trailDistance !== undefined
+          ? { triggerR: target.trailTriggerR, distance: target.trailDistance }
+          : undefined,
     exitAt: target.exitAt,
   };
 }

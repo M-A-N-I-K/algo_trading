@@ -191,9 +191,11 @@ Compare with the app's backtest on the same data: NDX100 1,512 trades since 2020
 
 It can trade a live or demo account too, if your prop firm allows Expert Advisors. It's built for testing; watch it on a demo before trusting it with a challenge.
 
-## Research EA: 8/33 EMA with swing zones (PB_EMA833Zones_EA)
+## 8/33 EMA with swing zones (PB_EMA833Zones_EA)
 
-**Not a Playbook setup.** It tests a YouTube strategy (8 and 33 EMA trend, a big-bodied candle that retests the 8 EMA and closes through the previous candle, stop at the 5-candle extreme, 1:3) with a filter that skips any trade whose path to the target crosses a recent swing high or low. On 5m and 15m it loses on every market; on H1 with the filter the app found a small edge on most markets. Run it here to see if FundingPips' own tester agrees before trusting it.
+**Playbook setups since Nov 2026: XAUUSD, NDX100 and ETHUSD on H1, at a quarter of the $10k Flex's risk.** Settings: **Trail = true**, **Session = London or NY**, the rest default. Tester runs: gold PF 1.35 (136 trades), NDX100 1.10 (178), ETHUSD 1.33 on all hours (181; re-run it with Session = London or NY). As one basket: PF 1.25, +90R, worst drawdown 36.6R.
+
+Originally a research EA. It tests a YouTube strategy (8 and 33 EMA trend, a big-bodied candle that retests the 8 EMA and closes through the previous candle, stop at the 5-candle extreme, 1:3) with a filter that skips any trade whose path to the target crosses a recent swing high or low. On 5m and 15m it loses on every market; on H1 with the filter the app found a small edge on most markets. Run it here to see if FundingPips' own tester agrees before trusting it.
 
 1. Copy `PB_EMA833Zones_EA.mq5` to `MQL5/Experts`, compile (0 errors, 0 warnings).
 2. Strategy Tester: **Expert: PB_EMA833Zones_EA**, **Timeframe: H1**, **Modelling: 1 minute OHLC**, **Date: 2020.01.01** to today, **Deposit: 10000 USD**, default inputs (Risk 1%, Magic 260920).

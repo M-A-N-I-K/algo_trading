@@ -15,6 +15,7 @@ import {
   createVwapStrategy,
   createSrSweepTrendlineStrategy,
   createNyInsideBarStrategy,
+  createEma833ZonesStrategy,
 } from "./index";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each factory takes its own options shape
@@ -38,6 +39,7 @@ export const CODED_STRATEGIES: Record<string, StrategyFactory> = {
   vwap: createVwapStrategy,
   "sr-sweep-trendline": createSrSweepTrendlineStrategy,
   "ny-inside-bar": createNyInsideBarStrategy,
+  "ema833-zones": createEma833ZonesStrategy,
 };
 
 // Strategies whose bias comes from a real higher-timeframe series, fetched

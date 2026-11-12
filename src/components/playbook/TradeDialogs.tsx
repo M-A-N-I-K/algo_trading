@@ -175,10 +175,10 @@ function PlanTradeForm({ defaults, entries, account, stoppedElsewhere, onDone }:
                 </option>
               ))}
             </optgroup>
-            <optgroup label={`Other playbook setups (${Math.round(OTHER_SETUP_RISK_SCALE * 100)}% risk)`}>
+            <optgroup label={`Other playbook setups (${Math.round(OTHER_SETUP_RISK_SCALE * 100)}% risk unless shown)`}>
               {PLAYBOOK_SETUPS.filter((x) => !inAccountPlan(account, x.id)).map((x) => (
                 <option key={x.id} value={x.id}>
-                  {x.platformSymbol} · {x.strategyName} · {x.interval}
+                  {x.platformSymbol} · {x.strategyName} · {x.interval}{x.riskScale !== undefined ? ` · ${Math.round(x.riskScale * 100)}% risk` : ""}
                 </option>
               ))}
             </optgroup>

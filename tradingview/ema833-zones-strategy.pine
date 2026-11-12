@@ -1,0 +1,136 @@
+//@version=6
+// 8/33 EMA + Swing Zones strategy for TradingView's Strategy Tester.
+// Port of src/strategies/ema833ZonesStrategy.ts (and mt5/PB_EMA833Zones_EA.mq5) with its defaults,
+// so the trades here are the ones the app backtests and the Playbook signals.
+// Costs: commission_value is gold's per-side cost (FundingPips spread + commission as a percent of
+// price). NAS100: 0.0031. ETH: 0.0512. Change it in Properties.
+//
+//   (1) Trend      EMA 8 above EMA 33, and the candle closes above both (EMAs seeded on the first close)
+//   (2) Dominance  a green candle whose body is at least 0.6 of its range
+//   (3) Cross      it closes above the previous candle's high
+//   (4) Retest     its low, or the previous candle's low, touched the 8 EMA
+//   (5) Stop       the lowest low of the last 5 candles, this one included
+//   (6) Room       the highest high of the last 100 candles isn't between entry and 3R
+//   (7) Zones      no swing high or low (3 candles each side) of the last 200 candles between
+//                  entry and 3R + 0.25R
+//   (8) Session    the candle closes in London (08:00-16:30 London) or New York (08:00-17:00 NY) hours
+//   Exit           stepped trail: reach 3R, stop to 2R; 4R, stop to 3R; ... (take-profit cap 10R)
+//
+// Shorts are the mirror image. Use a 1h chart (Playbook: XAUUSD, NAS100, ETHUSD). One trade at a
+// time; entries at the next candle's open.
+strategy("8/33 EMA + Swing Zones strategy", shorttitle = "833 strat", initial_capital = 100000, default_qty_type = strategy.fixed, commission_type = strategy.commission.percent, commission_value = 0.0043, slippage = 0, pyramiding = 0, margin_long = 1, margin_short = 1, process_orders_on_close = false, calc_on_every_tick = false, overlay = true, max_bars_back = 5000)
+
+grpR     = "Rules (keep defaults to match the backtest)"
+fastLen  = input.int(8, "Fast EMA", minval = 1, group = grpR)
+slowLen  = input.int(33, "Slow EMA", minval = 1, group = grpR)
+bodyMin  = input.float(0.6, "Dominance candle body (share of range)", minval = 0, maxval = 1, step = 0.05, group = grpR)
+stopLook = input.int(5, "Stop: extreme of the last N candles", minval = 1, group = grpR)
+rr       = input.float(3.0, "Target / trail start (x risk)", minval = 1, step = 0.5, group = grpR)
+useRoom  = input.bool(true, "Room filter (100-candle extreme)", group = grpR)
+useZones = input.bool(true, "Swing-zone filter", group = grpR)
+sess     = input.string("London or New York", "Session", options = ["All", "London", "New York", "London or New York"], group = grpR)
+useTrail = input.bool(true, "Stepped trail from the target (off = fixed target)", group = grpR)
+capR     = input.float(10.0, "Take-profit cap while trailing (x risk)", minval = 3, group = grpR)
+riskPct  = input.float(1.0, "Risk per trade (% of equity)", minval = 0.1, step = 0.1, group = grpR)
+
+const int   ROOM_LOOK = 100
+const int   ZONE_LOOK = 200
+const int   ZONE_SWING = 3
+const float ZONE_BUF = 0.25
+
+// EMAs seeded on the first close, like the app and the EA.
+var float ef = na
+var float es = na
+ef := na(ef) ? close : (close - ef) * 2.0 / (fastLen + 1) + ef
+es := na(es) ? close : (close - es) * 2.0 / (slowLen + 1) + es
+plot(ef, "EMA 8", color.new(#42a5f5, 0))
+plot(es, "EMA 33", color.new(#ffa726, 0))
+
+lonM = hour(time_close, "Europe/London") * 60 + minute(time_close, "Europe/London")
+nyM  = hour(time_close, "America/New_York") * 60 + minute(time_close, "America/New_York")
+inL  = lonM >= 480 and lonM <= 990
+inN  = nyM >= 480 and nyM <= 1020
+inSess = sess == "All" or (sess == "London" and inL) or (sess == "New York" and inN) or (sess == "London or New York" and (inL or inN))
+
+// The long rules on prices multiplied by d (1 long, -1 short). Returns [ok, stop, risk] in d-space.
+check(int d) =>
+    bool ok = false
+    float stp = na
+    float risk = na
+    if bar_index >= math.max(ROOM_LOOK, slowLen * 3) and inSess
+        float F = d * ef
+        float S = d * es
+        float C = d * close
+        float O = d * open
+        float H0 = d > 0 ? high : -low
+        float L0 = d > 0 ? low : -high
+        float H1 = d > 0 ? high[1] : -low[1]
+        float L1 = d > 0 ? low[1] : -high[1]
+        bool base = F > S and C > F and C > S and C - O > 0 and C - O >= bodyMin * (H0 - L0) and C > H1 and (L0 <= F or L1 <= d * ef[1])
+        if base
+            stp := L0
+            if stopLook > 1
+                for i = 1 to stopLook - 1
+                    stp := math.min(stp, d > 0 ? low[i] : -high[i])
+            risk := C - stp
+            ok := risk > 0
+            float tgt = C + rr * risk
+            if ok and useRoom
+                float res = d > 0 ? high[1] : -low[1]
+                for i = 1 to ROOM_LOOK
+                    res := math.max(res, d > 0 ? high[i] : -low[i])
+                ok := not (res > C and res < tgt)
+            if ok and useZones
+                float lim = tgt + ZONE_BUF * risk
+                for i = ZONE_SWING + 1 to ZONE_LOOK
+                    if i + ZONE_SWING > bar_index
+                        break
+                    float hi = d > 0 ? high[i] : -low[i]
+                    float lo = d > 0 ? low[i] : -high[i]
+                    bool sh = true
+                    bool sl = true
+                    for q = 1 to ZONE_SWING
+                        float ho = d > 0 ? high[i + q] : -low[i + q]
+                        float hn = d > 0 ? high[i - q] : -low[i - q]
+                        float lw = d > 0 ? low[i + q] : -high[i + q]
+                        float ln = d > 0 ? low[i - q] : -high[i - q]
+                        if not (hi > ho and hi >= hn)
+                            sh := false
+                        if not (lo < lw and lo <= ln)
+                            sl := false
+                    if (sh and hi > C and hi < lim) or (sl and lo > C and lo < lim)
+                        ok := false
+                        break
+    [ok, d * stp, risk]
+
+[okL, stopL, riskL] = check(1)
+[okS, stopS, riskS] = check(-1)
+
+var float initStop = na
+var float best = na
+flat = strategy.position_size == 0
+if flat
+    if okL
+        initStop := stopL
+        strategy.entry("L", strategy.long, qty = strategy.equity * riskPct / 100 / riskL)
+        strategy.exit("Lx", "L", stop = stopL, limit = close + (useTrail ? capR : rr) * riskL)
+        label.new(bar_index, low, "BUY", style = label.style_label_up, color = color.new(#26a69a, 0), textcolor = color.white, size = size.tiny)
+    else if okS
+        initStop := stopS
+        strategy.entry("S", strategy.short, qty = strategy.equity * riskPct / 100 / riskS)
+        strategy.exit("Sx", "S", stop = stopS, limit = close - (useTrail ? capR : rr) * riskS)
+        label.new(bar_index, high, "SELL", style = label.style_label_down, color = color.new(#ef5350, 0), textcolor = color.white, size = size.tiny)
+    best := na
+else if useTrail
+    // Stepped trail from the fill price, the way the app's engine does it.
+    float e = strategy.position_avg_price
+    float risk = math.abs(e - initStop)
+    bool lng = strategy.position_size > 0
+    best := lng ? math.max(nz(best, high), high) : math.min(nz(best, low), low)
+    int k = risk > 0 ? int(math.floor((lng ? best - e : e - best) / risk)) : 0
+    if k >= rr
+        float st = lng ? e + (k - 1) * risk : e - (k - 1) * risk
+        if lng
+            strategy.exit("Lx", "L", stop = st, limit = e + capR * risk)
+        else
+            strategy.exit("Sx", "S", stop = st, limit = e - capR * risk)
