@@ -191,6 +191,27 @@ Compare with the app's backtest on the same data: NDX100 1,512 trades since 2020
 
 It can trade a live or demo account too, if your prop firm allows Expert Advisors. It's built for testing; watch it on a demo before trusting it with a challenge.
 
+## Research EA: 8/33 EMA with swing zones (PB_EMA833Zones_EA)
+
+**Not a Playbook setup.** It tests a YouTube strategy (8 and 33 EMA trend, a big-bodied candle that retests the 8 EMA and closes through the previous candle, stop at the 5-candle extreme, 1:3) with a filter that skips any trade whose path to the target crosses a recent swing high or low. On 5m and 15m it loses on every market; on H1 with the filter the app found a small edge on most markets. Run it here to see if FundingPips' own tester agrees before trusting it.
+
+1. Copy `PB_EMA833Zones_EA.mq5` to `MQL5/Experts`, compile (0 errors, 0 warnings).
+2. Strategy Tester: **Expert: PB_EMA833Zones_EA**, **Timeframe: H1**, **Modelling: 1 minute OHLC**, **Date: 2020.01.01** to today, **Deposit: 10000 USD**, default inputs (Risk 1%, Magic 260920).
+3. Compare with the app's numbers (H1, 1:3, zones on, FundingPips costs, Jan 2020 to Nov 2026):
+
+| Symbol | Trades | Won | Profit factor | Net |
+|---|---|---|---|---|
+| ETHUSD | 207 | 30% | 1.20 | +30.2R |
+| BTCUSD | 219 | 29% | 1.17 | +27.2R |
+| XAUUSD | 195 | 28% | 1.15 | +21.1R |
+| NDX100 | 219 | 27% | 1.11 | +18.4R |
+| XAGUSD | 209 | 29% | 1.08 | +13.6R |
+| GBPUSD | 199 | 27% | 1.07 | +10.9R |
+| EURJPY | 202 | 27% | 1.04 | +6.7R |
+| SPX500 | 227 | 24% | 0.91 | −15.3R |
+
+The app enters at the signal candle's close and the EA at the next candle's open, so expect small differences in each trade's risk. A tester profit factor under about 1.1 means it's not worth trading next to the Playbook setups.
+
 ## Live candle feed (PB_BarFeed)
 
 `PB_BarFeed.mq5` is an **Expert Advisor** that places no trades: it feeds your
