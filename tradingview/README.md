@@ -1,4 +1,49 @@
-# TradingView indicators
+# TradingView indicators and strategies
+
+## Strategy Tester scripts (all 10 Playbook setups)
+
+The `*-strategy.pine` files are **strategies**, so they run in TradingView's **Strategy Tester** (the tab under the chart) with a trade list and an equity curve. They use the same rules and defaults as the app, and each one draws a results panel (bottom right) in **R**, the measure the app and the guides use: trades, win rate, profit factor, average R, net R, worst drawdown and longest losing run.
+
+Five scripts cover the 10 setups. Pick the market's settings from this table in the script's **Settings → Inputs** and **Settings → Properties**:
+
+| Playbook setup | Script | Chart | Inputs | Commission (Properties, % per side) | App backtest (MT5, 2020 to Nov 2026) |
+|---|---|---|---|---|---|
+| NAS100 NY Inside Bar, 15m | `ny-inside-bar-strategy.pine` | 15m | defaults | 0.0031 (default) | 1,512 trades, 58.3% won, PF 1.31 |
+| S&P 500 NY Inside Bar, 15m | `ny-inside-bar-strategy.pine` | 15m | defaults | 0.0037 | 1,615 trades, 58.2% won, PF 1.21 |
+| NAS100 MACD + 200 EMA + S/R, 4h | `macd-200ema-sr-strategy.pine` | 1h (builds UTC 4h candles) | defaults (target 2) | 0.0031 (default) | 38 trades, 50% won, PF 1.98 |
+| Gold Smart Money Concepts, 4h | `smc-strategy.pine` | 1h (builds UTC 4h candles) | defaults | 0.0043 (default) | 56 trades, 33.9% won, PF 1.56 |
+| FTSE 100 Smart Money Concepts, 4h | `smc-strategy.pine` | 1h (builds UTC 4h candles) | defaults | 0.0062 | 27 trades, 51.9% won, PF 3.03 (since 2023) |
+| NAS100 S/R Sweep + Trend-Line, 1h | `sr-sweep-trendline-strategy.pine` | 1h | defaults (target 3) | 0.0031 (default) | 84 trades, 46.4% won, PF 2.57 |
+| ETH S/R Sweep + Trend-Line, 4h | `sr-sweep-trendline-strategy.pine` | 4h | Target 1.5 | 0.0512 | 30 trades, 66.7% won, PF 2.83 |
+| S&P 500 Liquidity Reversal, 4h | `liquidity-reversal-strategy.pine` | 4h | Fixed target 2 | 0.0037 (default) | 34 trades, 47.1% won, PF 1.73 |
+| GBP/USD Liquidity Reversal, 1h | `liquidity-reversal-strategy.pine` | 1h | Fixed target 2 | 0.0057 | 134 trades, 42.5% won, PF 1.38 |
+| EUR/USD Liquidity Reversal, 1h | `liquidity-reversal-strategy.pine` | 1h | Fixed target 0 (swing target) | 0.0031 | 124 trades, 30.6% won, PF 1.23 (since 2020-05) |
+
+The commission is FundingPips' spread plus commission as a percent of price, charged on entry and on exit, so the results are after costs like the app's.
+
+### Install
+
+1. Open the **Pine Editor**, paste the whole file, **Save**, then **Add to chart**.
+2. Switch the chart to the timeframe in the table and open the **Strategy Tester** tab.
+3. Set the inputs and commission for the market, as in the table.
+
+### Orders and sizing
+
+- **Entries.** The four bar-close setups send a market order that fills at the next candle's open, as the app's backtest does. NY Inside Bar places a buy-stop or sell-stop order at the inside candle's high or low. That order lives for 3 candles and is cancelled or replaced by the same rules as the app.
+- **Positions.** One trade at a time, with the stop and target attached.
+- **Size.** Each trade risks **Risk per trade** (default 1%) of the initial capital ($100,000). Every full stop-out is about −1R, and the Tester's dollar figures read as R × $1,000. TradingView rounds sizes to whole contracts on some symbols, so a trade's dollar risk can be a little off. The panel's R figures use each trade's actual size, so they aren't affected.
+- **Start date.** **Trade from** (default 1 Jan 2020) sets where the test starts.
+
+### Why TradingView's numbers won't match the app's exactly
+
+- **History.** TradingView loads a limited number of candles, which depends on your plan. A 15m chart may go back only weeks or months, not to 2020. Compare like with like: set **Trade from** to the first date the Tester shows, or use Deep Backtesting if your plan has it.
+- **Prices.** Each broker's feed has slightly different prices, and FundingPips' MT5 feed isn't on TradingView. Use a CFD feed close to it (Pepperstone, OANDA, FXCM, ICMarkets).
+- **Candles that hit two levels.** When one candle reaches both the stop and the target, the app always counts the stop, which is the cautious choice. TradingView guesses the order from the candle's shape. Turn on **Bar Magnifier** in Properties if your plan has it.
+- **NY Inside Bar fills.** When one candle hits both the trigger and the cancel level, the app cancels the order but TradingView fills it. When a candle gaps past the target, the app skips the trade but TradingView takes it.
+
+These differences are small, but on a short history they can move the profit factor a lot. Judge each setup on the app's 6.9-year MT5 numbers. Use the Tester to see the trades on the chart and to check recent behaviour.
+
+## Indicators (alerts and checkpoints)
 
 The Playbook has four active setups. Each one has an indicator that marks entry, stop and target with the same rules and defaults as the backtest:
 

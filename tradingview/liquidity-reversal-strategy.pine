@@ -1,0 +1,420 @@
+//@version=6
+// STRATEGY version of liquidity-reversal-checkpoints.pine for the Strategy Tester (same rules, plus orders).
+// Costs: commission_value is the per-side cost of S&P 500; GBP/USD is 0.0057, EUR/USD 0.0031 (FundingPips spread + commission as a
+// percent of price). Change it in Properties for other markets (see README.md).
+//
+// Liquidity Reversal checkpoints
+//
+// Marks every checkpoint of the app's Liquidity Reversal strategy on the chart,
+// using the same rules and defaults as src/strategies/liquidityReversalStrategy.ts
+// (LIQUIDITY_REVERSAL_DEFAULTS), so what you see is what the backtest trades.
+//
+//   (1) Equal lows    two swing lows within 0.1 x ATR, nothing lower between them
+//   (2) Sweep         a wick trades below the equal lows
+//   (3) Shift         a candle CLOSES above the last swing high before the sweep low
+//   (4) Zone          last red candle at/before the sweep low: its open down to the sweep low
+//   (5) Entry         price wicks into the zone, then a candle closes back above it
+//                     stop = sweep low - 0.1 x ATR, target = nearest untouched swing high paying >= 2R
+//
+// Shorts are the mirror image (equal highs, supply zone), computed on flipped prices like the app.
+// Everything is calculated on CLOSED candles only, so nothing repaints.
+// Built for the 1h chart (the timeframe the strategy was backtested on).
+strategy("Liquidity Reversal strategy", shorttitle = "LR strat", initial_capital = 100000, default_qty_type = strategy.fixed, commission_type = strategy.commission.percent, commission_value = 0.0037, slippage = 0, pyramiding = 0, margin_long = 1, margin_short = 1, process_orders_on_close = false, calc_on_every_tick = false, overlay = true, max_bars_back = 5000, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 200)
+
+// ─── Inputs: defaults match the backtest. Change them only to experiment. ───
+grpR       = "Rules (keep defaults to match the backtest)"
+k          = input.int(3, "Swing lookback (candles each side)", minval = 1, group = grpR)
+atrLen     = input.int(14, "ATR length", minval = 1, group = grpR)
+eqTol      = input.float(0.1, "Equal lows tolerance (x ATR)", minval = 0, step = 0.05, group = grpR)
+poolLook   = input.int(100, "Max candles between the two lows", minval = 1, group = grpR)
+obSearch   = input.int(10, "Zone search (candles before sweep low)", minval = 0, group = grpR)
+stopBuf    = input.float(0.1, "Stop buffer (x ATR)", minval = 0, step = 0.05, group = grpR)
+minRr      = input.float(2.0, "Minimum reward : risk", minval = 0.5, step = 0.5, group = grpR)
+targetLook = input.int(200, "Target search (candles back)", minval = 1, group = grpR)
+fixedRr    = input.float(0.0, "Fixed target (x risk, 0 = the swing target). Playbook: 2 on GBP/USD 1h and S&P 500 4h", minval = 0, step = 0.5, group = grpR)
+maxSetup   = input.int(48, "Setup expiry (candles)", minval = 1, group = grpR)
+
+grpS       = "Show"
+showLong   = input.bool(true, "Long setups (equal lows)", group = grpS)
+showShort  = input.bool(true, "Short setups (equal highs)", group = grpS)
+showSwings = input.bool(false, "Swing points", group = grpS)
+showCancel = input.bool(true, "Cancelled and skipped setups", group = grpS)
+showPanel  = input.bool(true, "Checkpoint panel", group = grpS)
+tradeLen   = input.int(24, "Entry / stop / target line length (candles)", minval = 1, group = grpS)
+
+colLong  = color.new(#26a69a, 0)
+colShort = color.new(#ef5350, 0)
+colPoolL = color.new(#42a5f5, 0)
+colPoolS = color.new(#ffa726, 0)
+colMuted = color.new(#9e9e9e, 0)
+
+// ─── Types ───
+type Swing
+    float price
+    int   idx
+
+type Pool
+    float level
+    int   createdAt
+    bool  swept = false
+    line  ln
+
+// One direction's state machine. Prices inside are "flipped" for shorts
+// (s = -1: high/low swap and are negated), exactly like flipCandles() in the app.
+type Side
+    int          s
+    array<Swing> highs
+    array<Swing> lows
+    array<Pool>  pools
+    int    phase    = 0      // 0 waiting for a sweep, 1 swept, 2 structure shifted (zone live)
+    int    at       = 0
+    int    lowIdx   = 0
+    float  low      = na
+    float  zoneTop  = na
+    bool   touched  = false
+    float  bosPrice = na
+    box    zone
+    bool   evSweep  = false
+    bool   evShift  = false
+    bool   evEntry  = false
+    bool   newSwingHigh = false
+    bool   newSwingLow  = false
+    float  entry    = na
+    float  stop     = na
+    float  target   = na
+
+// ─── Price access by bar index, flipped for shorts ───
+pH(int s, int j) => s > 0 ? high[bar_index - j] : -low[bar_index - j]
+pL(int s, int j) => s > 0 ? low[bar_index - j] : -high[bar_index - j]
+pO(int s, int j) => s * open[bar_index - j]
+pC(int s, int j) => s * close[bar_index - j]
+
+// A swing high (low): strictly higher (lower) than the k candles on each side. A tie disqualifies it.
+isSwing(int s, int r, bool isHigh) =>
+    bool ok = true
+    float pivot = isHigh ? pH(s, r) : pL(s, r)
+    for j = r - k to r + k
+        if j != r
+            float v = isHigh ? pH(s, j) : pL(s, j)
+            if (isHigh and v >= pivot) or (not isHigh and v <= pivot)
+                ok := false
+                break
+    ok
+
+// Lowest low strictly between bars a and b (na when they are adjacent).
+lowestBetween(int s, int a, int b) =>
+    float m = na
+    if b - a > 1
+        for j = a + 1 to b - 1
+            float v = pL(s, j)
+            m := na(m) ? v : math.min(m, v)
+    m
+
+// Highest high from a+1 to t inclusive.
+highestAfter(int s, int a, int t) =>
+    float m = na
+    if t > a
+        for j = a + 1 to t
+            float v = pH(s, j)
+            m := na(m) ? v : math.max(m, v)
+    m
+
+visible(int s) => s > 0 ? showLong : showShort
+fmt(float x) => str.tostring(x, format.mintick)
+
+// ─── One closed candle of the state machine (port of createLongScanner.step) ───
+method step(Side st, float atrNow) =>
+    int  s      = st.s
+    int  t      = bar_index
+    bool vis    = visible(s)
+    bool isLong = s > 0
+    color cDir  = isLong ? colLong : colShort
+    color cPool = isLong ? colPoolL : colPoolS
+    st.evSweep      := false
+    st.evShift      := false
+    st.evEntry      := false
+    st.newSwingHigh := false
+    st.newSwingLow  := false
+
+    // Swings are confirmed k candles late (they need k candles on the right).
+    int r = t - k
+    if r >= k
+        if isSwing(s, r, true)
+            st.highs.push(Swing.new(pH(s, r), r))
+            st.newSwingHigh := true
+        if isSwing(s, r, false)
+            Swing sw = Swing.new(pL(s, r), r)
+            st.newSwingLow := true
+            float tol = eqTol * atrNow
+            int n = st.lows.size()
+            if n > 0 and not na(tol)
+                for i = n - 1 to 0
+                    Swing o = st.lows.get(i)
+                    if o.idx < r - poolLook
+                        break
+                    float level = math.min(o.price, sw.price)
+                    float lb    = lowestBetween(s, o.idx, r)
+                    // Equal, and nothing between them traded below the pair.
+                    if math.abs(o.price - sw.price) <= tol and (na(lb) or lb >= level)
+                        line ln = na
+                        if vis
+                            ln := line.new(o.idx, s * level, t, s * level, color = cPool, style = line.style_dashed, width = 2, extend = extend.right)
+                            label.new(r, s * level, isLong ? "1 Equal lows" : "1 Equal highs", color = color.new(cPool, 100), textcolor = cPool, style = isLong ? label.style_label_up : label.style_label_down, size = size.small, tooltip = "Two swing " + (isLong ? "lows" : "highs") + " within " + str.tostring(eqTol) + " x ATR. Level " + fmt(s * level) + ". Gap " + fmt(math.abs(o.price - sw.price)) + ", allowed " + fmt(tol))
+                        st.pools.push(Pool.new(level, t, false, ln))
+                        break
+            st.lows.push(sw)
+
+    // Progress or drop the current setup.
+    if st.phase == 1
+        if pL(s, t) < st.low
+            st.low    := pL(s, t)
+            st.lowIdx := t
+        Swing bos = na
+        int nh = st.highs.size()
+        if nh > 0
+            for i = nh - 1 to 0
+                Swing h = st.highs.get(i)
+                if h.idx < st.lowIdx
+                    bos := h
+                    break
+        st.bosPrice := na(bos) ? na : bos.price
+        if not na(bos) and pC(s, t) > bos.price
+            // Zone: the last down candle at or just before the sweep low.
+            float zt = pH(s, st.lowIdx)
+            int   zj = st.lowIdx
+            int   jEnd = math.max(0, st.lowIdx - obSearch)
+            for j = st.lowIdx to jEnd
+                if pC(s, j) < pO(s, j)
+                    zt := pO(s, j)
+                    zj := j
+                    break
+            st.phase   := 2
+            st.at      := t
+            st.zoneTop := zt
+            st.touched := false
+            st.evShift := true
+            if vis
+                line.new(bos.idx, s * bos.price, t, s * bos.price, color = cDir, style = line.style_dotted, width = 1)
+                label.new(t, s * bos.price, "3 Shift", color = color.new(cDir, 100), textcolor = cDir, style = isLong ? label.style_label_down : label.style_label_up, size = size.small, tooltip = "Closed " + (isLong ? "above the last swing high " : "below the last swing low ") + fmt(s * bos.price) + " before the sweep. Structure has shifted.")
+                st.zone := box.new(zj, math.max(s * zt, s * st.low), t, math.min(s * zt, s * st.low), border_color = cDir, bgcolor = color.new(cDir, 85), extend = extend.right, text = "4 Zone", text_color = cDir, text_size = size.small, text_halign = text.align_left, text_valign = isLong ? text.align_top : text.align_bottom)
+        else if t - st.at > maxSetup
+            st.phase := 0
+            if vis and showCancel
+                label.new(t, s * pL(s, t), "x expired", color = color.new(colMuted, 100), textcolor = colMuted, style = isLong ? label.style_label_up : label.style_label_down, size = size.tiny, tooltip = "No shift within " + str.tostring(maxSetup) + " candles of the sweep.")
+    else if st.phase == 2 and t > st.at
+        bool closedThrough = pC(s, t) < st.low
+        if closedThrough or t - st.at > maxSetup
+            st.phase := 0
+            if not na(st.zone)
+                st.zone.set_right(t)
+                st.zone.set_extend(extend.none)
+            if vis and showCancel
+                label.new(t, s * pL(s, t), closedThrough ? "x cancelled" : "x expired", color = color.new(colMuted, 100), textcolor = colMuted, style = isLong ? label.style_label_up : label.style_label_down, size = size.tiny, tooltip = closedThrough ? "Closed " + (isLong ? "below" : "above") + " the sweep " + (isLong ? "low " : "high ") + fmt(s * st.low) + "." : "No entry within " + str.tostring(maxSetup) + " candles of the shift.")
+        else
+            if pL(s, t) <= st.zoneTop
+                st.touched := true
+            if st.touched and pC(s, t) > st.zoneTop
+                float e      = pC(s, t)
+                float buffer = stopBuf > 0 and not na(atrNow) ? stopBuf * atrNow : 0.0
+                float sp     = st.low - buffer
+                float risk   = e - sp
+                float tgt    = na
+                for h in st.highs
+                    if h.idx < t - targetLook or (not na(tgt) and h.price >= tgt)
+                        continue
+                    if risk > 0 and h.price - e >= minRr * risk and highestAfter(s, h.idx, t) < h.price
+                        tgt := h.price
+                st.phase := 0
+                if not na(st.zone)
+                    st.zone.set_right(t)
+                    st.zone.set_extend(extend.none)
+                if not na(tgt)
+                    st.evEntry := true
+                    st.entry   := e
+                    st.stop    := sp
+                    // The swing still has to pay minRr for a trade; a fixed target then replaces it.
+                    st.target  := fixedRr > 0 ? e + fixedRr * risk : tgt
+                else if vis and showCancel
+                    label.new(t, s * pL(s, t), "x no " + str.tostring(minRr) + "R target", color = color.new(colMuted, 100), textcolor = colMuted, style = isLong ? label.style_label_up : label.style_label_down, size = size.tiny, tooltip = "Entry candle closed, but no untouched swing " + (isLong ? "high" : "low") + " pays " + str.tostring(minRr) + "R. The app skips this trade.")
+
+    // Liquidity sweeps. A fresh sweep starts a setup unless one has already shifted.
+    for p in st.pools
+        if not p.swept and p.createdAt < t and pL(s, t) < p.level
+            p.swept := true
+            st.evSweep := true
+            if not na(p.ln)
+                p.ln.set_x2(t)
+                p.ln.set_extend(extend.none)
+            if st.phase == 0
+                st.phase  := 1
+                st.at     := t
+                st.lowIdx := t
+                st.low    := pL(s, t)
+            else if st.phase == 1
+                st.at := t
+            if vis
+                label.new(t, s * pL(s, t), "2 Sweep", color = color.new(cDir, 100), textcolor = cDir, style = isLong ? label.style_label_up : label.style_label_down, size = size.small, tooltip = "Wick " + (isLong ? "below" : "above") + " the equal " + (isLong ? "lows " : "highs ") + fmt(s * p.level) + ". Now wait for a candle to close " + (isLong ? "above the last swing high." : "below the last swing low."))
+
+    // Housekeeping: drop swept pools and swings too old to matter.
+    int np = st.pools.size()
+    if np > 0
+        for i = np - 1 to 0
+            if st.pools.get(i).swept
+                st.pools.remove(i)
+    while st.lows.size() > 0 and st.lows.get(0).idx < t - poolLook - k - 1
+        st.lows.shift()
+    while st.highs.size() > 5 and st.highs.get(0).idx < t - targetLook - 2 * maxSetup - 50
+        st.highs.shift()
+    st
+
+drawEntry(Side st) =>
+    int  s      = st.s
+    bool isLong = s > 0
+    if visible(s)
+        color c  = isLong ? colLong : colShort
+        float e  = s * st.entry
+        float sp = s * st.stop
+        float tp = s * st.target
+        float rr = (st.target - st.entry) / (st.entry - st.stop)
+        label.new(bar_index, isLong ? low : high, (isLong ? "5 BUY " : "5 SELL ") + fmt(e) + "\nSL " + fmt(sp) + "  TP " + fmt(tp) + "\n" + str.tostring(rr, "#.0") + "R", color = c, textcolor = color.white, style = isLong ? label.style_label_up : label.style_label_down, size = size.small)
+        line.new(bar_index, e, bar_index + tradeLen, e, color = colMuted, style = line.style_dashed)
+        line.new(bar_index, sp, bar_index + tradeLen, sp, color = colShort, width = 2)
+        line.new(bar_index, tp, bar_index + tradeLen, tp, color = colLong, width = 2)
+
+// ─── Run both directions on every closed candle ───
+var Side L = Side.new(1, array.new<Swing>(), array.new<Swing>(), array.new<Pool>())
+var Side S = Side.new(-1, array.new<Swing>(), array.new<Swing>(), array.new<Pool>())
+float atrNow = ta.atr(atrLen)
+
+bool longEntry  = false
+bool shortEntry = false
+if barstate.isconfirmed
+    L.step(atrNow)
+    S.step(atrNow)
+    if L.evEntry and S.evEntry
+        // Same rule as the app: both directions on one candle is ambiguous, skip it.
+        if showCancel
+            label.new(bar_index, high, "x long and short on one candle: skipped", color = color.new(colMuted, 100), textcolor = colMuted, style = label.style_label_down, size = size.tiny)
+    else
+        longEntry  := L.evEntry
+        shortEntry := S.evEntry
+        if longEntry
+            drawEntry(L)
+            alert(syminfo.ticker + " LR BUY " + fmt(L.entry) + " SL " + fmt(L.stop) + " TP " + fmt(L.target), alert.freq_once_per_bar_close)
+        if shortEntry
+            drawEntry(S)
+            alert(syminfo.ticker + " LR SELL " + fmt(-S.entry) + " SL " + fmt(-S.stop) + " TP " + fmt(-S.target), alert.freq_once_per_bar_close)
+    if L.evShift
+        alert(syminfo.ticker + " LR long: structure shifted, zone " + fmt(L.low) + " - " + fmt(L.zoneTop) + ". Wait for a dip into it.", alert.freq_once_per_bar_close)
+    if S.evShift
+        alert(syminfo.ticker + " LR short: structure shifted, zone " + fmt(-S.zoneTop) + " - " + fmt(-S.low) + ". Wait for a rally into it.", alert.freq_once_per_bar_close)
+
+bool confirmed = barstate.isconfirmed
+
+plotshape(showSwings and confirmed and L.newSwingHigh, "Swing high", shape.triangledown, location.abovebar, colMuted, offset = -k, size = size.tiny)
+plotshape(showSwings and confirmed and L.newSwingLow, "Swing low", shape.triangleup, location.belowbar, colMuted, offset = -k, size = size.tiny)
+
+// ─── Checkpoint panel: where each direction is right now and what to wait for ───
+status(Side st) =>
+    int  s      = st.s
+    bool isLong = s > 0
+    string up   = isLong ? "above" : "below"
+    string dn   = isLong ? "below" : "above"
+    int left    = maxSetup - (bar_index - st.at)
+    string txt  = ""
+    if st.phase == 0
+        float best = na
+        for p in st.pools
+            best := na(best) ? p.level : math.max(best, p.level)
+        txt := na(best) ? "Step 1: no unswept equal " + (isLong ? "lows" : "highs") + " yet" : "Step 1: wait for a wick " + dn + " equal " + (isLong ? "lows " : "highs ") + fmt(s * best) + "  (" + str.tostring(st.pools.size()) + " levels open)"
+    else if st.phase == 1
+        txt := "Step 2-3: swept, extreme " + fmt(s * st.low) + ". Wait for a CLOSE " + up + " " + (na(st.bosPrice) ? "the next swing" : fmt(s * st.bosPrice)) + "  (" + str.tostring(left) + " candles left)"
+    else
+        string zone = fmt(math.min(s * st.low, s * st.zoneTop)) + " - " + fmt(math.max(s * st.low, s * st.zoneTop))
+        txt := (st.touched ? "Step 5: zone touched. Enter on a CLOSE " + up + " " + fmt(s * st.zoneTop) : "Step 4: zone " + zone + ". Wait for a wick into it") + ". Cancel on a close " + dn + " " + fmt(s * st.low) + "  (" + str.tostring(left) + " candles left)"
+    txt
+
+var table panel = table.new(position.top_right, 2, 3, bgcolor = color.new(#131722, 10), border_color = color.new(colMuted, 60), border_width = 1)
+if showPanel and barstate.islast
+    table.cell(panel, 0, 0, "LR checkpoints", text_color = color.white, text_size = size.small)
+    table.cell(panel, 1, 0, timeframe.period == "60" ? "1h chart" : "Backtested on 1h; this is " + timeframe.period, text_color = timeframe.period == "60" ? colMuted : colPoolS, text_size = size.small)
+    table.cell(panel, 0, 1, "Long", text_color = colLong, text_size = size.small)
+    table.cell(panel, 1, 1, showLong ? status(L) : "hidden", text_color = color.white, text_size = size.small, text_halign = text.align_left)
+    table.cell(panel, 0, 2, "Short", text_color = colShort, text_size = size.small)
+    table.cell(panel, 1, 2, showShort ? status(S) : "hidden", text_color = color.white, text_size = size.small, text_halign = text.align_left)
+
+// ─── Strategy Tester ───
+// Orders follow the signals above: a market order at the next candle's open (as in the
+// app's backtest), stop and target attached, one trade at a time. Sized so the stop
+// risks a fixed share of the initial capital, so every loss at the stop is about -1R.
+// The panel converts each closed trade to R (profit / money at risk at the actual fill,
+// costs included), the same measure the app and the guides report.
+grpT      = "Strategy Tester"
+riskPct   = input.float(1.0, "Risk per trade (% of initial capital)", minval = 0.01, step = 0.25, group = grpT)
+fromDate  = input.time(timestamp("2020-01-01T00:00:00"), "Trade from", group = grpT)
+showStats = input.bool(true, "Results panel in R (like the app)", group = grpT)
+
+var float slOpen = na    // stop of the last order sent; one trade at a time, so it's the open trade's
+var int   seenTrades = 0
+var int   rN = 0
+var int   rWins = 0
+var float rWon = 0.0
+var float rLost = 0.0
+var float rNet = 0.0
+var float rPeak = 0.0
+var float rDd = 0.0
+var int   rRun = 0
+var int   rStreak = 0
+
+// Closed trades -> R
+if strategy.closedtrades > seenTrades
+    for i = seenTrades to strategy.closedtrades - 1
+        float riskPx = math.abs(strategy.closedtrades.entry_price(i) - slOpen) * math.abs(strategy.closedtrades.size(i)) * syminfo.pointvalue
+        if riskPx > 0
+            float r = strategy.closedtrades.profit(i) / riskPx
+            rN += 1
+            rNet += r
+            if r > 0
+                rWins += 1
+                rWon += r
+                rRun := 0
+            else
+                rLost -= r
+                rRun += 1
+                rStreak := math.max(rStreak, rRun)
+            rPeak := math.max(rPeak, rNet)
+            rDd := math.max(rDd, rPeak - rNet)
+    seenTrades := strategy.closedtrades
+
+sendOrder(bool isLong, float sl, float tp) =>
+    float riskPx = math.abs(close - sl)
+    bool sent = false
+    if riskPx > 0 and (isLong ? tp > close and sl < close : tp < close and sl > close)
+        float qty = strategy.initial_capital * riskPct / 100 / (riskPx * syminfo.pointvalue)
+        string id = isLong ? "Long" : "Short"
+        strategy.entry(id, isLong ? strategy.long : strategy.short, qty = qty)
+        strategy.exit(id + " exit", id, stop = sl, limit = tp)
+        sent := true
+    sent
+
+if barstate.isconfirmed and strategy.position_size == 0 and time >= fromDate
+    if longEntry and not (shortEntry)
+        if sendOrder(true, L.stop, L.target)
+            slOpen := L.stop
+    else if shortEntry and not (longEntry)
+        if sendOrder(false, -S.stop, -S.target)
+            slOpen := -S.stop
+
+var table stats = table.new(position.bottom_right, 2, 7, bgcolor = color.new(#131722, 10), border_color = color.new(#9e9e9e, 60), border_width = 1)
+statRow(int row, string k, string v) =>
+    table.cell(stats, 0, row, k, text_color = color.new(#9e9e9e, 0), text_size = size.small, text_halign = text.align_left)
+    table.cell(stats, 1, row, v, text_color = color.white, text_size = size.small, text_halign = text.align_right)
+signed(float x, string f) => (x >= 0 ? "+" : "") + str.tostring(x, f)
+if showStats and barstate.islast
+    statRow(0, "Trades", str.tostring(rN))
+    statRow(1, "Win rate", rN > 0 ? str.tostring(100.0 * rWins / rN, "0.0") + "%" : "-")
+    statRow(2, "Profit factor", rLost > 0 ? str.tostring(rWon / rLost, "0.00") : "-")
+    statRow(3, "Avg R a trade", rN > 0 ? signed(rNet / rN, "0.00") + "R" : "-")
+    statRow(4, "Net", signed(rNet, "0.0") + "R")
+    statRow(5, "Worst drawdown", str.tostring(rDd, "0.0") + "R")
+    statRow(6, "Longest losing run", str.tostring(rStreak))

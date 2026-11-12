@@ -1,0 +1,205 @@
+//@version=6
+// NY Inside Bar strategy (Playbook: NAS100 and S&P 500, 15m), for the Strategy Tester.
+//
+// Port of src/strategies/nyInsideBarStrategy.ts with its defaults, so the orders here are
+// the trades the app's backtest measured:
+//
+//   (1) Bias      the 09:30 and 09:45 New York candles (the 30-minute opening range):
+//                 last close above the first open = buys only today, below = sells only.
+//   (2) Inside    after 10:00, a candle whose BODY (open to close) sits inside the previous
+//                 candle's body (touching counts). Wicks don't matter here; any colour.
+//   (3) Order     buy stop at the inside candle's high (sell stop at its low), for the next
+//                 3 candles. Cancelled if price reaches the other side of the inside candle,
+//                 or replaced by a newer inside candle.
+//   (4) Trade     stop = the lower of the two candles' lows (sells: higher of the highs),
+//                 target = 1 x the risk from the trigger. At most 2 trades a day, one at a
+//                 time. No order can fill on a candle starting 15:00 or later; anything
+//                 open closes at the 16:00 open. All times New York, daylight saving included.
+//
+// Where TradingView's simulator differs from the app's engine (rare, small):
+//   - a candle that reaches both the trigger and the cancel level: the app cancels,
+//     TradingView fills the stop order;
+//   - a candle that reaches both stop and target: the app counts the stop, TradingView
+//     guesses the order from the candle's shape;
+//   - a gap past the target at the fill: the app skips the trade, TradingView takes it.
+//
+// Costs: commission_value is NAS100's per-side cost (FundingPips spread + commission as a
+// percent of price). S&P 500 is 0.0037. Change it in Properties (see README.md).
+strategy("NY Inside Bar strategy", shorttitle = "NY IB", overlay = true, initial_capital = 100000, default_qty_type = strategy.fixed, commission_type = strategy.commission.percent, commission_value = 0.0031, slippage = 0, pyramiding = 0, margin_long = 1, margin_short = 1, process_orders_on_close = false, calc_on_every_tick = false, max_labels_count = 500)
+
+grpR      = "Rules (keep defaults to match the backtest)"
+openH     = input.int(9, "Opening range start: hour (New York)", minval = 0, maxval = 23, group = grpR)
+openM     = input.int(30, "Opening range start: minute", minval = 0, maxval = 59, group = grpR)
+rangeMin  = input.int(30, "Opening range length (minutes)", minval = 1, group = grpR)
+lastH     = input.int(15, "No fills on candles starting at or after: hour", minval = 0, maxval = 23, group = grpR)
+flatH     = input.int(16, "Close everything at: hour", minval = 0, maxval = 23, group = grpR)
+waitBars  = input.int(3, "Order lives for (candles)", minval = 1, group = grpR)
+targetR   = input.float(1.0, "Target (x risk)", minval = 0.1, step = 0.25, group = grpR)
+maxTrades = input.int(2, "Max trades a day", minval = 1, group = grpR)
+grpT      = "Strategy Tester"
+riskPct   = input.float(1.0, "Risk per trade (% of initial capital)", minval = 0.01, step = 0.25, group = grpT)
+fromDate  = input.time(timestamp("2020-01-01T00:00:00"), "Trade from", group = grpT)
+grpS      = "Show"
+showRange = input.bool(true, "Shade the opening range", group = grpS)
+showOrder = input.bool(true, "Pending order, stop and target lines", group = grpS)
+showStats = input.bool(true, "Results panel in R (like the app)", group = grpS)
+
+const string TZ = "America/New_York"
+colLong  = color.new(#26a69a, 0)
+colShort = color.new(#ef5350, 0)
+colMuted = color.new(#9e9e9e, 0)
+fmt(float x) => str.tostring(x, format.mintick)
+
+int barMs = timeframe.in_seconds() * 1000
+bool tfOk = timeframe.isintraday and barMs <= rangeMin * 60000
+
+// Today's New York clock, as UTC ms.
+int y = year(time, TZ)
+int mo = month(time, TZ)
+int d = dayofmonth(time, TZ)
+int dayKey = y * 10000 + mo * 100 + d
+int tOpen = timestamp(TZ, y, mo, d, openH, openM)
+int tRangeEnd = tOpen + rangeMin * 60000
+int tLast = timestamp(TZ, y, mo, d, lastH, 0)
+int tFlat = timestamp(TZ, y, mo, d, flatH, 0)
+
+var int   curDay = na
+var float rangeOpen = na
+var float rangeClose = na
+var int   rangeBars = 0
+var int   bias = 0
+var int   taken = 0
+var int   lastExitBar = -1
+var int   seenTrades = 0
+var int   seenOpen = 0
+// The live order
+var int   oIdx = na
+var float oTrig = na
+var float oCancel = na
+var float oStop = na
+var float oTarget = na
+var float slOpen = na
+
+// R results
+var int   rN = 0
+var int   rWins = 0
+var float rWon = 0.0
+var float rLost = 0.0
+var float rNet = 0.0
+var float rPeak = 0.0
+var float rDd = 0.0
+var int   rRun = 0
+var int   rStreak = 0
+
+cancelOrder() =>
+    strategy.cancel("Long")
+    strategy.cancel("Short")
+
+if barstate.isconfirmed and tfOk
+    // New York day
+    if dayKey != curDay
+        curDay := dayKey
+        rangeOpen := na
+        rangeBars := 0
+        bias := 0
+        taken := 0
+        oIdx := na
+        cancelOrder()
+
+    // (1) Opening range and bias
+    if time >= tOpen and time < tRangeEnd
+        if rangeBars == 0
+            rangeOpen := open
+        rangeClose := close
+        rangeBars += 1
+        if time + barMs >= tRangeEnd
+            bias := rangeBars >= math.max(1, int(rangeMin * 60000 / barMs) - 1) ? int(math.sign(rangeClose - rangeOpen)) : 0
+
+    // Fills and exits on this candle (TradingView's engine is the source of truth)
+    int allTrades = strategy.closedtrades + strategy.opentrades
+    if allTrades > seenOpen
+        taken += allTrades - seenOpen
+        seenOpen := allTrades
+        oIdx := na
+    if strategy.closedtrades > seenTrades
+        for i = seenTrades to strategy.closedtrades - 1
+            float riskCash = math.abs(strategy.closedtrades.entry_price(i) - slOpen) * math.abs(strategy.closedtrades.size(i)) * syminfo.pointvalue
+            if riskCash > 0
+                float r = strategy.closedtrades.profit(i) / riskCash
+                rN += 1
+                rNet += r
+                if r > 0
+                    rWins += 1
+                    rWon += r
+                    rRun := 0
+                else
+                    rLost -= r
+                    rRun += 1
+                    rStreak := math.max(rStreak, rRun)
+                rPeak := math.max(rPeak, rNet)
+                rDd := math.max(rDd, rPeak - rNet)
+        seenTrades := strategy.closedtrades
+        lastExitBar := bar_index
+
+    // (4) Time exit: closes at the next candle's open, the first one at or after 16:00
+    if strategy.position_size != 0 and time_close >= tFlat
+        strategy.close_all(comment = "16:00")
+
+    if strategy.position_size == 0
+        // (3) The live order: the other side reached, or expired -> gone
+        if not na(oIdx) and bar_index > oIdx
+            bool hit = bias > 0 ? high >= oTrig : low <= oTrig
+            bool other = bias > 0 ? low <= oCancel : high >= oCancel
+            if hit or other or bar_index - oIdx >= waitBars
+                oIdx := na
+                cancelOrder()
+        // (2) A new inside candle replaces any older order
+        bool inside = math.min(open, close) >= math.min(open[1], close[1]) and math.max(open, close) <= math.max(open[1], close[1])
+        if bias != 0 and time >= tRangeEnd and bar_index > lastExitBar and taken < maxTrades and inside
+            float trig = bias > 0 ? high : low
+            float stp = bias > 0 ? math.min(low[1], low) : math.max(high[1], high)
+            float risk = (trig - stp) * bias
+            if risk > 0
+                oIdx := bar_index
+                oTrig := trig
+                oCancel := bias > 0 ? low : high
+                oStop := stp
+                oTarget := trig + bias * targetR * risk
+                if showOrder
+                    label.new(bar_index, bias > 0 ? low : high, "", color = bias > 0 ? colLong : colShort, style = label.style_circle, size = size.tiny, tooltip = "Inside candle. " + (bias > 0 ? "Buy" : "Sell") + " stop " + fmt(trig) + ", SL " + fmt(stp) + ", TP " + fmt(oTarget))
+        // Keep the order working for the next candle if it starts before the cutoff
+        if not na(oIdx)
+            if time_close < tLast and time >= fromDate
+                float qty = strategy.initial_capital * riskPct / 100 / ((oTrig - oStop) * bias * syminfo.pointvalue)
+                string id = bias > 0 ? "Long" : "Short"
+                strategy.entry(id, bias > 0 ? strategy.long : strategy.short, qty = qty, stop = oTrig)
+                strategy.exit(id + " exit", id, stop = oStop, limit = oTarget)
+                slOpen := oStop
+            else
+                oIdx := na
+                cancelOrder()
+    else
+        oIdx := na
+
+bool live = barstate.isconfirmed and not na(oIdx) and strategy.position_size == 0
+plot(showOrder and live ? oTrig : na, "Pending entry", colMuted, 2, plot.style_linebr)
+plot(showOrder and live ? oStop : na, "Pending stop", colShort, 1, plot.style_linebr)
+plot(showOrder and live ? oTarget : na, "Pending target", colLong, 1, plot.style_linebr)
+bgcolor(showRange and tfOk and time >= tOpen and time < tRangeEnd ? color.new(#5c6bc0, 85) : na, title = "Opening range")
+
+// ─── Panel ───
+var table stats = table.new(position.bottom_right, 2, 9, bgcolor = color.new(#131722, 10), border_color = color.new(colMuted, 60), border_width = 1)
+statRow(int row, string k, string v) =>
+    table.cell(stats, 0, row, k, text_color = colMuted, text_size = size.small, text_halign = text.align_left)
+    table.cell(stats, 1, row, v, text_color = color.white, text_size = size.small, text_halign = text.align_right)
+signed(float x, string f) => (x >= 0 ? "+" : "") + str.tostring(x, f)
+if showStats and barstate.islast
+    statRow(0, "Today", not tfOk ? "Use a 15-minute chart" : bias > 0 ? "Opening range up: buys only" : bias < 0 ? "Opening range down: sells only" : "No bias yet")
+    statRow(1, "Order", not na(oIdx) and strategy.position_size == 0 ? (bias > 0 ? "Buy stop " : "Sell stop ") + fmt(oTrig) + "  SL " + fmt(oStop) + "  TP " + fmt(oTarget) : "None")
+    statRow(2, "Trades", str.tostring(rN))
+    statRow(3, "Win rate", rN > 0 ? str.tostring(100.0 * rWins / rN, "0.0") + "%" : "-")
+    statRow(4, "Profit factor", rLost > 0 ? str.tostring(rWon / rLost, "0.00") : "-")
+    statRow(5, "Avg R a trade", rN > 0 ? signed(rNet / rN, "0.00") + "R" : "-")
+    statRow(6, "Net", signed(rNet, "0.0") + "R")
+    statRow(7, "Worst drawdown", str.tostring(rDd, "0.0") + "R")
+    statRow(8, "Longest losing run", str.tostring(rStreak))
