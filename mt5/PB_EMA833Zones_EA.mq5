@@ -22,13 +22,22 @@
 //|             target + 0.25R.                                    |
 //| Market order at the next H1 open, one trade at a time, held    |
 //| until the stop or target (no time exit).                       |
+//| Session (All by default): only take signals whose candle closes |
+//| in London 08:00-16:30 London time and/or New York 08:00-17:00  |
+//| New York time (daylight saving handled).                       |
 //| Trail (off by default): no target; at 3R the stop moves to 2R, |
 //| at 4R to 3R, and so on, one R behind the best R reached.       |
 //+------------------------------------------------------------------+
 #property copyright "Playbook"
-#property version   "1.10"
+#property version   "1.20"
 #property description "Research Strategy Tester EA: 8/33 EMA dominance candle with swing-zone filter, H1, 1:3. Not part of the Playbook."
 #include <Trade/Trade.mqh>
+
+enum ENUM_SESS { SESS_ALL = 0,    // All hours
+                 SESS_LONDON = 1, // London 08:00-16:30 London
+                 SESS_NY = 2,     // New York 08:00-17:00 NY
+                 SESS_BOTH = 3    // London or New York
+               };
 
 input group "Rules (keep defaults to match the backtest)"
 input int    InpFast      = 8;    // Fast EMA
@@ -43,6 +52,10 @@ input bool   InpTrail     = false; // Trail instead of a fixed target (3R -> sto
 input int    InpZoneLook  = 200;  // Zone lookback (candles)
 input int    InpZoneSwing = 3;    // Swing size (candles each side)
 input double InpZoneBuf   = 0.25; // Zone counts up to this many R past the target
+input group "Session"
+input ENUM_SESS InpSession = SESS_ALL; // Trade only when the signal candle closes in
+input int    InpServerGmt  = 2;    // Server UTC offset in winter (hours)
+input bool   InpEuDst      = true; // Server adds 1h for EU summer time (late Mar to late Oct)
 input group "Show"
 input bool   InpLong      = true; // Long trades
 input bool   InpShort     = true; // Short trades
@@ -93,6 +106,43 @@ double NormPx(double p)
    double ts = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
    if(ts > 0) p = MathRound(p / ts) * ts;
    return NormalizeDouble(p, _Digits);
+}
+
+//--- server time -> UTC, and UTC -> London / New York wall clock
+datetime LastSunday(int year, int mon)   // last Sunday of a 31-day month, 01:00 UTC
+{
+   MqlDateTime d; ZeroMemory(d);
+   d.year = year; d.mon = mon; d.day = 31; d.hour = 1;
+   datetime t = StructToTime(d);
+   MqlDateTime w; TimeToStruct(t, w);
+   return t - w.day_of_week * 86400;
+}
+datetime NthSunday(int year, int mon, int n, int hourUtc)
+{
+   MqlDateTime d; ZeroMemory(d);
+   d.year = year; d.mon = mon; d.day = 1; d.hour = hourUtc;
+   datetime t = StructToTime(d);
+   MqlDateTime w; TimeToStruct(t, w);
+   return t + ((7 - w.day_of_week) % 7) * 86400 + (n - 1) * 7 * 86400;
+}
+bool EuSummer(datetime u) { MqlDateTime d; TimeToStruct(u, d); return u >= LastSunday(d.year, 3) && u < LastSunday(d.year, 10); }
+bool UsSummer(datetime u) { MqlDateTime d; TimeToStruct(u, d); return u >= NthSunday(d.year, 3, 2, 7) && u < NthSunday(d.year, 11, 1, 6); }
+datetime ServerToUtc(datetime s)
+{
+   datetime u = s - InpServerGmt * 3600;
+   if(InpEuDst && EuSummer(u)) u -= 3600;
+   return u;
+}
+int MinuteOfDay(datetime t) { MqlDateTime d; TimeToStruct(t, d); return d.hour * 60 + d.min; }
+// Is this server time (the signal candle's close) inside the chosen session?
+bool InSession(datetime server)
+{
+   if(InpSession == SESS_ALL) return true;
+   datetime u = ServerToUtc(server);
+   int lo = MinuteOfDay(u + (EuSummer(u) ? 3600 : 0));
+   int ny = MinuteOfDay(u - (UsSummer(u) ? 4 : 5) * 3600);
+   bool inL = lo >= 480 && lo <= 990, inN = ny >= 480 && ny <= 1020;
+   return (InpSession == SESS_LONDON && inL) || (InpSession == SESS_NY && inN) || (InpSession == SESS_BOTH && (inL || inN));
 }
 
 // The chart in "side space": s = +1 as drawn, s = -1 turned upside down, so one
@@ -166,6 +216,7 @@ void Compute()
    bool first = g_lastTraded == 0;
    g_lastTraded = T[j];
    if(first) return;                                          // never trade a candle from before the EA started
+   if(!InSession(T[j] + 3600)) return;                        // the signal candle closes outside the session
    for(int s = 1; s >= -1; s -= 2)
    {
       if(s > 0 && !InpLong) continue;

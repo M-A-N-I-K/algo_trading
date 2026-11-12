@@ -223,6 +223,15 @@ It can trade a live or demo account too, if your prop firm allows Expert Advisor
 | EURJPY | 186 | 27% | 0.99 | −1.9R |
 | SPX500 | 201 | 25% | 0.90 | −14.7R |
 
+**Session** (input *Trade only when the signal candle closes in*, All hours by default): London 08:00–16:30 London time, New York 08:00–17:00 New York time, or either. Daylight saving is handled; the server clock is UTC+2 with EU summer time (FundingPips), as in the other EAs. App numbers for the two runs worth checking (H1, zones):
+
+| Run | Session | Trail | Trades | Won | Profit factor | Net |
+|---|---|---|---|---|---|---|
+| XAUUSD | London or New York | on | 135 | 30% | 1.50 | +47.5R |
+| XAUUSD | London or New York | off | 158 | 30% | 1.28 | +31.1R |
+| NDX100 | New York | on | 155 | 30% | 1.27 | +29.4R |
+| NDX100 | New York | off | 186 | 30% | 1.24 | +32.0R |
+
 The app enters at the signal candle's close and the EA at the next candle's open, so expect small differences in each trade's risk. A tester profit factor under about 1.1 means it's not worth trading next to the Playbook setups.
 
 ## Live candle feed (PB_BarFeed)
