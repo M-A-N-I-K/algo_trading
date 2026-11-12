@@ -1,15 +1,13 @@
 # TradingView indicators and strategies
 
-## Strategy Tester scripts (all 10 Playbook setups)
+## Strategy Tester scripts (the 8 Playbook setups, plus retired NY Inside Bar)
 
 The `*-strategy.pine` files are **strategies**, so they run in TradingView's **Strategy Tester** (the tab under the chart) with a trade list and an equity curve. They use the same rules and defaults as the app, and each one draws a results panel (bottom right) in **R**, the measure the app and the guides use: trades, win rate, profit factor, average R, net R, worst drawdown and longest losing run.
 
-Five scripts cover the 10 setups. Pick the market's settings from this table in the script's **Settings → Inputs** and **Settings → Properties**:
+Four scripts cover the 8 setups; `ny-inside-bar-strategy.pine` is kept for the retired NY Inside Bar. Pick the market's settings from this table in the script's **Settings → Inputs** and **Settings → Properties**:
 
 | Playbook setup | Script | Chart | Inputs | Commission (Properties, % per side) | App backtest (MT5, 2020 to Nov 2026) |
 |---|---|---|---|---|---|
-| NAS100 NY Inside Bar, 15m | `ny-inside-bar-strategy.pine` | 15m | defaults | 0.0031 (default) | 1,512 trades, 58.3% won, PF 1.31 |
-| S&P 500 NY Inside Bar, 15m | `ny-inside-bar-strategy.pine` | 15m | defaults | 0.0037 | 1,615 trades, 58.2% won, PF 1.21 |
 | NAS100 MACD + 200 EMA + S/R, 4h | `macd-200ema-sr-strategy.pine` | 1h (builds UTC 4h candles) | defaults (target 2) | 0.0031 (default) | 38 trades, 50% won, PF 1.98 |
 | Gold Smart Money Concepts, 4h | `smc-strategy.pine` | 1h (builds UTC 4h candles) | defaults | 0.0043 (default) | 56 trades, 33.9% won, PF 1.56 |
 | FTSE 100 Smart Money Concepts, 4h | `smc-strategy.pine` | 1h (builds UTC 4h candles) | defaults | 0.0062 | 27 trades, 51.9% won, PF 3.03 (since 2023) |
@@ -18,6 +16,7 @@ Five scripts cover the 10 setups. Pick the market's settings from this table in 
 | S&P 500 Liquidity Reversal, 4h | `liquidity-reversal-strategy.pine` | 4h | Fixed target 2 | 0.0037 (default) | 34 trades, 47.1% won, PF 1.73 |
 | GBP/USD Liquidity Reversal, 1h | `liquidity-reversal-strategy.pine` | 1h | Fixed target 2 | 0.0057 | 134 trades, 42.5% won, PF 1.38 |
 | EUR/USD Liquidity Reversal, 1h | `liquidity-reversal-strategy.pine` | 1h | Fixed target 0 (swing target) | 0.0031 | 124 trades, 30.6% won, PF 1.23 (since 2020-05) |
+| *Retired:* NAS100 / S&P 500 NY Inside Bar, 15m | `ny-inside-bar-strategy.pine` | 15m | defaults | 0.0031 / 0.0037 | NAS100 1,877 trades, 49.4% won, PF 0.90; S&P 500 PF 0.78 (it loses) |
 
 The commission is FundingPips' spread plus commission as a percent of price, charged on entry and on exit, so the results are after costs like the app's.
 
@@ -39,7 +38,7 @@ The commission is FundingPips' spread plus commission as a percent of price, cha
 - **History.** TradingView loads a limited number of candles, which depends on your plan. A 15m chart may go back only weeks or months, not to 2020. Compare like with like: set **Trade from** to the first date the Tester shows, or use Deep Backtesting if your plan has it.
 - **Prices.** Each broker's feed has slightly different prices, and FundingPips' MT5 feed isn't on TradingView. Use a CFD feed close to it (Pepperstone, OANDA, FXCM, ICMarkets).
 - **Candles that hit two levels.** When one candle reaches both the stop and the target, the app always counts the stop, which is the cautious choice. TradingView guesses the order from the candle's shape. Turn on **Bar Magnifier** in Properties if your plan has it.
-- **NY Inside Bar fills.** When one candle hits both the trigger and the cancel level, the app cancels the order but TradingView fills it. When a candle gaps past the target, the app skips the trade but TradingView takes it.
+- **NY Inside Bar fills.** When a candle gaps past the target, the app skips the trade but TradingView takes it.
 
 These differences are small, but on a short history they can move the profit factor a lot. Judge each setup on the app's 6.9-year MT5 numbers. Use the Tester to see the trades on the chart and to check recent behaviour.
 
@@ -49,7 +48,7 @@ The Playbook has four active setups. Each one has an indicator that marks entry,
 
 | Playbook setup | TradingView (this folder) | MT5 (`../mt5`) | Chart |
 |---|---|---|---|
-| NAS100 and S&P 500 NY Inside Bar, 15m | `ny-inside-bar-checkpoints.pine` | `PB_NYInsideBar.mq5` | 15m |
+| *Retired:* NAS100 and S&P 500 NY Inside Bar, 15m | `ny-inside-bar-checkpoints.pine` | `PB_NYInsideBar.mq5` | 15m |
 | NAS100 MACD + 200 EMA + S/R, 4h | `macd-200ema-sr-checkpoints.pine` | `PB_MACD200EMA_SR.mq5` | 1h (builds the UTC 4h candles itself) |
 | Gold Smart Money Concepts, 4h | `smc-checkpoints.pine` | `PB_SMC.mq5` | 1h (builds the UTC 4h candles itself) |
 | NAS100 S/R Sweep + Trend-Line Break, 1h | `sr-sweep-trendline-checkpoints.pine` | `PB_SRSweepTrendline.mq5` | 1h |
@@ -61,13 +60,15 @@ The reference signals below come from the app's own strategy code run on Funding
 
 ## NY Inside Bar checkpoints (NAS100 and S&P 500, 15m)
 
+**Retired (Nov 2026): it loses money.** Its first backtest cancelled an order whenever one candle reached both the trigger and the cancel level. MT5's Strategy Tester showed the trigger usually trades first, so a real order fills, and most of those trades lose. Counting them, NAS100 made profit factor 0.90 over 1,877 trades since 2020 (MT5 tester 1.06) and SPX500 0.78. The scripts are kept for study; the trade list below is from the old rule.
+
 `ny-inside-bar-checkpoints.pine` ports `src/strategies/nyInsideBarStrategy.ts` and tracks its own trades the same way the app does, so every mark is a trade the backtest took (or an order it cancelled). Put it on a **15-minute** chart. Times are New York's whatever the chart's time zone, daylight saving included.
 
 | Mark | Checkpoint | Rule |
 |---|---|---|
 | shaded band, **1 Up / 1 Down / 1 Flat** | Bias | The 09:30 and 09:45 candles. The 09:45 close above the 09:30 open = buys only today, below = sells only, equal = no trade. |
 | **2 Inside** with dashed / red / green lines | Order | After 10:00 and before 15:00, a candle whose body sits inside the previous candle's body. Buy stop at its high (sell stop at its low), stop beyond both candles' wicks, target 1 × the risk. The lines run while the order is live. |
-| **x** (hover for the reason) | Cancelled | Price reached the other side of the inside candle first (or both sides in one candle), 3 candles passed, a newer inside candle replaced it, the next candle starts at 15:00 or later, or price gapped past the target. |
+| **x** (hover for the reason) | Cancelled | Price reached the other side of the inside candle first (a candle that reaches both fills), 3 candles passed, a newer inside candle replaced it, the next candle starts at 15:00 or later, or price gapped past the target. |
 | **BUY / SELL** price | Fill | The stop order filled (at the trigger, or the open if price gapped through it). |
 | **TP / SL / 16:00** with R | Exit | Target, stop (a candle reaching both counts as the stop) or the 16:00 open. R is after the cost input (NAS100 0.0031, S&P 500 0.0037). |
 

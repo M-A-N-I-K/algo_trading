@@ -20,7 +20,7 @@ vi.mock("./config", async (importOriginal) => {
     loggableSetupById: (id: string) => activeSetupById(id) ?? real.customSetup(id),
   };
 });
-import { accountById, customSetupId, FEATURED_SETUP, loggableSetupById, lotUnits, PLAYBOOK_ACCOUNT, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "./config";
+import { accountById, customSetupId, loggableSetupById, lotUnits, PLAYBOOK_ACCOUNT, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "./config";
 import {
   accountStatus as accountStatusOn,
   adherence,
@@ -117,10 +117,10 @@ const plan = (over: Partial<TradePlan> = {}): TradePlan => ({
 const status = (checks: ReturnType<typeof preTradeChecks>, id: string) => checks.find((c) => c.id === id)?.status;
 
 describe("playbook config", () => {
-  it("has 10 unique setups, and keeps retired ones apart, each with a reason", async () => {
+  it("has 8 unique setups, and keeps retired ones apart, each with a reason", async () => {
     const real = await vi.importActual<typeof import("./config")>("./config");
-    expect(real.PLAYBOOK_SETUPS).toHaveLength(10);
-    expect(new Set(real.PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(10);
+    expect(real.PLAYBOOK_SETUPS).toHaveLength(8);
+    expect(new Set(real.PLAYBOOK_SETUPS.map((s) => s.id)).size).toBe(8);
     for (const s of real.PLAYBOOK_SETUPS) expect(s.id).toBe(`${s.strategy}:${s.symbol}:${s.interval}`);
     const active = new Set(real.PLAYBOOK_SETUPS.map((s) => s.id));
     for (const s of real.RETIRED_SETUPS) {
@@ -405,12 +405,10 @@ describe("the two FundingPips accounts", () => {
     expect(hardFailures(preTradeChecksOn(flexPlan(), [], flex))).toEqual([]);
     expect(hardFailures(preTradeChecksOn(plan({ riskAmount: 37.5 }), [], pro))).toEqual([]);
   });
-  it("takes the featured NAS100 NY Inside Bar at full risk though it has no grade", () => {
-    expect(FEATURED_SETUP?.id).toBe("ny-inside-bar:NAS100:15m");
-    expect(FEATURED_SETUP?.ungradedFullRisk).toBe(true);
-    expect(Object.keys(FEATURED_SETUP!.featured!.challenge).sort()).toEqual(["flex-10k", "pro-5k"]);
-    expect(riskBudgetOn("NAS100", null, flex, FEATURED_SETUP).amount).toBe(100);
-    expect(riskBudgetOn("NAS100", null, pro, FEATURED_SETUP)).toMatchObject({ amount: 37.5, skip: null });
+  it("takes an ungradedFullRisk setup at full risk though it has no grade", () => {
+    const fullRisk = { ...PLAYBOOK_SETUPS[0], ungradedFullRisk: true };
+    expect(riskBudgetOn("NAS100", null, flex, fullRisk).amount).toBe(100);
+    expect(riskBudgetOn("NAS100", null, pro, fullRisk)).toMatchObject({ amount: 37.5, skip: null });
     // Other ungraded setups keep the B-grade rule.
     expect(riskBudgetOn("NAS100", null, pro).skip).toMatch(/A-grade trades only/);
   });

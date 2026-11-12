@@ -53,8 +53,8 @@ export default async function IndicatorsPage() {
         <>
           <h2 className="mt-4 font-display text-[15px] font-semibold text-fog">Retired setups</h2>
           <p className="-mt-4 text-[13px] text-mist">These setups lost money on 6.5 years of MT5 data and were removed from the Playbook. Kept for reference only.</p>
-          {retired.map(({ info, code, strategyCode }) => (
-            <IndicatorCard key={info.id} info={info} code={code} strategyCode={strategyCode} />
+          {retired.map(({ info, code, strategyCode, mt5Code, eaCode }) => (
+            <IndicatorCard key={info.id} info={info} code={code} strategyCode={strategyCode} mt5Code={mt5Code} eaCode={eaCode} />
           ))}
         </>
       )}

@@ -224,7 +224,11 @@ const DAY_MS = 86_400_000;
 function triggerFill(bar: OHLC, side: Side, trigger: { price: number; cancelPrice?: number }): number | null {
   const isLong = side === "LONG";
   const hit = isLong ? bar.high >= trigger.price : bar.low <= trigger.price;
-  const cancelled = trigger.cancelPrice !== undefined && (isLong ? bar.low <= trigger.cancelPrice : bar.high >= trigger.cancelPrice);
+  // Cancelled only if the bar opens at or past the cancel price. A bar that
+  // reaches both prices later counts as a fill: a live stop order fills when
+  // the trigger trades first, and assuming the cancel always came first
+  // skipped exactly the fills that reverse (checked against MT5's tester).
+  const cancelled = trigger.cancelPrice !== undefined && (isLong ? bar.open <= trigger.cancelPrice : bar.open >= trigger.cancelPrice);
   if (!hit || cancelled) return null;
   return isLong ? Math.max(bar.open, trigger.price) : Math.min(bar.open, trigger.price);
 }

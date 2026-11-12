@@ -6,7 +6,7 @@ import { BACKTEST_SETTINGS } from "./shared";
 // time, its colour sets the side, an inside candle is one whose body sits
 // inside the previous candle's body, stop order at the inside candle's high
 // (low) live for 3 candles, cancelled by a break of the other side or a newer
-// inside candle, stop beyond both candles, target 1R from the trigger, at most
+// inside candle (a candle reaching both sides fills), stop beyond both candles, target 1R from the trigger, at most
 // 2 trades a day, no fill on a candle starting 15:00 or later, flat at 16:00.
 export const nyInsideBarGuide: StrategyGuide = {
   key: "ny-inside-bar",
@@ -15,7 +15,7 @@ export const nyInsideBarGuide: StrategyGuide = {
   difficulty: "Beginner",
   style: "Intraday breakout with the opening range, pending stop orders",
   timeframes: "One chart: 15m",
-  markets: "Stock indices: NAS100 and SPX500. It lost on gold after costs",
+  markets: "Tested on NAS100, SPX500 and gold. It lost money on all three, so it's retired from the Playbook",
   frequency: "About 4 trades a week per market (up to 2 a day)",
   holdTime: "Minutes to a few hours; always closed by 16:00 New York time",
   direction: "Both: longs only on days the opening range is green, shorts only when it's red",
@@ -23,7 +23,7 @@ export const nyInsideBarGuide: StrategyGuide = {
   summary: [
     "The New York stock market opens at 09:30 New York time. The first 30 minutes (two 15-minute candles) show which way the big money is leaning that day. If those two candles together closed higher than they opened, you only buy all day; if lower, you only sell.",
     "After that, you wait for a small pause: a candle whose body fits inside the body of the candle before it (an inside candle). You place a pending buy stop order at the high of that pause candle. If price breaks out, the order fills; if it doesn't within 3 candles, you cancel it. The stop goes below both candles and the target is the same distance above: 1:1.",
-    "It comes from a Hindi YouTube video aimed at prop-firm traders (NASDAQ and gold, 1:1). The video's own version only just broke even after costs. Adding the opening-range colour rule is what made it work in the backtest: on NAS100 from 2020 to Nov 2026 it made a profit factor of 1.31 over 1,512 trades. Each trade earns little (0.13R on average), so it only works because of how many there are, and only while your costs are small.",
+    "It comes from a Hindi YouTube video aimed at prop-firm traders (NASDAQ and gold, 1:1). It looked profitable at first (profit factor 1.31 on NAS100 since 2020), but that test assumed an order was cancelled whenever a candle reached both the buy stop and the cancel level. MT5's Strategy Tester, which places real orders, showed the buy stop usually fills first in those candles and the trade then loses. Counting those fills, it loses money: NAS100 profit factor 0.90 over 1,877 trades since 2020, SPX500 0.78. It's retired from the Playbook and kept here so you can see why.",
   ],
 
   terms: [
@@ -38,7 +38,7 @@ export const nyInsideBarGuide: StrategyGuide = {
 
   chartSetup: [
     { title: "Open a 15-minute chart", detail: "NAS100 (NDX100 on FundingPips) or SPX500. Candles must start on the quarter hour (:00, :15, :30, :45), which is the default." },
-    { title: "Mark 09:30 ET", detail: "Add a vertical line or a session marker at the New York open: 09:30 ET (19:00 or 20:00 India time, depending on US daylight saving). The Playbook page does this timing for you and shows each order." },
+    { title: "Mark 09:30 ET", detail: "Add a vertical line or a session marker at the New York open: 09:30 ET (19:00 or 20:00 India time, depending on US daylight saving). The indicator on the Indicators page marks it for you." },
     { title: "Have the order tools ready", detail: "You'll place pending buy stop / sell stop orders with a stop loss and take profit attached, and cancel them often. Know where that is on your platform before 09:30." },
   ],
 
@@ -46,7 +46,7 @@ export const nyInsideBarGuide: StrategyGuide = {
     { title: "Read the opening range", detail: "At 10:00 ET, compare the 09:45 candle's close with the 09:30 candle's open. Higher: today is a buy day. Lower: go to the short steps. Equal: no trades today." },
     { title: "Wait for an inside candle", detail: "From the 10:00 candle on, after each candle closes, check: is its body inside the previous candle's body? If not, keep waiting." },
     { title: "Place the buy stop", detail: "Buy stop at the inside candle's high. Stop loss at the lower of the two candles' lows (inside and outer). Take profit = buy stop + (buy stop − stop loss)." },
-    { title: "Give it 3 candles", detail: "The order stays for the next 3 candles. Cancel it if: 3 candles close without a fill; price trades down to the inside candle's low first (or reaches both sides in one candle); or a newer inside candle forms, in which case move the order to that one." },
+    { title: "Give it 3 candles", detail: "The order stays for the next 3 candles. Cancel it if: 3 candles close without a fill; price trades down to the inside candle's low first; or a newer inside candle forms, in which case move the order to that one. If price reaches your buy stop first, you're in, even if the same candle then falls to the inside candle's low: that's what a real stop order does, and these trades are mostly losers." },
     { title: "Mind the clock", detail: "No order may still be live on a candle starting at 15:00 ET or later. Whatever is open at 16:00 ET, close it." },
     { title: "Up to 2 trades a day, one at a time", detail: "After a trade closes, look for a new inside candle that forms after it. Stop after the second trade of the day, win or lose." },
   ],
@@ -59,12 +59,12 @@ export const nyInsideBarGuide: StrategyGuide = {
 
   entry: "A pending stop order at the inside candle's high (buy) or low (sell), placed when the inside candle closes. It fills at that price, or at the open if the next candle gaps past it. Never buy at market because a breakout already happened: the backtest only took the stop-order fill.",
   stop: "Beyond both candles: below the lower of the inside and outer candles' lows for a buy, above the higher of their highs for a sell. Attach it to the pending order so it's live the moment the order fills.",
-  target: "1R: the same distance from the entry as the stop. Fixed. Testing 1.5R made no more money and 1:1 keeps the win rate near 58%, which is easier to sit through.",
+  target: "1R: the same distance from the entry as the stop. Fixed. Tested this way it wins about half its trades, which at 1:1 is break-even before costs.",
 
   manage: [
     { title: "Set and forget", detail: "Stop and target go on with the order. The tested version never moves them: no breakeven, no trailing." },
     { title: "Close at 16:00 ET", detail: "Any trade still open at the New York close is closed at market. This happened on about 1 trade in 12." },
-    { title: "Expect many small trades", detail: "About 4 a week per market. The edge is thin per trade (0.13R on NAS100 after costs), so skipping the boring ones or doubling up after a loss changes the result. Take every valid one at the same risk." },
+    { title: "Expect many small trades", detail: "About 5 a week per market. On NAS100 since 2020 the average trade lost 0.05R after costs, so there is no edge to collect, however consistently you take them." },
     { title: "Size from the stop", detail: "Risk a fixed amount (the Playbook sets it per account), then size = risk ÷ (entry − stop). The Position size page does this." },
   ],
 
@@ -74,12 +74,12 @@ export const nyInsideBarGuide: StrategyGuide = {
     "The candle's wicks are inside but the body isn't: it's not an inside candle.",
     "It's 15:00 ET or later: no new orders.",
     "You already took 2 trades today.",
-    "Gold, silver, crypto or currency pairs: the same rules lost after costs there.",
-    "Your costs are high. At a 0.04% fee per side (the guides' standard setting below) it loses even on NAS100. It needs index-CFD spreads like FundingPips' (about 1 point on NAS100).",
+    "Any market, for real money: it lost on NAS100, SPX500 and gold once the backtest counted every fill a real stop order gets. Study it, or test it on a demo, but don't trade it on a challenge.",
   ],
 
   mistakes: [
-    "Trading both directions. Without the opening-range colour rule the strategy was close to break-even after costs.",
+    "Trusting a backtest that cancels orders a real stop order would fill. That one mistake made this strategy look profitable (profit factor 1.31) when it isn't.",
+    "Trading both directions. Without the opening-range colour rule it did no better.",
     "Entering at market after the breakout candle closes. The video does this (with a wick rule); it did far worse than the stop order (profit factor 0.76–0.80).",
     "Leaving an old order live when a newer inside candle forms. Move it.",
     "Forgetting to cancel after 3 candles, and getting filled on a stale level later.",
@@ -128,11 +128,11 @@ export const nyInsideBarGuide: StrategyGuide = {
     period: "5 May – 3 Nov 2026 (6 months), FundingPips MT5 15m bars",
     settings: BACKTEST_SETTINGS,
     rows: [
-      { symbol: "NAS100", timeframe: "15m", trades: 115, winRatePct: 57.4, profitFactor: 0.97, returnPct: -0.4, maxDrawdownPct: 3.1 },
-      { symbol: "SPX500", timeframe: "15m", trades: 112, winRatePct: 44.6, profitFactor: 0.42, returnPct: -5.9, maxDrawdownPct: 6.2 },
-      { symbol: "XAUUSD", timeframe: "15m", trades: 121, winRatePct: 56.2, profitFactor: 0.59, returnPct: -5.7, maxDrawdownPct: 6.8 },
+      { symbol: "NAS100", timeframe: "15m", trades: 133, winRatePct: 52.6, profitFactor: 0.79, returnPct: -3.3, maxDrawdownPct: 6.5 },
+      { symbol: "SPX500", timeframe: "15m", trades: 130, winRatePct: 39.2, profitFactor: 0.33, returnPct: -9.0, maxDrawdownPct: 9.0 },
+      { symbol: "XAUUSD", timeframe: "15m", trades: 147, winRatePct: 44.9, profitFactor: 0.38, returnPct: -12.5, maxDrawdownPct: 13.0 },
     ],
     verdict:
-      "At the guides' 0.04% fee per side, all three lost over these 6 months: that fee is about 10 NAS100 points each way, a big share of a typical 15-minute stop. FundingPips' real cost on NAS100 is far smaller, and at the platform's measured costs the same 6 months made +28R on NAS100 (115 trades, profit factor 1.71), +11R on SPX500 (PF 1.23) and +17R on gold (PF 1.35). The long test is what put it in the Playbook: on MT5 bars from Jan 2020 to Nov 2026 at measured costs, NAS100 made 1,512 trades, won 58%, profit factor 1.31, +190R, with every year profitable; it held at 1.5× and 2× costs (PF 1.24, 1.18) and with candles shifted 5 and 10 minutes (PF 1.23, 1.26). SPX500 made PF 1.21 over 1,615 trades (2021 lost 4.9R). Gold made only PF 1.03 over the long test and lost at 1.5× costs, so the good 6 months there was luck. The video's original rules (both directions) made PF 1.11 on NAS100, and the opening-range filter was chosen after seeing results, so expect live trading to come in below the backtest.",
+      "It lost money. All three markets lost over these 6 months at the guides' 0.04% fee. At FundingPips' smaller measured costs the same 6 months made +18R on NAS100 (133 trades, profit factor 1.33) but lost on SPX500 (0.90) and gold (0.78). The long test is what counts, and it lost: on MT5 bars from Jan 2020 to Nov 2026 at measured costs, NAS100 made 1,877 trades, won 49%, profit factor 0.90, −98R, losing in every year but 2026; with no costs at all it only breaks even (1.00). SPX500 made 0.78 over 2,022 trades and gold 0.72. MT5's own Strategy Tester, placing real stop orders on NAS100 over the same years, made 1,696 trades, 51% won, profit factor 1.06 with its own spread: roughly break-even, a 27% drawdown at 1% risk. These numbers count a candle that reaches both the buy stop and the cancel level as a fill. The first version of this guide assumed the order was cancelled in those candles, which skipped trades a real order takes (in the MT5 test, 210 of 230 of them lost) and showed a profit factor of 1.31 that live trading can't get.",
   },
 };

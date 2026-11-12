@@ -17,8 +17,6 @@
 //                 open closes at the 16:00 open. All times New York, daylight saving included.
 //
 // Where TradingView's simulator differs from the app's engine (rare, small):
-//   - a candle that reaches both the trigger and the cancel level: the app cancels,
-//     TradingView fills the stop order;
 //   - a candle that reaches both stop and target: the app counts the stop, TradingView
 //     guesses the order from the candle's shape;
 //   - a gap past the target at the fill: the app skips the trade, TradingView takes it.

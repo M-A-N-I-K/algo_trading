@@ -13,8 +13,8 @@
 //|           previous candle's body (touching counts).              |
 //| 3 Order : buy stop at its high (sell stop at its low) for the    |
 //|           next 3 candles. Cancelled if price reaches the other   |
-//|           side first (or both in one candle), or replaced by a   |
-//|           newer inside candle. No fills on candles from 15:00.   |
+//|           side first, or replaced by a newer inside candle; a    |
+//|           candle reaching both sides fills. None from 15:00.     |
 //| 4 Trade : stop beyond both candles (lower low / higher high),    |
 //|           target 1 x risk. A candle reaching both = the stop.    |
 //|           Max 2 trades a day, one at a time, closed at the 16:00 |
@@ -224,8 +224,9 @@ void Compute()
       {
          bool hit = bias > 0 ? R[t].high >= sTrig : R[t].low <= sTrig;
          bool other = bias > 0 ? R[t].low <= sCancel : R[t].high >= sCancel;
+         bool openPast = bias > 0 ? R[t].open <= sCancel : R[t].open >= sCancel;
          string why = "";
-         if(hit && !other)
+         if(hit && !openPast)   // a candle reaching both sides fills, as a real stop order would
          {
             double entry = bias > 0 ? MathMax(R[t].open, sTrig) : MathMin(R[t].open, sTrig);
             int si = sIdx;
@@ -259,7 +260,7 @@ void Compute()
             if(draw) CutLines(si, t);
             why = "gapped past the target";
          }
-         else if(other) why = hit ? "both sides in one candle" : "other side reached first";
+         else if(other) why = hit ? "opened past the other side" : "other side reached first";
          else if(t - sIdx >= InpWaitBars) why = "not triggered";
          if(why != "")
          {

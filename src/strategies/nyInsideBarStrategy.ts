@@ -79,8 +79,9 @@ export interface NyInsideBarTrade {
 //    candle's body is an inside candle. On an up day, a buy stop goes at its
 //    high; on a down day, a sell stop at its low.
 // 3. The order lives for the next 3 candles. It's cancelled if price breaks
-//    the other side of the inside candle first (or both sides in one candle),
-//    or if a newer inside candle forms (its order replaces this one).
+//    the other side of the inside candle first, or if a newer inside candle
+//    forms (its order replaces this one). A candle that reaches both sides
+//    counts as a fill, as it would with a real stop order.
 // 4. Stop beyond both candles (the lower of the two lows for a buy), target
 //    1 × the risk from the trigger. At most 2 trades a day, one at a time, and
 //    the inside candle must form after the last trade ended. No order can fill
@@ -153,7 +154,10 @@ export function findNyInsideBarTrades(candles: OHLC[], options: NyInsideBarOptio
       const d = bias;
       const hit = d > 0 ? bar.high >= setup.trigger : bar.low <= setup.trigger;
       const other = d > 0 ? bar.low <= setup.cancel : bar.high >= setup.cancel;
-      if (hit && !other) {
+      // Like the engine: gone if the candle opens past the cancel level; a
+      // candle that reaches both later fills (a real stop order would).
+      const openPast = d > 0 ? bar.open <= setup.cancel : bar.open >= setup.cancel;
+      if (hit && !openPast) {
         const entry = d > 0 ? Math.max(bar.open, setup.trigger) : Math.min(bar.open, setup.trigger);
         const s = setup;
         setup = null;

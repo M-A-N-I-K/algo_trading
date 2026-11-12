@@ -24,7 +24,8 @@ export interface TradeTarget {
   trailDistance?: number;
   // Optional stop-order entry: instead of entering at the next candle's
   // open, buy (sell) only if the next candle trades up to (down to)
-  // `entryStop`. Skipped if that candle also reaches `cancelEntryAt`.
+  // `entryStop`. Skipped if that candle opens at or past `cancelEntryAt`; a
+  // candle that reaches both later counts as a fill.
   // The signal is repeated on each candle the order should stay live.
   entryStop?: number;
   cancelEntryAt?: number;

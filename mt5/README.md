@@ -1,10 +1,10 @@
 # MT5 indicators
 
-One indicator for each of the Playbook's five active setups. Each one is a direct translation of the app's strategy code with the same defaults, so it marks the same trades the backtest measured:
+One indicator for each of the Playbook's four active strategies, plus the retired NY Inside Bar. Each one is a direct translation of the app's strategy code with the same defaults, so it marks the same trades the backtest measured:
 
 | File | Playbook setup | Strategy code |
 |---|---|---|
-| `PB_NYInsideBar.mq5` | NAS100 and S&P 500 NY Inside Bar, 15m | `src/strategies/nyInsideBarStrategy.ts` |
+| `PB_NYInsideBar.mq5` | *Retired:* NAS100 and S&P 500 NY Inside Bar, 15m | `src/strategies/nyInsideBarStrategy.ts` |
 | `PB_MACD200EMA_SR.mq5` | NAS100 MACD + 200 EMA + S/R, 4h | `src/strategies/macd200EmaSrStrategy.ts` |
 | `PB_SMC.mq5` | Gold Smart Money Concepts, 4h | `src/strategies/smartMoneyConceptsStrategy.ts` |
 | `PB_SRSweepTrendline.mq5` | NAS100 S/R Sweep + Trend-Line Break, 1h | `src/strategies/srSweepTrendlineStrategy.ts` |
@@ -109,6 +109,8 @@ The indicators load 60,000 H1 bars by default (about 9 years). If your terminal 
 
 ## NY Inside Bar (PB_NYInsideBar)
 
+**Retired (Nov 2026): it loses money.** The Strategy Tester run of `PB_NYInsideBar_EA` on NDX100 since 2020 made 1,696 trades, 51% won, profit factor 1.06, a 27% drawdown at 1% risk, against the app's 1.31. The app had cancelled orders on candles that reached both the trigger and the cancel level; real orders fill there and mostly lose. With that fixed the app shows NAS100 0.90 and SPX500 0.78. Kept for study.
+
 Put it on an **NAS100** or **SPX500** M15 chart. It reads closed M15 bars and turns the server clock into New York time (server to UTC with the two settings above, then UTC to New York with the US daylight-saving rule: second Sunday in March to first Sunday in November). The rules, marks and alerts are the same as `../tradingview/ny-inside-bar-checkpoints.pine`:
 
 - **1 Opening range UP / DOWN / flat** on the 09:45 New York candle: buys only, sells only, or no trade today.
@@ -143,7 +145,7 @@ The indicators only draw, so the Strategy Tester can't run them. `PB_NYInsideBar
 Compare with the app's backtest on the same data: NDX100 1,512 trades since 2020, 58.3% won, profit factor 1.31; SPX500 1,615 trades, profit factor 1.21. Expect small differences, because real orders behave slightly differently from the app's candle rules:
 
 - a buy stop triggers on the **ask**, while the chart and the app use bids, so buys fill a spread earlier (and sell stops lose a spread on the way out);
-- the real tick order decides a candle that reaches both stop and target (the app always counts the stop), and a candle that reaches both the trigger and the cancel level (the app always cancels);
+- the real tick order decides a candle that reaches both stop and target (the app always counts the stop), and a candle that reaches both the trigger and the cancel level (the app counts it as a fill);
 - the tester charges your account's actual spread and commission.
 
 It can trade a live or demo account too, if your prop firm allows Expert Advisors. It's built for testing; watch it on a demo before trusting it with a challenge.

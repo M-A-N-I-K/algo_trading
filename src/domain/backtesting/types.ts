@@ -37,9 +37,10 @@ export interface TradeLevels {
 
 // A stop order for the next bar only, instead of a fill at its open: a buy
 // fills when the bar's high reaches `price` (at the open if it gaps past it),
-// a sell when its low does. If the same bar also reaches `cancelPrice` (the
-// other side of a bracket) the order is skipped, since which side traded
-// first inside the bar is unknown.
+// a sell when its low does. If the bar opens at or past `cancelPrice` (the
+// other side of a bracket) the order is gone. A bar that reaches both prices
+// later fills: which traded first is unknown, and counting the fill is the
+// cautious reading (most such fills reverse; MT5's tester confirms).
 export interface EntryTrigger {
   price: number;
   cancelPrice?: number;

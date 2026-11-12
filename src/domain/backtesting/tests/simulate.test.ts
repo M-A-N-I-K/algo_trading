@@ -412,11 +412,18 @@ describe("simulate: stop-order entries and time exits", () => {
     expect(rt.entryPrice).toBe(103);
   });
 
-  it("doesn't fill when the bar never reaches the trigger, or also reaches the cancel price", () => {
+  it("doesn't fill when the bar never reaches the trigger, or opens past the cancel price", () => {
     const missed = bars([[100, 101, 99, 100], [100, 101, 99, 100], [100, 101.5, 99, 100], [100, 101, 99, 100]]);
     expect(simulate(missed, scripted({ 1: buyStop(102, { stop: 99, target: 105 }) }), noCosts).roundTrips).toHaveLength(0);
-    const both = bars([[100, 101, 99, 100], [100, 101, 99, 100], [100, 103, 98, 100], [100, 101, 99, 100]]);
-    expect(simulate(both, scripted({ 1: buyStop(102, { stop: 97, target: 105 }, 98.5) }), noCosts).roundTrips).toHaveLength(0);
+    const gapped = bars([[100, 101, 99, 100], [100, 101, 99, 100], [98, 103, 97.5, 100], [100, 101, 99, 100]]);
+    expect(simulate(gapped, scripted({ 1: buyStop(102, { stop: 97, target: 105 }, 98.5) }), noCosts).roundTrips).toHaveLength(0);
+  });
+
+  it("fills when the bar reaches both the trigger and the cancel price, then stops out if it reaches the stop", () => {
+    const both = bars([[100, 101, 99, 100], [100, 101, 99, 100], [100, 103, 96, 100], [100, 101, 99, 100]]);
+    const [rt] = simulate(both, scripted({ 1: buyStop(102, { stop: 97, target: 105 }, 98.5) }), noCosts).roundTrips;
+    expect(rt.entryPrice).toBe(102);
+    expect(rt.exitType).toBe("stop");
   });
 
   it("can stop out on the bar it filled on", () => {

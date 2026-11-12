@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { Button, Callout, EmptyState, Field, Panel, Stat, Tag, TextInput, money, signedNumber, tableClass, tdClass, thClass, toneClass } from "@/components/kit";
 import { fetchJson } from "@/lib/apiClient";
-import { FEATURED_SETUP, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, PLAYBOOK_SIGNALS_PER_WEEK, setupById, type PlaybookAccount } from "@/lib/playbook/config";
+import { PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, PLAYBOOK_SIGNALS_PER_WEEK, setupById } from "@/lib/playbook/config";
 import { MID_AVG_R, STRONG_AVG_R, type JournalEntry, type RankedSignal, type SetupVerdict, type Tier } from "@/lib/playbook/rules";
 import type { PlaybookView } from "@/lib/playbook/store";
 import { fmtPrice } from "@/lib/plan/weeklyPlan";
@@ -282,90 +282,15 @@ function useSignals(accountId: string) {
   });
 }
 
-const isFeatured = (x: RankedSignal) => !!FEATURED_SETUP && x.setup.id === FEATURED_SETUP.id;
-
-// UTC ms of a New York wall-clock time (minutes after midnight) today in New York.
-function nyTimeToday(now: number, minute: number): number {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(new Date(now));
-  const v = (t: string) => Number(parts.find((p) => p.type === t)!.value);
-  const offset = Date.UTC(v("year"), v("month") - 1, v("day"), v("hour"), v("minute")) - Math.floor(now / 60_000) * 60_000;
-  return Date.UTC(v("year"), v("month") - 1, v("day")) + minute * 60_000 - offset;
-}
-const clock = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
-
-// Where the featured setup's day stands, in the viewer's own time zone.
-function featuredStatus(now: number): string {
-  const open = nyTimeToday(now, 9 * 60 + 30), start = nyTimeToday(now, 10 * 60), cutoff = nyTimeToday(now, 15 * 60), close = nyTimeToday(now, 16 * 60);
-  const nyDay = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short" }).format(new Date(now));
-  if (nyDay === "Sat" || nyDay === "Sun") return `Weekend. Next session Monday: opening range ${clock.format(open)}–${clock.format(start)} your time.`;
-  if (now < open) return `Today's opening range is ${clock.format(open)}–${clock.format(start)} your time; orders can appear from ${clock.format(start)} until ${clock.format(cutoff)}.`;
-  if (now < start) return `The opening range is forming now; it sets today's side at ${clock.format(start)} your time.`;
-  if (now < cutoff) return `Watching for an inside candle after each 15-minute close until ${clock.format(cutoff)} your time. No order right now.`;
-  if (now < close) return `No new orders after ${clock.format(cutoff)}; anything open closes at ${clock.format(close)} your time.`;
-  return "Done for today. The next opening range is tomorrow at the New York open.";
-}
-
-function FeaturedPanel({ account, onPlan }: { account: PlaybookAccount; onPlan: (d: PlanDefaults) => void }) {
-  const { data, isLoading } = useSignals(account.id);
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(id);
-  }, []);
-  if (!FEATURED_SETUP?.featured) return null;
-  const setup = FEATURED_SETUP;
-  const info = setup.featured!;
-  const b = setup.baseline;
-  const ch = info.challenge[account.id];
-  const live = data?.signals.filter(isFeatured) ?? [];
-  return (
-    <Panel
-      className="border-signal/60 bg-gradient-to-b from-signal/10 to-transparent"
-      title={`Featured setup: ${setup.platformSymbol} ${setup.strategyName} · ${setup.interval}`}
-      note={info.headline}
-      aside={<Link href={`/guides/${setup.strategy}`} className="text-[13px] text-signal underline-offset-2 hover:underline">How to trade it →</Link>}
-    >
-      <div className="flex flex-col gap-5">
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Stat label="Trades a week" value={b.perWeek.toFixed(1)} note={`${b.trades.toLocaleString()} trades since 2020`} />
-          <Stat label="Win rate" value={`${b.winRatePct}%`} note="1:1 target" />
-          <Stat label="Profit factor" value={b.profitFactor.toFixed(2)} note={`${r(b.avgR)} a trade after costs`} />
-          <Stat label="Worst drawdown" value={`${b.maxDrawdownR}R`} note={`Longest losing run: ${b.maxLossStreak} trades`} />
-        </div>
-        {ch && (
-          <div className="rounded-[10px] border border-rule bg-ink/40 p-4 text-[13px] leading-snug text-fog">
-            <p className="text-paper">
-              On this account at {ch.riskPct}% risk a trade: passed {ch.passPct}% of replayed challenges, failed {ch.failPct}%, median {ch.medianWeeks} weeks to pass.
-            </p>
-            <p className="mt-1">
-              Its trades since 2020 replayed as a challenge started every Monday. If live trading earns half the backtest&apos;s edge: {ch.halfEdgePassPct}% pass, {ch.halfEdgeFailPct}% fail. Slow and steady: don&apos;t raise the risk to finish sooner.
-            </p>
-          </div>
-        )}
-        {isLoading ? (
-          <EmptyState>Scanning…</EmptyState>
-        ) : live.length > 0 ? (
-          <div className="grid gap-3">{live.map((x, i) => <SignalCard key={x.setup.id} item={x} rank={i + 1} onPlan={onPlan} />)}</div>
-        ) : (
-          <p className="rounded-[10px] border border-dashed border-rule px-4 py-3 text-sm text-fog">{featuredStatus(now)}</p>
-        )}
-        <ol className="grid list-decimal gap-1 pl-5 text-[13px] leading-snug text-fog">
-          {info.rules.map((x) => <li key={x}>{x}</li>)}
-        </ol>
-      </div>
-    </Panel>
-  );
-}
-
 function SignalsPanel({ accountId, onPlan, freeSlots }: { accountId: string; onPlan: (d: PlanDefaults) => void; freeSlots: number }) {
   const { data, error, isLoading } = useSignals(accountId);
-  const others = data?.signals.filter((x) => !isFeatured(x)) ?? [];
+  const others = data?.signals ?? [];
   const fresh = others.filter((x) => x.signal.status === "new");
   const running = others.filter((x) => x.signal.status === "open");
   return (
     <Panel
       title="Today's signals"
-      note={`${FEATURED_SETUP ? `The other ${PLAYBOOK_SETUPS.length - 1} playbook setups (the featured one is above)` : `Only the ${PLAYBOOK_SETUPS.length} playbook setups`}, by priority: ones you can take first, then tier S, A+, A, B, C, new before running. ${freeSlots > 0 ? `You have ${freeSlots} free slot${freeSlots > 1 ? "s" : ""}: take from the top.` : "All slots are full."}`}
+      note={`Only the ${PLAYBOOK_SETUPS.length} playbook setups, by priority: ones you can take first, then tier S, A+, A, B, C, new before running. ${freeSlots > 0 ? `You have ${freeSlots} free slot${freeSlots > 1 ? "s" : ""}: take from the top.` : "All slots are full."}`}
       aside={data && <span className="text-xs text-mist">Checked {when.format(data.asOf)}, every minute</span>}
     >
       {isLoading ? (
@@ -646,7 +571,6 @@ export default function PlaybookBoard() {
       </div>
       <AccountSwitcher view={view} onSelect={selectAccount} />
       <AccountPanel view={view} />
-      <FeaturedPanel account={view.account} onPlan={setPlan} />
       <SignalsPanel accountId={view.account.id} onPlan={setPlan} freeSlots={Math.max(0, view.rules.maxOpen - view.status.openCount)} />
       <OpenTrades trades={view.open} onClose={setClosing} onEdit={setEditing} />
       <Discipline view={view} />

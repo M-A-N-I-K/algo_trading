@@ -11,8 +11,9 @@
 //                 candle's body (touching counts). Wicks don't matter here; any colour.
 //   (3) Order     buy stop at the inside candle's high (sell stop at its low), live for the
 //                 next 3 candles. Cancelled if price reaches the other side of the inside
-//                 candle first (or both sides in one candle), or replaced by a newer inside
-//                 candle. No order can fill on a candle starting 15:00 or later.
+//                 candle first, or replaced by a newer inside candle. A candle that reaches
+//                 both sides fills (a real stop order would), unless it opens past the cancel
+//                 level. No order can fill on a candle starting 15:00 or later.
 //   (4) Trade     stop = the lower of the two candles' lows (sells: higher of the highs),
 //                 target = 1 x the risk from the trigger. A candle that reaches both counts
 //                 as the stop. At most 2 trades a day, one at a time; the next inside candle
@@ -178,8 +179,9 @@ if barstate.isconfirmed and tfOk
     if not done and not na(sIdx) and bar_index > sIdx
         bool hit = bias > 0 ? high >= sTrig : low <= sTrig
         bool other = bias > 0 ? low <= sCancel : high >= sCancel
+        bool openPast = bias > 0 ? open <= sCancel : open >= sCancel
         string why = ""
-        if hit and not other
+        if hit and not openPast
             float entry = bias > 0 ? math.max(open, sTrig) : math.min(open, sTrig)
             endLines(bar_index)
             sIdx := na
@@ -213,7 +215,7 @@ if barstate.isconfirmed and tfOk
             else
                 why := "it gapped past the target"
         else if other
-            why := hit ? "both sides were reached in one candle" : "price reached the other side of the inside candle first"
+            why := hit ? "the candle opened past the other side of the inside candle" : "price reached the other side of the inside candle first"
         else if bar_index - sIdx >= waitBars
             why := "not triggered within " + str.tostring(waitBars) + " candles"
         if not na(sIdx) and why != ""

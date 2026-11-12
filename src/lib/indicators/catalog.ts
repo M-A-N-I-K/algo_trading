@@ -21,28 +21,6 @@ export interface IndicatorInfo {
 
 export const INDICATORS: IndicatorInfo[] = [
   {
-    id: "ny-inside-bar",
-    file: "ny-inside-bar-checkpoints.pine",
-    strategyFile: "ny-inside-bar-strategy.pine",
-    strategySettings: "15-minute chart. NAS100: defaults (commission 0.0031). S&P 500: set the commission to 0.0037 in Properties.",
-    mt5File: "PB_NYInsideBar.mq5",
-    mt5EaFile: "PB_NYInsideBar_EA.mq5",
-    status: "playbook",
-    title: "NY Inside Bar",
-    strategy: "ny-inside-bar",
-    guide: "/guides/ny-inside-bar",
-    bestOn: "NAS100 15m and SPX500 15m. Times are New York's, daylight saving included",
-    backtest:
-      "Playbook setups. 1,512 trades on MT5 NAS100 15m since 2020, 58.3% won, profit factor 1.31, +0.13R a trade; SPX500 1,615 trades, profit factor 1.21. A small edge per trade, so it needs every valid trade at the same size.",
-    steps: [
-      { label: "1 Bias", text: "The 09:30 and 09:45 New York candles: the 09:45 close above the 09:30 open means buys only today, below means sells only." },
-      { label: "2 Inside", text: "After 10:00, a candle whose body (open to close) sits inside the previous candle's body. Wicks don't count here; any colour." },
-      { label: "3 Order", text: "Buy stop at the inside candle's high (sell stop at its low) for the next 3 candles. Cancel it if price reaches the other side first; a newer inside candle replaces it." },
-      { label: "4 Trade", text: "Stop beyond both candles' wicks, target 1:1. At most 2 trades a day, one at a time, no fills after 15:00, everything closed at 16:00 New York time." },
-      { label: "Alerts", text: "The indicator alerts on each candle close: the day's side, the stop order to place (with stop, target and cancel level), the fill and the exit. In TradingView use one “Any alert() function call” alert on a 15m chart for all of them with prices." },
-    ],
-  },
-  {
     id: "macd-200ema-sr",
     file: "macd-200ema-sr-checkpoints.pine",
     strategyFile: "macd-200ema-sr-strategy.pine",
@@ -118,6 +96,28 @@ export const INDICATORS: IndicatorInfo[] = [
       { label: "3 Shift", text: "A candle closes above the last swing high before the sweep low, within 48 candles." },
       { label: "4 Zone", text: "The last red candle at or before the sweep low, from its open down to the sweep low." },
       { label: "5 Buy", text: "Price wicks into the zone, then a candle closes back above it. Stop under the sweep low, target the nearest untouched swing high paying at least 2R. On GBPUSD and SPX500 the Playbook takes exactly 2R instead (only when such a swing exists)." },
+    ],
+  },
+  {
+    id: "ny-inside-bar",
+    file: "ny-inside-bar-checkpoints.pine",
+    strategyFile: "ny-inside-bar-strategy.pine",
+    strategySettings: "15-minute chart. NAS100: defaults (commission 0.0031). S&P 500: set the commission to 0.0037 in Properties.",
+    mt5File: "PB_NYInsideBar.mq5",
+    mt5EaFile: "PB_NYInsideBar_EA.mq5",
+    status: "retired",
+    title: "NY Inside Bar",
+    strategy: "ny-inside-bar",
+    guide: "/guides/ny-inside-bar",
+    bestOn: "NAS100 15m and SPX500 15m. Times are New York's, daylight saving included",
+    backtest:
+      "Retired: loses money. MT5's Strategy Tester placing its real orders on NDX100 since 2020 made 1,696 trades, profit factor 1.06 (the app had shown 1.31 by cancelling orders a real stop order fills). With that fixed: NAS100 0.90 over 1,877 trades, SPX500 0.78. Kept for study; the EA is here to reproduce the test.",
+    steps: [
+      { label: "1 Bias", text: "The 09:30 and 09:45 New York candles: the 09:45 close above the 09:30 open means buys only today, below means sells only." },
+      { label: "2 Inside", text: "After 10:00, a candle whose body (open to close) sits inside the previous candle's body. Wicks don't count here; any colour." },
+      { label: "3 Order", text: "Buy stop at the inside candle's high (sell stop at its low) for the next 3 candles. Cancel it if price reaches the other side first; a newer inside candle replaces it. A candle that reaches both fills." },
+      { label: "4 Trade", text: "Stop beyond both candles' wicks, target 1:1. At most 2 trades a day, one at a time, no fills after 15:00, everything closed at 16:00 New York time." },
+      { label: "Alerts", text: "The indicator alerts on each candle close: the day's side, the stop order to place (with stop, target and cancel level), the fill and the exit. In TradingView use one “Any alert() function call” alert on a 15m chart for all of them with prices." },
     ],
   },
   {
