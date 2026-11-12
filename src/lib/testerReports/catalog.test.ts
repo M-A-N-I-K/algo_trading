@@ -10,7 +10,8 @@ describe("tester report catalog", () => {
     for (const r of TESTER_REPORTS) {
       expect(slugs.has(r.slug), r.slug).toBe(false);
       slugs.add(r.slug);
-      expect(setupById(r.setupId), r.setupId).toBeDefined();
+      if (r.research) expect(setupById(r.setupId), r.setupId).toBeUndefined();
+      else expect(setupById(r.setupId), r.setupId).toBeDefined();
       const file = path.join(process.cwd(), "src/data/tester-reports", `${r.slug}.json`);
       expect(existsSync(file), file).toBe(true);
       const data = JSON.parse(readFileSync(file, "utf8"));

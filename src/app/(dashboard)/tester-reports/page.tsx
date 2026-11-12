@@ -44,7 +44,7 @@ export default async function TesterReportsPage() {
                   {d.info.note && <span className="ml-1.5 text-fees-ink" title={d.info.note}>*</span>}
                 </td>
                 <td className={tdClass}>
-                  {d.setup?.retired ? <Tag tone="loss">Retired</Tag> : d.home.own ? <Tag tone="gain">{d.home.account.id === "pro-5k" ? "$5k Pro" : "$10k Flex"}</Tag> : <Tag>Neither</Tag>}
+                  {d.info.research ? <Tag tone="fees">Research</Tag> : d.setup?.retired ? <Tag tone="loss">Retired</Tag> : d.home.own ? <Tag tone="gain">{d.home.account.id === "pro-5k" ? "$5k Pro" : "$10k Flex"}</Tag> : <Tag>Neither</Tag>}
                 </td>
                 <td className={cn(tdClass, "whitespace-nowrap tabular-nums")}>{d.numbers.trades}</td>
                 <td className={cn(tdClass, "whitespace-nowrap tabular-nums")}>{d.numbers.winRatePct.toFixed(0)}%</td>

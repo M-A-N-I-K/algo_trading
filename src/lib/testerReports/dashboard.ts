@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { TesterMeta } from "@/lib/mt5/testerReport";
-import { accountSetup, PLAYBOOK_ACCOUNTS, setupById, type PlaybookAccount, type PlaybookSetup } from "@/lib/playbook/config";
+import { accountSetup, OTHER_SETUP_RISK_SCALE, PLAYBOOK_ACCOUNTS, setupById, type PlaybookAccount, type PlaybookSetup } from "@/lib/playbook/config";
 import { setupRiskScale } from "@/lib/playbook/rules";
 import { days, numbers, simulateChallenge, streaks, verdict, type ChallengeResult, type Days, type Numbers, type ReportTrade, type Streaks } from "./analyze";
 import { TESTER_REPORTS, type TesterReportInfo } from "./catalog";
@@ -47,7 +47,8 @@ export function buildDashboard(info: TesterReportInfo, file: ReportFile, sims = 
   const trades = file.trades;
   const n = numbers(trades, undefined, periodEnd(file.meta.period));
   const accounts = PLAYBOOK_ACCOUNTS.map((account, i): AccountView => {
-    const riskPct = account.rules.riskPctA * setupRiskScale(account, info.setupId);
+    // A research strategy is sized like another account's setup: half risk.
+    const riskPct = account.rules.riskPctA * (info.research ? OTHER_SETUP_RISK_SCALE : setupRiskScale(account, info.setupId));
     const rules = { riskPct, targetPct: account.targetPct, maxLossPct: account.maxLossPct, dailyLossPct: account.dailyLossPct };
     return {
       account,

@@ -7,7 +7,8 @@
 export interface TesterReportInfo {
   slug: string;
   file: string; // the .xlsx the user saved from the tester
-  setupId: string; // PlaybookSetup id (active or retired)
+  setupId: string; // PlaybookSetup id (active or retired), or a research id when `research` is set
+  research?: boolean; // a strategy tested from outside the Playbook: not in either account's plan, judged at the "other setup" risk
   title: string;
   market: string;
   timeframe: string;
@@ -39,6 +40,16 @@ export const TESTER_REPORTS: TesterReportInfo[] = [
     market: "NAS100",
     timeframe: "15m",
     note: "Retired: this run is what exposed it. Kept as the example of a setup that looked good in the app (PF 1.31) and didn't hold up on real ticks.",
+  },
+  {
+    slug: "ema833-zones-xauusd-1h",
+    file: "833_EMA_LN_NY.xlsx",
+    setupId: "research:ema833-zones:XAUUSD:1h",
+    research: true,
+    title: "8/33 EMA + swing zones (trailing)",
+    market: "XAUUSD",
+    timeframe: "1h",
+    note: "Research, not a Playbook setup: a YouTube strategy (PB_EMA833Zones_EA) with the filters that survived testing: swing-zone filter, London or New York hours only, stop trailed one R behind from 3R. The session and trail were chosen after looking at the app's results, so expect live results nearer the low end. The app's own run: 135 trades, PF 1.50.",
   },
 ];
 

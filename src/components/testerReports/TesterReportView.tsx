@@ -46,7 +46,7 @@ export default function TesterReportView({ d }: { d: Dashboard }) {
           <h1 className="font-display text-[24px] font-semibold tracking-[-0.02em] text-paper">
             {info.market} · {info.title} · {info.timeframe}
           </h1>
-          {d.setup?.retired ? <Tag tone="loss">Retired</Tag> : accounts.some((a) => a.own) ? <Tag tone="gain">In the Playbook</Tag> : <Tag tone="fees">In neither account&apos;s plan</Tag>}
+          {info.research ? <Tag tone="fees">Research, not in the Playbook</Tag> : d.setup?.retired ? <Tag tone="loss">Retired</Tag> : accounts.some((a) => a.own) ? <Tag tone="gain">In the Playbook</Tag> : <Tag tone="fees">In neither account&apos;s plan</Tag>}
         </div>
         <p className="text-[13px] text-fog">
           MT5 Strategy Tester: {d.meta.expert} on {d.meta.symbol}, {d.meta.period}, history quality {d.meta.historyQuality}, FundingPips spreads and commission. Every result is in R: the P&amp;L
