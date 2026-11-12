@@ -131,6 +131,23 @@ The app's last NAS100 trades (fill candle in **server** time, as MT5 shows it):
 | 2026-11-02 18:45 | SELL | 28506.36 | 28567.81 | 28444.91 |
 | 2026-11-03 20:00 | BUY | 28257.19 | 28198.90 | 28315.48 |
 
+## Backtest in MT5's Strategy Tester (PB_NYInsideBar_EA)
+
+The indicators only draw, so the Strategy Tester can't run them. `PB_NYInsideBar_EA.mq5` is an Expert Advisor that places the NY Inside Bar orders itself: the stop order after each inside candle with its stop and target, deleted when price reaches the other side first, after 3 candles, when a newer inside candle replaces it or at 15:00 New York, and anything open closed at 16:00. Max 2 trades a day, one at a time.
+
+1. Save it in **File → Open Data Folder → MQL5/Experts** and compile it (F7).
+2. Open the tester: **View → Strategy Tester** (Ctrl+R). Choose **Expert: PB_NYInsideBar_EA**, **Symbol: NDX100** (or SPX500), **Timeframe: M15**, **Modelling: Every tick based on real ticks**, **Date: 2020.01.01** to today, **Deposit: 10000 USD**, leverage your account's.
+3. Inputs: **Risk per trade** 1% matches the app's R numbers ($100 on $10,000). Keep the rules at their defaults. The clock settings are FundingPips' server (UTC+2, +1 in EU summer).
+4. Click **Start**. The first run downloads FundingPips' tick history, which takes a while. The **Journal** tab logs every step (bias, order placed, deleted and why, filled, closed).
+
+Compare with the app's backtest on the same data: NDX100 1,512 trades since 2020, 58.3% won, profit factor 1.31; SPX500 1,615 trades, profit factor 1.21. Expect small differences, because real orders behave slightly differently from the app's candle rules:
+
+- a buy stop triggers on the **ask**, while the chart and the app use bids, so buys fill a spread earlier (and sell stops lose a spread on the way out);
+- the real tick order decides a candle that reaches both stop and target (the app always counts the stop), and a candle that reaches both the trigger and the cancel level (the app always cancels);
+- the tester charges your account's actual spread and commission.
+
+It can trade a live or demo account too, if your prop firm allows Expert Advisors. It's built for testing; watch it on a demo before trusting it with a challenge.
+
 ## Live candle feed (PB_BarFeed)
 
 `PB_BarFeed.mq5` is an **Expert Advisor** that places no trades: it feeds your

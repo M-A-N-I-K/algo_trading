@@ -9,6 +9,7 @@ export interface IndicatorInfo {
   strategyFile?: string; // Pine strategy (Strategy Tester) under /tradingview
   strategySettings?: string; // what to change per market in the strategy's settings
   mt5File?: string; // MQL5 indicator under /mt5
+  mt5EaFile?: string; // MQL5 Expert Advisor under /mt5, for MT5's Strategy Tester
   status: "playbook" | "retired";
   title: string;
   strategy: string; // registry key
@@ -25,6 +26,7 @@ export const INDICATORS: IndicatorInfo[] = [
     strategyFile: "ny-inside-bar-strategy.pine",
     strategySettings: "15-minute chart. NAS100: defaults (commission 0.0031). S&P 500: set the commission to 0.0037 in Properties.",
     mt5File: "PB_NYInsideBar.mq5",
+    mt5EaFile: "PB_NYInsideBar_EA.mq5",
     status: "playbook",
     title: "NY Inside Bar",
     strategy: "ny-inside-bar",

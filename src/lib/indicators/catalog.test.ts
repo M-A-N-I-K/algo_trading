@@ -16,6 +16,7 @@ describe("indicator catalog", () => {
     if (info.strategyFile) expect(readFileSync(path.join(process.cwd(), "tradingview", info.strategyFile), "utf8")).toMatch(/^strategy\(/m);
     expect(CODED_STRATEGIES[info.strategy]).toBeDefined();
     if (info.mt5File) expect(existsSync(path.join(process.cwd(), "mt5", info.mt5File))).toBe(true);
+    if (info.mt5EaFile) expect(readFileSync(path.join(process.cwd(), "mt5", info.mt5EaFile), "utf8")).toMatch(/void OnTick\(\)/);
   });
 
   it("gives every active Playbook setup a Strategy Tester script, and every Playbook indicator an MT5 version", () => {

@@ -65,7 +65,7 @@ function CodeBlock({ label, code }: { label: string; code: string }) {
   );
 }
 
-export default function IndicatorCard({ info, code, strategyCode, mt5Code }: { info: IndicatorInfo; code?: string; strategyCode?: string; mt5Code?: string }) {
+export default function IndicatorCard({ info, code, strategyCode, mt5Code, eaCode }: { info: IndicatorInfo; code?: string; strategyCode?: string; mt5Code?: string; eaCode?: string }) {
   const retired = info.status === "retired";
 
   return (
@@ -109,6 +109,15 @@ export default function IndicatorCard({ info, code, strategyCode, mt5Code }: { i
               </Button>
             </>
           )}
+          {eaCode && info.mt5EaFile && (
+            <>
+              <CopyButton text={eaCode} label="Copy MT5 EA" />
+              <Button size="sm" onClick={() => download(eaCode, info.mt5EaFile!)} aria-label={`Download ${info.mt5EaFile}`}>
+                <Download size={14} aria-hidden="true" />
+                EA .mq5
+              </Button>
+            </>
+          )}
         </div>
       }
     >
@@ -139,6 +148,7 @@ export default function IndicatorCard({ info, code, strategyCode, mt5Code }: { i
 
       {strategyCode && <CodeBlock label="strategy" code={strategyCode} />}
       {code && <CodeBlock label="indicator" code={code} />}
+      {eaCode && <CodeBlock label="MT5 Expert Advisor" code={eaCode} />}
     </Panel>
   );
 }

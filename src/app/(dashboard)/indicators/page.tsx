@@ -17,6 +17,7 @@ export default async function IndicatorsPage() {
       code: info.file ? await loadCode("tradingview", info.file) : undefined,
       strategyCode: info.strategyFile ? await loadCode("tradingview", info.strategyFile) : undefined,
       mt5Code: info.mt5File ? await loadCode("mt5", info.mt5File) : undefined,
+      eaCode: info.mt5EaFile ? await loadCode("mt5", info.mt5EaFile) : undefined,
     })),
   );
   const active = items.filter((x) => x.info.status === "playbook");
@@ -39,12 +40,13 @@ export default async function IndicatorsPage() {
         </ol>
         <p className="mt-2">
           For MT5: click <span className="text-paper">Copy MT5</span> or <span className="text-paper">Download .mq5</span>, save it in MT5&apos;s
-          File → Open Data Folder → MQL5/Indicators, compile it in MetaEditor (F7), then drag it onto the chart.
+          File → Open Data Folder → MQL5/Indicators, compile it in MetaEditor (F7), then drag it onto the chart. To backtest in MT5&apos;s
+          Strategy Tester, use <span className="text-paper">Copy MT5 EA</span> instead and save it in MQL5/Experts.
         </p>
       </Callout>
 
-      {active.map(({ info, code, strategyCode, mt5Code }) => (
-        <IndicatorCard key={info.id} info={info} code={code} strategyCode={strategyCode} mt5Code={mt5Code} />
+      {active.map(({ info, code, strategyCode, mt5Code, eaCode }) => (
+        <IndicatorCard key={info.id} info={info} code={code} strategyCode={strategyCode} mt5Code={mt5Code} eaCode={eaCode} />
       ))}
 
       {retired.length > 0 && (
