@@ -155,7 +155,7 @@ if barstate.isconfirmed and tfOk
                 cancelOrder()
         // (2) A new inside candle replaces any older order
         bool inside = math.min(open, close) >= math.min(open[1], close[1]) and math.max(open, close) <= math.max(open[1], close[1])
-        if bias != 0 and time >= tRangeEnd and bar_index > lastExitBar and taken < maxTrades and inside
+        if bias != 0 and time >= tRangeEnd and time + barMs < tLast and bar_index > lastExitBar and taken < maxTrades and inside
             float trig = bias > 0 ? high : low
             float stp = bias > 0 ? math.min(low[1], low) : math.max(high[1], high)
             float risk = (trig - stp) * bias

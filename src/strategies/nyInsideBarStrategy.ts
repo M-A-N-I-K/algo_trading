@@ -185,11 +185,12 @@ export function findNyInsideBarTrades(candles: OHLC[], options: NyInsideBarOptio
       if (risk > 0) setup = { idx: t, trigger, cancel: d > 0 ? bar.low : bar.high, stop, target: trigger + d * o.targetR * risk };
     }
 
-    // The order stays live for the next candle if that candle starts before the cutoff.
+    // The order stays live for the next candle if that candle starts before the
+    // cutoff. Otherwise it's gone, as it is for the engine (no signal, no order).
     if (setup && bar.openTime + barMs < lastEntry) {
       signals[t] = bias > 0 ? "BUY" : "SELL";
       targets[t] = { stopLoss: setup.stop, takeProfit: setup.target, entryStop: setup.trigger, cancelEntryAt: setup.cancel, exitAt: flat };
-    }
+    } else setup = null;
   }
   return { trades, signals, targets };
 }

@@ -49,6 +49,7 @@ The Playbook has four active setups. Each one has an indicator that marks entry,
 
 | Playbook setup | TradingView (this folder) | MT5 (`../mt5`) | Chart |
 |---|---|---|---|
+| NAS100 and S&P 500 NY Inside Bar, 15m | `ny-inside-bar-checkpoints.pine` | `PB_NYInsideBar.mq5` | 15m |
 | NAS100 MACD + 200 EMA + S/R, 4h | `macd-200ema-sr-checkpoints.pine` | `PB_MACD200EMA_SR.mq5` | 1h (builds the UTC 4h candles itself) |
 | Gold Smart Money Concepts, 4h | `smc-checkpoints.pine` | `PB_SMC.mq5` | 1h (builds the UTC 4h candles itself) |
 | NAS100 S/R Sweep + Trend-Line Break, 1h | `sr-sweep-trendline-checkpoints.pine` | `PB_SRSweepTrendline.mq5` | 1h |
@@ -57,6 +58,35 @@ The Playbook has four active setups. Each one has an indicator that marks entry,
 `liquidity-sweep-checkpoints.pine` (ETH 1h) and `liquidity-reversal-mtf-checkpoints.pine` (5m) are for setups the Playbook has retired because they lost money on 6.5 years of MT5 data. They are kept for reference only.
 
 The reference signals below come from the app's own strategy code run on FundingPips' MT5 bars (2020 to Nov 2026). MT5 indicators read that same feed, so they should match exactly. TradingView's feeds differ a little, so expect small differences in levels there, and now and then a signal that appears on one feed and not the other.
+
+## NY Inside Bar checkpoints (NAS100 and S&P 500, 15m)
+
+`ny-inside-bar-checkpoints.pine` ports `src/strategies/nyInsideBarStrategy.ts` and tracks its own trades the same way the app does, so every mark is a trade the backtest took (or an order it cancelled). Put it on a **15-minute** chart. Times are New York's whatever the chart's time zone, daylight saving included.
+
+| Mark | Checkpoint | Rule |
+|---|---|---|
+| shaded band, **1 Up / 1 Down / 1 Flat** | Bias | The 09:30 and 09:45 candles. The 09:45 close above the 09:30 open = buys only today, below = sells only, equal = no trade. |
+| **2 Inside** with dashed / red / green lines | Order | After 10:00 and before 15:00, a candle whose body sits inside the previous candle's body. Buy stop at its high (sell stop at its low), stop beyond both candles' wicks, target 1 × the risk. The lines run while the order is live. |
+| **x** (hover for the reason) | Cancelled | Price reached the other side of the inside candle first (or both sides in one candle), 3 candles passed, a newer inside candle replaced it, the next candle starts at 15:00 or later, or price gapped past the target. |
+| **BUY / SELL** price | Fill | The stop order filled (at the trigger, or the open if price gapped through it). |
+| **TP / SL / 16:00** with R | Exit | Target, stop (a candle reaching both counts as the stop) or the 16:00 open. R is after the cost input (NAS100 0.0031, S&P 500 0.0037). |
+
+The panel shows today's side, what to do now (the order to place, or what to wait for) and the results in R on the chart's history. At most 2 trades a day, one at a time.
+
+Alerts: one **Any alert() function call** alert gives every step with prices (the side at 10:00, the order to place, the fill, the exit). Or pick one of the four named conditions.
+
+The app's last NAS100 trades on FundingPips' MT5 15m bars (New York times). TradingView's NAS100 feed has slightly different prices, so a candle can occasionally qualify on one feed and not the other:
+
+| Inside candle | Filled | Side | Entry | Stop | Target | Exit candle |
+|---|---|---|---|---|---|---|
+| 2026-10-22 11:30 | 11:45 | BUY | 29132.34 | 29057.71 | 29206.97 | 12:30 |
+| 2026-10-23 11:30 | 11:45 | BUY | 29129.92 | 29054.15 | 29205.69 | 12:15 |
+| 2026-10-26 14:15 | 14:30 | SELL | 29336.29 | 29391.40 | 29281.18 | 14:45 |
+| 2026-10-27 10:45 | 11:00 | SELL | 29362.75 | 29525.63 | 29199.87 | 11:45 |
+| 2026-10-27 13:00 | 13:30 | SELL | 29664.88 | 29713.50 | 29616.26 | 13:45 |
+| 2026-10-30 10:00 | 10:15 | BUY | 28669.70 | 28607.95 | 28731.45 | 10:30 |
+| 2026-11-02 11:30 | 11:45 | SELL | 28506.36 | 28567.81 | 28444.91 | 12:30 |
+| 2026-11-03 12:45 | 13:00 | BUY | 28257.19 | 28198.90 | 28315.48 | 14:00 |
 
 ## MACD + 200 EMA + S/R checkpoints (NAS100 4h)
 

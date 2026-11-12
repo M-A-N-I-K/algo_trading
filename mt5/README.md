@@ -1,9 +1,10 @@
 # MT5 indicators
 
-One indicator for each of the Playbook's four active setups. Each one is a direct translation of the app's strategy code with the same defaults, so it marks the same trades the backtest measured:
+One indicator for each of the Playbook's five active setups. Each one is a direct translation of the app's strategy code with the same defaults, so it marks the same trades the backtest measured:
 
 | File | Playbook setup | Strategy code |
 |---|---|---|
+| `PB_NYInsideBar.mq5` | NAS100 and S&P 500 NY Inside Bar, 15m | `src/strategies/nyInsideBarStrategy.ts` |
 | `PB_MACD200EMA_SR.mq5` | NAS100 MACD + 200 EMA + S/R, 4h | `src/strategies/macd200EmaSrStrategy.ts` |
 | `PB_SMC.mq5` | Gold Smart Money Concepts, 4h | `src/strategies/smartMoneyConceptsStrategy.ts` |
 | `PB_SRSweepTrendline.mq5` | NAS100 S/R Sweep + Trend-Line Break, 1h | `src/strategies/srSweepTrendlineStrategy.ts` |
@@ -14,12 +15,12 @@ The rules for each are written at the top of its file and in `../tradingview/REA
 ## Install
 
 1. In MT5: **File → Open Data Folder**, then open `MQL5/Indicators`.
-2. Copy the four `.mq5` files there (a `Playbook` subfolder is fine).
+2. Copy the `.mq5` files there (a `Playbook` subfolder is fine).
 3. Open **MetaEditor** (F4), open each file and press **Compile** (F7). Or right-click **Indicators** in the Navigator and choose **Refresh**.
-4. Drag the indicator onto the chart: **NAS100** for MACD and S/R Sweep, **XAUUSD** for SMC, **EURUSD** for Liquidity Reversal. Any chart timeframe works. The indicators read H1 bars themselves, so H1 or H4 charts are the easiest to read.
+4. Drag the indicator onto the chart: **NAS100** (or **SPX500**) for NY Inside Bar, **NAS100** for MACD and S/R Sweep, **XAUUSD** for SMC, **EURUSD** for Liquidity Reversal. Any chart timeframe works. The indicators read H1 bars themselves (NY Inside Bar reads M15 bars), so H1 or H4 charts are the easiest to read (M15 for NY Inside Bar).
 5. Tick **Allow algo trading** only if you want it. These indicators never place trades.
 
-All four compile with 0 errors and 0 warnings in MetaEditor (checked against the MT5 install on this Mac).
+All five compile with 0 errors and 0 warnings in MetaEditor (checked against the MT5 install on this Mac).
 
 ## What they draw
 
@@ -105,6 +106,30 @@ EURUSD, Liquidity Reversal, 1h (133 signals since 2020):
 The indicator marks every signal. The backtest holds one trade at a time per setup, so a signal that comes while an earlier trade is still open was not counted there.
 
 The indicators load 60,000 H1 bars by default (about 9 years). If your terminal holds less history, early signals will be missing and the first stops can differ slightly while the EMA and ATR warm up. Raise **Max bars in chart** under **Tools → Options → Charts** if needed.
+
+## NY Inside Bar (PB_NYInsideBar)
+
+Put it on an **NAS100** or **SPX500** M15 chart. It reads closed M15 bars and turns the server clock into New York time (server to UTC with the two settings above, then UTC to New York with the US daylight-saving rule: second Sunday in March to first Sunday in November). The rules, marks and alerts are the same as `../tradingview/ny-inside-bar-checkpoints.pine`:
+
+- **1 Opening range UP / DOWN / flat** on the 09:45 New York candle: buys only, sells only, or no trade today.
+- **2 Inside** with dashed (trigger), red (stop) and green (target) lines while the stop order is live; **x** with the reason when it's cancelled.
+- A buy / sell arrow and price on the fill, then **TP / SL / 16:00** with the result in R on the exit candle.
+- The status line: today's side, the order to place or what to wait for, and the results in R on the loaded history. Set **Cost per side** to 0.0037 on SPX500.
+
+Alerts (pop-up on by default, push optional) fire on each M15 close after you load it: the day's side, the stop order to place with its stop, target and cancel level, the fill and the exit. Marks are drawn for the last 30 New York days (**Draw marks for the last N days**); the results use all loaded bars.
+
+The app's last NAS100 trades (fill candle in **server** time, as MT5 shows it):
+
+| Fill candle (server) | Side | Entry | Stop | Target |
+|---|---|---|---|---|
+| 2026-10-22 18:45 | BUY | 29132.34 | 29057.71 | 29206.97 |
+| 2026-10-23 18:45 | BUY | 29129.92 | 29054.15 | 29205.69 |
+| 2026-10-26 20:30 | SELL | 29336.29 | 29391.40 | 29281.18 |
+| 2026-10-27 17:00 | SELL | 29362.75 | 29525.63 | 29199.87 |
+| 2026-10-27 19:30 | SELL | 29664.88 | 29713.50 | 29616.26 |
+| 2026-10-30 16:15 | BUY | 28669.70 | 28607.95 | 28731.45 |
+| 2026-11-02 18:45 | SELL | 28506.36 | 28567.81 | 28444.91 |
+| 2026-11-03 20:00 | BUY | 28257.19 | 28198.90 | 28315.48 |
 
 ## Live candle feed (PB_BarFeed)
 

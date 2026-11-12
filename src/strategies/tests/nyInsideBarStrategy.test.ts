@@ -96,6 +96,23 @@ describe("ny-inside-bar", () => {
     expect(s.getTradeTargets!(candles)[5]).toMatchObject({ entryStop: 92.8, cancelEntryAt: 95, stopLoss: 97 });
   });
 
+  it("drops an order at the 15:00 cutoff, so its own trade list matches the engine", () => {
+    // 10:00 to 14:15: bodies that keep growing, so none is an inside candle.
+    const grow: [number, number, number, number][] = Array.from({ length: 18 }, (_, k) => [104, 104.5 + k * 0.01, 103.5, 104.2 + k * 0.01]);
+    const candles = day([
+      ...PRE,
+      ...UP_RANGE,
+      ...grow,
+      [104, 108.5, 102, 108], // 14:30 outer candle
+      [107, 107.5, 104.5, 105], // 14:45 inside: the next candle starts at 15:00
+      [105, 109, 104.8, 108.5], // 15:00 breaks 107.5, but no order is live
+      [108.5, 113.5, 108, 113],
+    ]);
+    expect(createNyInsideBarStrategy().generateSignals(candles).every((x) => x === "HOLD")).toBe(true);
+    expect(findNyInsideBarTrades(candles).trades).toEqual([]);
+    expect(runCodedBacktest(candles, createNyInsideBarStrategy(), { feeRate: 0 }).roundTrips).toHaveLength(0);
+  });
+
   it("does nothing before the opening range has closed", () => {
     // An inside candle at 09:45 inside the 09:30 candle: still the range.
     const candles = day([...PRE, [100, 104, 99, 103], [102, 103, 101, 102.5]]);

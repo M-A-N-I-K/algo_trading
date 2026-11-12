@@ -21,8 +21,10 @@ export interface IndicatorInfo {
 export const INDICATORS: IndicatorInfo[] = [
   {
     id: "ny-inside-bar",
+    file: "ny-inside-bar-checkpoints.pine",
     strategyFile: "ny-inside-bar-strategy.pine",
     strategySettings: "15-minute chart. NAS100: defaults (commission 0.0031). S&P 500: set the commission to 0.0037 in Properties.",
+    mt5File: "PB_NYInsideBar.mq5",
     status: "playbook",
     title: "NY Inside Bar",
     strategy: "ny-inside-bar",
@@ -35,6 +37,7 @@ export const INDICATORS: IndicatorInfo[] = [
       { label: "2 Inside", text: "After 10:00, a candle whose body (open to close) sits inside the previous candle's body. Wicks don't count here; any colour." },
       { label: "3 Order", text: "Buy stop at the inside candle's high (sell stop at its low) for the next 3 candles. Cancel it if price reaches the other side first; a newer inside candle replaces it." },
       { label: "4 Trade", text: "Stop beyond both candles' wicks, target 1:1. At most 2 trades a day, one at a time, no fills after 15:00, everything closed at 16:00 New York time." },
+      { label: "Alerts", text: "The indicator alerts on each candle close: the day's side, the stop order to place (with stop, target and cancel level), the fill and the exit. In TradingView use one “Any alert() function call” alert on a 15m chart for all of them with prices." },
     ],
   },
   {

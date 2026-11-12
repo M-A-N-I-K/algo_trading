@@ -1,0 +1,295 @@
+//@version=6
+// NY Inside Bar checkpoints (Playbook: NAS100 and S&P 500, 15m)
+//
+// Port of src/strategies/nyInsideBarStrategy.ts with its defaults. It runs the same state
+// machine as the app, including its own trade tracking, so the marks here are the trades
+// the backtest takes:
+//
+//   (1) Bias      the 09:30 and 09:45 New York candles (the 30-minute opening range):
+//                 last close above the first open = buys only today, below = sells only.
+//   (2) Inside    after 10:00, a candle whose BODY (open to close) sits inside the previous
+//                 candle's body (touching counts). Wicks don't matter here; any colour.
+//   (3) Order     buy stop at the inside candle's high (sell stop at its low), live for the
+//                 next 3 candles. Cancelled if price reaches the other side of the inside
+//                 candle first (or both sides in one candle), or replaced by a newer inside
+//                 candle. No order can fill on a candle starting 15:00 or later.
+//   (4) Trade     stop = the lower of the two candles' lows (sells: higher of the highs),
+//                 target = 1 x the risk from the trigger. A candle that reaches both counts
+//                 as the stop. At most 2 trades a day, one at a time; the next inside candle
+//                 must come after the last trade ended. Anything open closes at the 16:00 open.
+//
+// All times are New York's, daylight saving included. Closed candles only, nothing repaints.
+indicator("NY Inside Bar checkpoints", shorttitle = "NY IB", overlay = true, max_lines_count = 500, max_labels_count = 500)
+
+grpR      = "Rules (keep defaults to match the backtest)"
+openH     = input.int(9, "Opening range start: hour (New York)", minval = 0, maxval = 23, group = grpR)
+openM     = input.int(30, "Opening range start: minute", minval = 0, maxval = 59, group = grpR)
+rangeMin  = input.int(30, "Opening range length (minutes)", minval = 1, group = grpR)
+lastH     = input.int(15, "No fills on candles starting at or after: hour", minval = 0, maxval = 23, group = grpR)
+flatH     = input.int(16, "Close everything at: hour", minval = 0, maxval = 23, group = grpR)
+waitBars  = input.int(3, "Order lives for (candles)", minval = 1, group = grpR)
+targetR   = input.float(1.0, "Target (x risk)", minval = 0.1, step = 0.25, group = grpR)
+maxTrades = input.int(2, "Max trades a day", minval = 1, group = grpR)
+grpS      = "Show"
+showRange = input.bool(true, "Shade the opening range", group = grpS)
+showOrder = input.bool(true, "Inside candles and pending orders", group = grpS)
+showTrade = input.bool(true, "Fills and exits", group = grpS)
+showX     = input.bool(true, "Cancelled orders", group = grpS)
+showPanel = input.bool(true, "Status and results panel", group = grpS)
+costPct   = input.float(0.0031, "Cost per side for the results (% of price). NAS100 0.0031, S&P 500 0.0037", minval = 0, step = 0.0001, group = grpS)
+
+const string TZ = "America/New_York"
+colLong  = color.new(#26a69a, 0)
+colShort = color.new(#ef5350, 0)
+colMuted = color.new(#9e9e9e, 0)
+colBias  = color.new(#5c6bc0, 0)
+fmt(float x) => str.tostring(x, format.mintick)
+hhmm(int h, int m) => (h < 10 ? "0" : "") + str.tostring(h) + ":" + (m < 10 ? "0" : "") + str.tostring(m)
+
+int barMs = timeframe.in_seconds() * 1000
+bool tfOk = timeframe.isintraday and barMs <= rangeMin * 60000
+
+// Today's New York clock, as UTC ms.
+int y = year(time, TZ)
+int mo = month(time, TZ)
+int d = dayofmonth(time, TZ)
+int dayKey = y * 10000 + mo * 100 + d
+int tOpen = timestamp(TZ, y, mo, d, openH, openM)
+int tRangeEnd = tOpen + rangeMin * 60000
+int tLast = timestamp(TZ, y, mo, d, lastH, 0)
+int tFlat = timestamp(TZ, y, mo, d, flatH, 0)
+
+// Day state
+var int   curDay = na
+var float rangeOpen = na
+var float rangeClose = na
+var int   rangeBars = 0
+var int   bias = 0
+var int   taken = 0
+var int   lastExit = -1
+// The pending order
+var int   sIdx = na
+var float sTrig = na
+var float sCancel = na
+var float sStop = na
+var float sTgt = na
+var line  lnT = na
+var line  lnS = na
+var line  lnG = na
+// The open trade
+var int   tFill = na
+var int   tDir = 0
+var float tEntry = na
+var float tStop = na
+var float tTgt = na
+var int   tFlatAt = na
+// Results in R (an object, so the functions below can update it)
+type Stats
+    int   n = 0
+    int   wins = 0
+    float won = 0.0
+    float lost = 0.0
+    float net = 0.0
+    float peak = 0.0
+    float dd = 0.0
+var Stats st = Stats.new()
+// Events on this candle, for alertcondition()
+bool evBias = false
+bool evOrder = false
+bool evFill = false
+bool evExit = false
+
+endLines(int x) =>
+    if not na(lnT)
+        lnT.set_x2(x)
+        lnS.set_x2(x)
+        lnG.set_x2(x)
+
+dropOrder(string why) =>
+    if showX and showOrder and why != ""
+        label.new(bar_index, bias > 0 ? low : high, "x", color = color.new(colMuted, 100), textcolor = colMuted, style = bias > 0 ? label.style_label_up : label.style_label_down, size = size.tiny, tooltip = "Order cancelled: " + why)
+
+closeTrade(float exitPx, string why) =>
+    float risk = (tEntry - tStop) * tDir
+    float r = ((exitPx - tEntry) * tDir - 2 * costPct / 100 * tEntry) / risk
+    st.n += 1
+    st.net += r
+    if r > 0
+        st.wins += 1
+        st.won += r
+    else
+        st.lost -= r
+    st.peak := math.max(st.peak, st.net)
+    st.dd := math.max(st.dd, st.peak - st.net)
+    if showTrade
+        string txt = why + " " + (r >= 0 ? "+" : "") + str.tostring(r, "0.00") + "R"
+        label.new(bar_index, tDir > 0 ? high : low, txt, color = color.new(r > 0 ? colLong : colShort, 100), textcolor = r > 0 ? colLong : colShort, style = tDir > 0 ? label.style_label_down : label.style_label_up, size = size.small, tooltip = "Exit " + fmt(exitPx) + " (" + why + "). Entry " + fmt(tEntry) + ", stop " + fmt(tStop) + ", target " + fmt(tTgt) + ". R after costs.")
+    alert(syminfo.ticker + " NY Inside Bar: trade closed at " + fmt(exitPx) + " (" + why + "), " + str.tostring(r, "0.00") + "R", alert.freq_once_per_bar_close)
+    r
+
+if barstate.isconfirmed and tfOk
+    // New York day
+    if dayKey != curDay
+        curDay := dayKey
+        rangeOpen := na
+        rangeBars := 0
+        bias := 0
+        taken := 0
+        if not na(sIdx)
+            endLines(bar_index - 1)
+        sIdx := na
+
+    // (1) Opening range and bias
+    if time >= tOpen and time < tRangeEnd
+        if rangeBars == 0
+            rangeOpen := open
+        rangeClose := close
+        rangeBars += 1
+        if time + barMs >= tRangeEnd
+            bias := rangeBars >= math.max(1, int(rangeMin * 60000 / barMs) - 1) ? int(math.sign(rangeClose - rangeOpen)) : 0
+            evBias := true
+            if showRange
+                string b = bias > 0 ? "1 Up: buys only" : bias < 0 ? "1 Down: sells only" : "1 Flat: no trade today"
+                label.new(bar_index, bias >= 0 ? low : high, b, color = color.new(colBias, 100), textcolor = colBias, style = bias >= 0 ? label.style_label_up : label.style_label_down, size = size.small, tooltip = "Opening range " + fmt(rangeOpen) + " to " + fmt(rangeClose) + ". " + (bias > 0 ? "Buy stops only today." : bias < 0 ? "Sell stops only today." : "No trade today."))
+            alert(syminfo.ticker + " NY Inside Bar: opening range " + (bias > 0 ? "UP, buys only today" : bias < 0 ? "DOWN, sells only today" : "flat, no trade today"), alert.freq_once_per_bar_close)
+
+    bool done = false
+    // An open trade: the time exit at the open, then stop, then target
+    if tDir != 0
+        done := true
+        float exitPx = na
+        string why = ""
+        if bar_index > tFill and time >= tFlatAt
+            exitPx := open
+            why := "16:00"
+        else if tDir > 0 ? low <= tStop : high >= tStop
+            exitPx := tStop
+            why := "SL"
+        else if tDir > 0 ? high >= tTgt : low <= tTgt
+            exitPx := tTgt
+            why := "TP"
+        if not na(exitPx)
+            closeTrade(exitPx, why)
+            evExit := true
+            lastExit := bar_index
+            tDir := 0
+
+    // (3) The live order: fill, cancel or keep
+    if not done and not na(sIdx) and bar_index > sIdx
+        bool hit = bias > 0 ? high >= sTrig : low <= sTrig
+        bool other = bias > 0 ? low <= sCancel : high >= sCancel
+        string why = ""
+        if hit and not other
+            float entry = bias > 0 ? math.max(open, sTrig) : math.min(open, sTrig)
+            endLines(bar_index)
+            sIdx := na
+            if bias > 0 ? entry < sTgt : entry > sTgt
+                taken += 1
+                tDir := bias
+                tFill := bar_index
+                tEntry := entry
+                tStop := sStop
+                tTgt := sTgt
+                tFlatAt := tFlat
+                evFill := true
+                done := true
+                if showTrade
+                    label.new(bar_index, bias > 0 ? low : high, (bias > 0 ? "BUY " : "SELL ") + fmt(entry), color = bias > 0 ? colLong : colShort, textcolor = color.white, style = bias > 0 ? label.style_label_up : label.style_label_down, size = size.small, tooltip = "Stop order filled at " + fmt(entry) + ". SL " + fmt(tStop) + ", TP " + fmt(tTgt) + ".")
+                alert(syminfo.ticker + " NY Inside Bar: " + (bias > 0 ? "BUY" : "SELL") + " filled at " + fmt(entry) + " SL " + fmt(tStop) + " TP " + fmt(tTgt), alert.freq_once_per_bar_close)
+                // The fill candle itself can reach the stop or the target
+                float ex = na
+                string w = ""
+                if bias > 0 ? low <= tStop : high >= tStop
+                    ex := tStop
+                    w := "SL"
+                else if bias > 0 ? high >= tTgt : low <= tTgt
+                    ex := tTgt
+                    w := "TP"
+                if not na(ex)
+                    closeTrade(ex, w)
+                    evExit := true
+                    lastExit := bar_index
+                    tDir := 0
+            else
+                why := "it gapped past the target"
+        else if other
+            why := hit ? "both sides were reached in one candle" : "price reached the other side of the inside candle first"
+        else if bar_index - sIdx >= waitBars
+            why := "not triggered within " + str.tostring(waitBars) + " candles"
+        if not na(sIdx) and why != ""
+            endLines(bar_index)
+            sIdx := na
+        if why != ""
+            dropOrder(why)
+
+    // (2) A new inside candle (after the opening range and before the cutoff, on a day with
+    // a bias, after the last trade ended) replaces any older order
+    if not done
+        bool inside = math.min(open, close) >= math.min(open[1], close[1]) and math.max(open, close) <= math.max(open[1], close[1])
+        if bias != 0 and time >= tRangeEnd and time + barMs < tLast and bar_index > lastExit and taken < maxTrades and inside
+            float trig = bias > 0 ? high : low
+            float stp = bias > 0 ? math.min(low[1], low) : math.max(high[1], high)
+            float risk = (trig - stp) * bias
+            if risk > 0
+                if not na(sIdx)
+                    endLines(bar_index)
+                    dropOrder("replaced by a newer inside candle")
+                sIdx := bar_index
+                sTrig := trig
+                sCancel := bias > 0 ? low : high
+                sStop := stp
+                sTgt := trig + bias * targetR * risk
+                if showOrder
+                    lnT := line.new(bar_index, sTrig, bar_index + 1, sTrig, color = colMuted, style = line.style_dashed)
+                    lnS := line.new(bar_index, sStop, bar_index + 1, sStop, color = colShort)
+                    lnG := line.new(bar_index, sTgt, bar_index + 1, sTgt, color = colLong)
+                    label.new(bar_index, bias > 0 ? low : high, "2 Inside", color = color.new(bias > 0 ? colLong : colShort, 100), textcolor = bias > 0 ? colLong : colShort, style = bias > 0 ? label.style_label_up : label.style_label_down, size = size.tiny, tooltip = (bias > 0 ? "Buy stop " : "Sell stop ") + fmt(sTrig) + ", SL " + fmt(sStop) + ", TP " + fmt(sTgt) + ". Cancel if price reaches " + fmt(sCancel) + " first.")
+
+        // The order stays live for the next candle only if that candle starts before the cutoff
+        if not na(sIdx)
+            if time + barMs < tLast
+                evOrder := sIdx == bar_index
+                if showOrder and not na(lnT)
+                    endLines(bar_index + 1)
+                if sIdx == bar_index
+                    alert(syminfo.ticker + " NY Inside Bar: place a " + (bias > 0 ? "BUY STOP " : "SELL STOP ") + fmt(sTrig) + " SL " + fmt(sStop) + " TP " + fmt(sTgt) + ". Cancel it if price reaches " + fmt(sCancel) + " first, or after " + str.tostring(waitBars) + " candles.", alert.freq_once_per_bar_close)
+            else
+                endLines(bar_index)
+                dropOrder("no fills after " + hhmm(lastH, 0) + " New York time")
+                sIdx := na
+
+bgcolor(showRange and tfOk and time >= tOpen and time < tRangeEnd ? color.new(colBias, 85) : na, title = "Opening range")
+
+alertcondition(evBias, "1 Opening range set", "{{ticker}}: NY Inside Bar opening range set (check the panel for the side)")
+alertcondition(evOrder, "2-3 Stop order to place", "{{ticker}}: NY Inside Bar inside candle, place the stop order")
+alertcondition(evFill, "4 Order filled", "{{ticker}}: NY Inside Bar stop order filled")
+alertcondition(evExit, "5 Trade closed", "{{ticker}}: NY Inside Bar trade closed")
+
+// ─── Panel ───
+var table panel = table.new(position.top_right, 2, 8, bgcolor = color.new(#131722, 10), border_color = color.new(colMuted, 60), border_width = 1)
+row(int r, string k, string v, color c) =>
+    table.cell(panel, 0, r, k, text_color = c, text_size = size.small, text_halign = text.align_left)
+    table.cell(panel, 1, r, v, text_color = color.white, text_size = size.small, text_halign = text.align_left)
+if showPanel and barstate.islast
+    string side = not tfOk ? "Use a 15-minute chart (the backtest's timeframe)" : bias > 0 ? "Opening range up: buys only" : bias < 0 ? "Opening range down: sells only" : time < tRangeEnd ? "Waiting for the opening range (" + hhmm(openH, openM) + " New York)" : "Flat opening range: no trade today"
+    string now = ""
+    if tDir != 0
+        now := "In a " + (tDir > 0 ? "buy" : "sell") + " from " + fmt(tEntry) + ". SL " + fmt(tStop) + ", TP " + fmt(tTgt) + ", out at " + hhmm(flatH, 0)
+    else if not na(sIdx)
+        now := (bias > 0 ? "Buy stop " : "Sell stop ") + fmt(sTrig) + ", SL " + fmt(sStop) + ", TP " + fmt(sTgt) + ". Cancel at " + fmt(sCancel) + ". " + str.tostring(waitBars - (bar_index - sIdx)) + " candle(s) left"
+    else if bias != 0 and taken >= maxTrades
+        now := "Done: " + str.tostring(maxTrades) + " trades taken today"
+    else if bias != 0 and time + barMs < tLast
+        now := "Watching each 15-minute close for an inside candle (body inside the previous body)"
+    else if bias != 0
+        now := "No new orders after " + hhmm(lastH, 0) + " New York time"
+    else
+        now := "-"
+    row(0, "NY Inside Bar", side, colBias)
+    row(1, "Now", now, colMuted)
+    row(2, "Trades", str.tostring(st.n) + " on this chart's history, today " + str.tostring(taken) + " of " + str.tostring(maxTrades), colMuted)
+    row(3, "Win rate", st.n > 0 ? str.tostring(100.0 * st.wins / st.n, "0.0") + "%" : "-", colMuted)
+    row(4, "Profit factor", st.lost > 0 ? str.tostring(st.won / st.lost, "0.00") : "-", colMuted)
+    row(5, "Net", (st.net >= 0 ? "+" : "") + str.tostring(st.net, "0.0") + "R after costs, " + (st.n > 0 ? (st.net >= 0 ? "+" : "") + str.tostring(st.net / st.n, "0.00") : "0") + "R a trade", colMuted)
+    row(6, "Worst drawdown", str.tostring(st.dd, "0.0") + "R", colMuted)
+    row(7, "Times", "New York: range " + hhmm(openH, openM) + ", no fills from " + hhmm(lastH, 0) + ", flat " + hhmm(flatH, 0), colMuted)
