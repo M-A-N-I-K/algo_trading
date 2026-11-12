@@ -22,9 +22,11 @@
 //|             target + 0.25R.                                    |
 //| Market order at the next H1 open, one trade at a time, held    |
 //| until the stop or target (no time exit).                       |
+//| Trail (off by default): no target; at 3R the stop moves to 2R, |
+//| at 4R to 3R, and so on, one R behind the best R reached.       |
 //+------------------------------------------------------------------+
 #property copyright "Playbook"
-#property version   "1.00"
+#property version   "1.10"
 #property description "Research Strategy Tester EA: 8/33 EMA dominance candle with swing-zone filter, H1, 1:3. Not part of the Playbook."
 #include <Trade/Trade.mqh>
 
@@ -37,6 +39,7 @@ input double InpRR        = 3.0;  // Target (x risk)
 input bool   InpRoom      = true; // Room filter (100-candle high/low)
 input int    InpRoomLook  = 100;  // Room filter lookback
 input bool   InpZones     = true; // Swing-zone filter
+input bool   InpTrail     = false; // Trail instead of a fixed target (3R -> stop 2R, 4R -> 3R, ...)
 input int    InpZoneLook  = 200;  // Zone lookback (candles)
 input int    InpZoneSwing = 3;    // Swing size (candles each side)
 input double InpZoneBuf   = 0.25; // Zone counts up to this many R past the target
@@ -55,6 +58,8 @@ input bool   InpLog       = true;   // Write each trade to the journal
 
 CTrade   trade;
 datetime g_lastH1 = 0, g_lastTraded = 0;
+double   g_entry = 0, g_risk = 0;   // the signal's entry (its close) and risk, for the trailing steps
+ulong    g_ticket = 0;
 double   O[], H[], L[], C[], EF[], ES[];
 datetime T[];
 
@@ -171,13 +176,14 @@ void Compute()
       string side = isLong ? "BUY" : "SELL";
       if(HasPosition()) { Log(side + " signal skipped: a trade is still open"); return; }
       double px = isLong ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-      if(isLong ? (px <= sl || px >= tp) : (px >= sl || px <= tp))
+      if(isLong ? (px <= sl || (!InpTrail && px >= tp)) : (px >= sl || (!InpTrail && px <= tp)))
       { Log(StringFormat("%s signal skipped: price %s already past the stop %s or target %s", side, Px(px), Px(sl), Px(tp))); return; }
       double lots = Lots(isLong, px, sl);
       if(lots <= 0) { Log(side + " signal skipped: lot size below the minimum"); return; }
-      sl = NormPx(sl); tp = NormPx(tp);
+      g_entry = C[j]; g_risk = MathAbs(C[j] - sl);
+      sl = NormPx(sl); tp = InpTrail ? 0 : NormPx(tp);
       bool ok = isLong ? trade.Buy(lots, _Symbol, 0, sl, tp, EA_NAME) : trade.Sell(lots, _Symbol, 0, sl, tp, EA_NAME);
-      if(ok) Log(StringFormat("%s %.2f lots at %s, stop %s, target %s (signal candle %s)", side, lots, Px(trade.ResultPrice()), Px(sl), Px(tp), TimeToString(T[j])));
+      if(ok) { g_ticket = trade.ResultOrder(); Log(StringFormat("%s %.2f lots at %s, stop %s, target %s (signal candle %s)", side, lots, Px(trade.ResultPrice()), Px(sl), InpTrail ? "trailing" : Px(tp), TimeToString(T[j]))); }
       else Log(side + " rejected: " + trade.ResultRetcodeDescription());
       return;
    }
@@ -191,8 +197,32 @@ int OnInit()
    return INIT_SUCCEEDED;
 }
 
+// Stepped trail, like the backtest: once price has reached k R (k >= 3) from the
+// signal's entry, the stop goes to (k - 1) R. It only ever moves forward.
+void Trail()
+{
+   if(!InpTrail || g_risk <= 0) return;
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong tk = PositionGetTicket(i);
+      if(tk == 0 || PositionGetString(POSITION_SYMBOL) != _Symbol || PositionGetInteger(POSITION_MAGIC) != InpMagic) continue;
+      bool isLong = PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY;
+      double px = isLong ? SymbolInfoDouble(_Symbol, SYMBOL_BID) : SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+      double cur = PositionGetDouble(POSITION_SL);
+      int k = (int)MathFloor((isLong ? px - g_entry : g_entry - px) / g_risk);
+      if(k < InpRR) continue;
+      double ns = NormPx(isLong ? g_entry + (k - 1) * g_risk : g_entry - (k - 1) * g_risk);
+      if(isLong ? ns > cur + _Point / 2 : (cur == 0 || ns < cur - _Point / 2))
+      {
+         if(trade.PositionModify(tk, ns, 0)) Log(StringFormat("trail: price at %dR, stop to %dR (%s)", k, k - 1, Px(ns)));
+         else Log("trail rejected: " + trade.ResultRetcodeDescription());
+      }
+   }
+}
+
 void OnTick()
 {
+   Trail();
    datetime h1 = iTime(_Symbol, PERIOD_H1, 0);
    if(h1 != 0 && h1 != g_lastH1) Compute();   // once per new H1 bar
 }

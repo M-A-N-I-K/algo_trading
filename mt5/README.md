@@ -210,6 +210,19 @@ It can trade a live or demo account too, if your prop firm allows Expert Advisor
 | EURJPY | 202 | 27% | 1.04 | +6.7R |
 | SPX500 | 227 | 24% | 0.91 | −15.3R |
 
+**Trail** (input *Trail instead of a fixed target*, off by default): no target; once price reaches 3R the stop moves to 2R, at 4R to 3R, and so on, one R behind the best R reached. Run XAUUSD and ETHUSD once with it off and once with it on. The app's numbers with it on (H1, zones):
+
+| Symbol | Trades | Won | Profit factor | Net |
+|---|---|---|---|---|
+| ETHUSD | 182 | 33% | 1.43 | +55.5R |
+| XAUUSD | 165 | 29% | 1.33 | +39.7R |
+| BTCUSD | 201 | 29% | 1.16 | +23.3R |
+| XAGUSD | 174 | 29% | 1.15 | +20.3R |
+| NDX100 | 181 | 27% | 1.11 | +14.9R |
+| GBPUSD | 181 | 26% | 1.01 | +1.2R |
+| EURJPY | 186 | 27% | 0.99 | −1.9R |
+| SPX500 | 201 | 25% | 0.90 | −14.7R |
+
 The app enters at the signal candle's close and the EA at the next candle's open, so expect small differences in each trade's risk. A tester profit factor under about 1.1 means it's not worth trading next to the Playbook setups.
 
 ## Live candle feed (PB_BarFeed)
