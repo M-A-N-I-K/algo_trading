@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { scanTargets } from "./scanner";
+import { playbookExtraTargets, scanTargets } from "./scanner";
 
 describe("scanTargets", () => {
   const targets = scanTargets();
@@ -12,6 +12,12 @@ describe("scanTargets", () => {
   it("still scans the 5m and higher-timeframe strategies", () => {
     expect(targets).toContainEqual({ strategyKey: "liquidity-reversal-mtf", interval: "5m" });
     expect(targets).toContainEqual({ strategyKey: "liquidity-reversal", interval: "1h" });
+  });
+
+  it("scans a playbook setup's own timeframe on just its market", () => {
+    const extras = playbookExtraTargets(targets);
+    expect(extras).toContainEqual({ strategyKey: "ema833-zones", symbol: "NAS100", interval: "5m" });
+    for (const e of extras) expect(targets).not.toContainEqual({ strategyKey: e.strategyKey, interval: e.interval });
   });
 });
 

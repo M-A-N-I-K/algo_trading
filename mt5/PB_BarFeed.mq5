@@ -19,7 +19,7 @@
 #property version   "1.20"
 
 input string InpSymbols   = "XAUUSD,XAGUSD,BTCUSD,ETHUSD,EURUSD,GBPUSD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD,NDX100,SPX500,EURJPY,GBPAUD,FTSE100,UKOIL"; // Broker symbols (missing ones are skipped)
-input bool   InpM5        = false;  // Write M5
+input bool   InpM5        = true;   // Write M5 (NAS100 8/33 EMA signals use it)
 input bool   InpM15       = true;   // Write M15
 input bool   InpH1        = true;   // Write H1 (the app builds 4h from it)
 input int    InpBarsM5    = 60000;  // M5 bars (~7 months)

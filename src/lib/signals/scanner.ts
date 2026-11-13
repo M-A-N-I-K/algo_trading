@@ -6,7 +6,7 @@ import { CODED_STRATEGIES, createCodedStrategy, HIGHER_TIMEFRAME } from "@/strat
 import { withFixedTarget } from "@/strategies/fixedTarget";
 import { scanStrategy, type SignalRow } from "./scan";
 import { locationGrade } from "@/lib/plan/weeklyPlan";
-import { activeSetupById, PLAYBOOK_SETUP_IDS } from "@/lib/playbook/config";
+import { activeSetupById, PLAYBOOK_SETUP_IDS, PLAYBOOK_SETUPS } from "@/lib/playbook/config";
 import { feedLive, feedSupports, readFeedCandles } from "@/lib/mt5/feed";
 import { isMt5OnlyMarket } from "@/lib/markets/yahoo";
 
@@ -76,6 +76,18 @@ export function scanTargets(): { strategyKey: string; interval: string }[] {
     for (const interval of intervals) out.push({ strategyKey, interval });
   }
   return out;
+}
+
+/**
+ * Active playbook setups on a timeframe scanTargets() doesn't cover (the 8/33
+ * EMA on NAS100 5m). Only that one market is scanned on it, so a 5m setup
+ * doesn't mean two years of 5m candles for every market.
+ */
+export function playbookExtraTargets(targets = scanTargets()): { strategyKey: string; symbol: string; interval: string }[] {
+  const scanned = new Set(targets.map((t) => `${t.strategyKey}:${t.interval}`));
+  return PLAYBOOK_SETUPS.filter(
+    (s) => !s.retired && !UNSCANNED_INTERVALS.has(s.interval) && !scanned.has(`${s.strategy}:${s.interval}`) && !HIGHER_TIMEFRAME[s.strategy],
+  ).map((s) => ({ strategyKey: s.strategy, symbol: s.symbol, interval: s.interval }));
 }
 
 // --- candle cache -------------------------------------------------------------
@@ -223,25 +235,26 @@ async function scan(): Promise<SignalScan> {
   }
 
   intervals.add("1h"); // for grading signals
+  const extras = playbookExtraTargets(targets);
   const errors: string[] = [];
   const series = new Map<string, OHLC[]>();
-  await Promise.all(
-    SIGNAL_SYMBOLS.flatMap((symbol) =>
-      [...intervals].map(async (interval) => {
-        try {
-          series.set(`${symbol}:${interval}`, await refreshSeries(symbol, interval, now));
-        } catch (e) {
-          errors.push(`${symbol} ${interval}: ${e instanceof Error ? e.message : String(e)}`);
-          series.set(`${symbol}:${interval}`, state.series.get(`${symbol}:${interval}`) ?? []);
-        }
-      }),
-    ),
-  );
+  const load = async (symbol: string, interval: string) => {
+    try {
+      series.set(`${symbol}:${interval}`, await refreshSeries(symbol, interval, now));
+    } catch (e) {
+      errors.push(`${symbol} ${interval}: ${e instanceof Error ? e.message : String(e)}`);
+      series.set(`${symbol}:${interval}`, state.series.get(`${symbol}:${interval}`) ?? []);
+    }
+  };
+  await Promise.all([
+    ...SIGNAL_SYMBOLS.flatMap((symbol) => [...intervals].map((interval) => load(symbol, interval))),
+    ...extras.filter((t) => !intervals.has(t.interval)).map((t) => load(t.symbol, t.interval)),
+  ]);
 
   const rows: SignalRow[] = [];
   const playbook: SignalRow[] = [];
   for (const symbol of SIGNAL_SYMBOLS) {
-    for (const { strategyKey, interval } of targets) {
+    for (const { strategyKey, interval } of [...targets, ...extras.filter((t) => t.symbol === symbol)]) {
       const candles = series.get(`${symbol}:${interval}`) ?? [];
       const htfInterval = HIGHER_TIMEFRAME[strategyKey]?.interval;
       const htfCandles = htfInterval ? series.get(`${symbol}:${htfInterval}`) : undefined;

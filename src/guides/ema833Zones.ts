@@ -15,17 +15,17 @@ export const ema833ZonesGuide: StrategyGuide = {
   tagline: "Buy the strong candle that bounces off the 8 EMA in an uptrend, only when nothing is in the way of 3R, then let winners run.",
   difficulty: "Beginner",
   style: "Trend pullback with a trailing stop",
-  timeframes: "One chart: 1h",
-  markets: "Gold, NAS100 and ETH on 1h. It lost or broke even on silver, SPX500, GBP/USD, EUR/JPY and BTC, and on every market at 5m",
-  frequency: "About one trade every two to three weeks per market; about 1.3 a week across the three",
+  timeframes: "One chart: 1h for gold and ETH, 5m for NAS100",
+  markets: "Gold and ETH on 1h, NAS100 on 5m. It lost or broke even on silver, SPX500, GBP/USD, EUR/JPY and BTC, and at 5m and 15m on every market except NAS100",
+  frequency: "About one trade every two to three weeks each on gold and ETH (1h), about 4 a week on NAS100 (5m)",
   holdTime: "Hours to several days (the winners are the long ones)",
   direction: "Both: buys when the 8 EMA is above the 33, sells when it's below",
 
   summary: [
     "Two moving averages show the trend: when the fast one (8) is above the slow one (33), price is rising. In a rising market price keeps dipping back to the 8 EMA and bouncing. This strategy waits for one of those dips, then buys the strong green candle that bounces off it and closes above the previous candle's high.",
     "Two filters keep you out of trades that have no room. If a recent high or a swing point sits between your entry and three times your risk, price is likely to stall there, so you skip it. You also only trade when London or New York is open.",
-    "Most trades lose (about 70%). The money comes from the few that run: at 3R the stop moves up to lock in 2R, at 4R to 3R, and so on, so a big trend can pay 6R, 8R or more. Expect long losing runs: 9 in a row on gold, 12 on NAS100 and 16 on ETH in the test.",
-    "It comes from a Hindi YouTube video that traded it on 5-minute charts. That version lost money on every market tested. The 1h version with the two filters, the session rule and the trailing stop is what survived, after trying about 15 versions. That much trying flatters the results, so the Playbook trades it at a quarter of normal risk.",
+    "Most trades lose (about 70%). The money comes from the few that run: at 3R the stop moves up to lock in 2R, at 4R to 3R, and so on, so a big trend can pay 6R, 8R or more. Expect long losing runs: 9 in a row on gold, 16 on NAS100 5m and 16 on ETH in the test.",
+    "It comes from a Hindi YouTube video that traded it on 5-minute charts. The bare video version lost money on every market tested. With the two filters, the session rule and the trailing stop it survived on 1h for gold and ETH, and on 5m only for NAS100 (5m and 15m lost on the other seven markets), after trying about 15 versions. That much trying flatters the results, so the Playbook trades it at a quarter of normal risk.",
   ],
 
   terms: [
@@ -39,7 +39,7 @@ export const ema833ZonesGuide: StrategyGuide = {
   ],
 
   chartSetup: [
-    { title: "Open a 1-hour chart", detail: "XAUUSD (gold), NAS100 (US Tech 100) or ETHUSD on your broker's platform." },
+    { title: "Open the right chart", detail: "XAUUSD (gold) or ETHUSD on a 1-hour chart; NAS100 (US Tech 100) on a 5-minute chart. Every rule below counts candles on that chart." },
     { title: "Add two EMAs", detail: "Indicators → Moving Average Exponential twice: length 8 and length 33, source close." },
     { title: "Know your session times", detail: "London 08:00–16:30 London time, New York 08:00–17:00 New York time. Together that's about 07:00–21:00 UTC in winter. The candle must close inside one of them." },
     { title: "MT5 or TradingView", detail: "The PB_EMA833Zones_EA (MT5) and ema833-zones-strategy.pine (TradingView) on the Indicators page mark the same trades. In the EA set Trail = true and Session = London or NY." },
@@ -81,11 +81,11 @@ export const ema833ZonesGuide: StrategyGuide = {
     "A recent high (low) or swing point is between entry and 3R: there's no room.",
     "The candle closed outside London and New York hours (late evening, night and the Asian session).",
     "You're already in a trade on that market.",
-    "It's a 5-minute or 15-minute chart. Those lost on every market tested.",
+    "It's gold or ETH on a 5-minute or 15-minute chart, or NAS100 on 15 minutes or 1 hour. Those lost or barely made money in the test.",
   ],
 
   mistakes: [
-    "Trading it on 5 minutes like the video. 7,921 gold trades on 5m since 2020 made a profit factor of 0.74: a steady loss.",
+    "Trading gold or ETH on 5 minutes like the video. 1,330 gold trades on 5m since 2020, with every filter, made a profit factor of 0.96 (ETH: 0.73): a steady loss. Only NAS100 held up on 5m.",
     "Taking the trade when a swing high sits just above. That filter is what turned it from losing to winning on 1h.",
     "Closing at 3R. The profit comes from the few trades that run to 5R–10R.",
     "Moving the stop to breakeven early. Price often dips back before running, and you get stopped for nothing.",
@@ -141,9 +141,12 @@ export const ema833ZonesGuide: StrategyGuide = {
       { symbol: "ETHUSDT", timeframe: "1h", trades: 10, winRatePct: 40.0, profitFactor: 2.62, returnPct: 20.0, maxDrawdownPct: 6.6 },
       { symbol: "XAUUSDT", timeframe: "1h", trades: 11, winRatePct: 27.3, profitFactor: 1.23, returnPct: 2.0, maxDrawdownPct: 6.4 },
       { symbol: "NAS100", timeframe: "1h", trades: 15, winRatePct: 13.3, profitFactor: 0.18, returnPct: -12.4, maxDrawdownPct: 14.4 },
+      // From FundingPips' MT5 bars: Yahoo keeps only 60 days of 5m candles.
+      { symbol: "NAS100", timeframe: "5m", trades: 106, winRatePct: 24.5, profitFactor: 0.8, returnPct: -7.0, maxDrawdownPct: 15.4 },
+      { symbol: "XAUUSDT", timeframe: "15m", trades: 33, winRatePct: 18.2, profitFactor: 0.75, returnPct: -5.1, maxDrawdownPct: 10.1 },
       { symbol: "ETHUSDT", timeframe: "15m", trades: 35, winRatePct: 22.9, profitFactor: 0.76, returnPct: -9.7, maxDrawdownPct: 17.0 },
     ],
     verdict:
-      "Over these six months it lost money on NAS100 (−12.4%, 2 wins in 15) and BTC, made a little on gold and did well on ETH. The 15m version lost. Six months is only 10 to 15 trades a market, too few to judge a strategy that wins 3 times in 10. The long test, on FundingPips' MT5 1h bars from 2020 to Nov 2026 at the platform's costs: gold 135 trades, profit factor 1.51, +49R; NAS100 177 trades, 1.23, +28.5R; ETH 165 trades, 1.17, +21.6R. MT5's own Strategy Tester on real ticks made 1.33 on gold and 1.10 on NAS100. As one basket in the tester the three made 495 trades (1.4 a week), profit factor 1.25, +90R, with a worst drawdown of 36.6R and a losing 2023 (−17R). The video's 5m version lost on every market (gold 0.74 over 7,921 trades), and on 1h silver, SPX500, GBP/USD, EUR/JPY and BTC broke even or lost. These rules were picked from about 15 versions on eight markets, so expect live results below these numbers. Trade it small, on gold, NAS100 and ETH only.",
+      "Over these six months it lost money on NAS100 1h (−12.4%, 2 wins in 15) and BTC, made a little on gold and did well on ETH. The 15m versions lost. NAS100 5m (the live signal, from MT5 bars since Yahoo keeps only 60 days of 5m) lost 7% here, but most of that is the 0.04% fee these rows charge: on 5m stops that is about a quarter of R per trade, ten times FundingPips' real NAS100 cost. At the real cost the same 106 trades broke even (−0.2R). Six months is only 10 to 15 trades a market, too few to judge a strategy that wins 3 times in 10. The long test, on FundingPips' MT5 1h bars from 2020 to Nov 2026 at the platform's costs: gold 135 trades, profit factor 1.51, +49R; NAS100 177 trades, 1.23, +28.5R (on 5m: 1,539 trades, about 4 a week, 1.18, +212R, every year from 2020 up, worst drawdown 28.7R, still 1.13 at double costs); ETH 165 trades, 1.17, +21.6R. MT5's own Strategy Tester on real ticks made 1.33 on gold and 1.10 on NAS100. As one basket in the tester the three made 495 trades (1.4 a week), profit factor 1.25, +90R, with a worst drawdown of 36.6R and a losing 2023 (−17R). The video's bare 5m version lost on every market (gold 0.74 over 7,921 trades). With every filter, 5m and 15m still lost on gold, ETH, BTC, silver, SPX500, GBP/USD and EUR/JPY; NAS100 5m was the one exception, and one good result out of 16 can be luck. On 1h silver, SPX500, GBP/USD, EUR/JPY and BTC broke even or lost. These rules were picked from about 15 versions on eight markets, so expect live results below these numbers. Trade it small: gold and ETH on 1h, NAS100 on 5m.",
   },
 };

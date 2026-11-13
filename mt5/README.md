@@ -193,7 +193,7 @@ It can trade a live or demo account too, if your prop firm allows Expert Advisor
 
 ## 8/33 EMA with swing zones (PB_EMA833Zones_EA)
 
-**Playbook setups since Nov 2026: XAUUSD, NDX100 and ETHUSD on H1, at a quarter of the $10k Flex's risk.** Settings: **Trail = true**, **Session = London or NY**, the rest default. Tester runs: gold PF 1.35 (136 trades), NDX100 1.10 (178), ETHUSD 1.33 on all hours (181; re-run it with Session = London or NY). As one basket: PF 1.25, +90R, worst drawdown 36.6R.
+**Playbook setups since Nov 2026: XAUUSD and ETHUSD on H1, NDX100 on M5, at a quarter of the $10k Flex's risk.** NDX100 moved to M5 because the app found it the one market where 5m works with every filter (1,539 trades since 2020, PF 1.18, +212R, every year up; 5m and 15m lost on the other seven). To check it, run the tester on **NDX100, Timeframe M5**, same inputs, and save the report. The NAS100 M5 signals need the feed EA's **Write M5** input set to true (PB_BarFeed: right-click the chart → Expert list → Properties → Inputs). Settings: **Trail = true**, **Session = London or NY**, the rest default. Tester runs: gold PF 1.35 (136 trades), NDX100 1.10 (178), ETHUSD 1.33 on all hours (181; re-run it with Session = London or NY). As one basket: PF 1.25, +90R, worst drawdown 36.6R.
 
 Originally a research EA. It tests a YouTube strategy (8 and 33 EMA trend, a big-bodied candle that retests the 8 EMA and closes through the previous candle, stop at the 5-candle extreme, 1:3) with a filter that skips any trade whose path to the target crosses a recent swing high or low. On 5m and 15m it loses on every market; on H1 with the filter the app found a small edge on most markets. Run it here to see if FundingPips' own tester agrees before trusting it.
 

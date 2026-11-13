@@ -52,7 +52,7 @@ export const TESTER_REPORTS: TesterReportInfo[] = [
     title: "8/33 EMA + Swing Zones basket",
     market: "Gold + NAS100 + ETH",
     timeframe: "1h",
-    note: "The three 8/33 EMA runs below as one account: every trade by its close time, one position per market. The three markets were picked because they did best in the app's test of eight, so expect less live. The ETH run is all hours, not London or New York only like the other two and the live signals; re-run it with Session = London or NY.",
+    note: "The three 8/33 EMA runs below as one account: every trade by its close time, one position per market. The three markets were picked because they did best in the app's test of eight, so expect less live. The ETH run is all hours, not London or New York only like the other two and the live signals; re-run it with Session = London or NY. The live NAS100 signals are on 5m, not the 1h run here.",
   },
   {
     slug: "ema833-zones-xauusd-1h",
@@ -67,10 +67,11 @@ export const TESTER_REPORTS: TesterReportInfo[] = [
     slug: "ema833-zones-nas100-1h",
     file: "833_EMA_LN_NY_NDX100.xlsx",
     setupId: "ema833-zones:NAS100:1h",
+    research: true,
     title: "8/33 EMA + Swing Zones",
     market: "NAS100",
     timeframe: "1h",
-    note: "London or New York hours, stepped trail from 3R. Traded at a quarter of the account's risk.",
+    note: "London or New York hours, stepped trail from 3R. The Playbook now signals NAS100 on 5m instead (the app: PF 1.18 on 5m vs 1.23 on 1h, but about 4 trades a week instead of 0.5). Run PB_EMA833Zones_EA on NDX100 M5 with the same inputs to check it.",
   },
   {
     slug: "ema833-zones-ethusd-1h",

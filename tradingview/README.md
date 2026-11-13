@@ -16,7 +16,7 @@ Four scripts cover the 8 setups; `ny-inside-bar-strategy.pine` is kept for the r
 | S&P 500 Liquidity Reversal, 4h | `liquidity-reversal-strategy.pine` | 4h | Fixed target 2 | 0.0037 (default) | 34 trades, 47.1% won, PF 1.73 |
 | GBP/USD Liquidity Reversal, 1h | `liquidity-reversal-strategy.pine` | 1h | Fixed target 2 | 0.0057 | 134 trades, 42.5% won, PF 1.38 |
 | EUR/USD Liquidity Reversal, 1h | `liquidity-reversal-strategy.pine` | 1h | Fixed target 0 (swing target) | 0.0031 | 124 trades, 30.6% won, PF 1.23 (since 2020-05) |
-| Gold / NAS100 / ETH 8/33 EMA + Swing Zones, 1h (quarter risk) | `ema833-zones-strategy.pine` | 1h | defaults (London or NY, stepped trail) | 0.0043 gold (default) / 0.0031 NAS100 / 0.0512 ETH | gold 135 trades, 30.4% won, PF 1.51; NAS100 177, PF 1.23; ETH 165, PF 1.17. No R panel: read the Strategy Tester tab |
+| Gold / ETH 8/33 EMA + Swing Zones 1h, NAS100 5m (quarter risk) | `ema833-zones-strategy.pine` | 1h (gold, ETH) / 5m (NAS100) | defaults (London or NY, stepped trail) | 0.0043 gold (default) / 0.0031 NAS100 / 0.0512 ETH | gold 135 trades, 30.4% won, PF 1.51; NAS100 177, PF 1.23; ETH 165, PF 1.17. No R panel: read the Strategy Tester tab |
 | *Retired:* NAS100 / S&P 500 NY Inside Bar, 15m | `ny-inside-bar-strategy.pine` | 15m | defaults | 0.0031 / 0.0037 | NAS100 1,877 trades, 49.4% won, PF 0.90; S&P 500 PF 0.78 (it loses) |
 
 The commission is FundingPips' spread plus commission as a percent of price, charged on entry and on exit, so the results are after costs like the app's.

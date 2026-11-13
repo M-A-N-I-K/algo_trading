@@ -103,7 +103,7 @@ export const PLAYBOOK_ACCOUNTS: readonly PlaybookAccount[] = [
       // The 8/33 EMA basket: about 1.4 trades a week between them, but a 36.6R
       // drawdown as a basket in the tester, so a quarter size (about 9% of the account).
       { id: "ema833-zones:XAUUSDT:1h", riskScale: 0.25, why: "8/33 EMA basket: tester PF 1.33 on gold, but 9 losses in a row and found by trying many versions: quarter size" },
-      { id: "ema833-zones:NAS100:1h", riskScale: 0.25, why: "8/33 EMA basket: PF 1.23 in the app, 1.10 in the tester: quarter size" },
+      { id: "ema833-zones:NAS100:5m", riskScale: 0.25, why: "8/33 EMA on NAS100 5m: PF 1.18, every year since 2020 up, about 4 trades a week; picked after 5m lost on the other seven markets: quarter size" },
       { id: "ema833-zones:ETHUSDT:1h", riskScale: 0.25, why: "8/33 EMA basket: PF 1.17 on the app's 1h bars, 16 losses in a row: quarter size" },
     ],
   },
@@ -237,7 +237,10 @@ export const PLAYBOOK_SETUPS: PlaybookSetup[] = [
   // the Flex's plan only: on the Pro that drawdown is past the 6% limit.
   ...[
     setup("XAUUSDT", "XAUUSD", "ema833-zones", "8/33 EMA + Swing Zones", "1h", { trades: 135, winRatePct: 30.4, avgR: 0.37, profitFactor: 1.51, perWeek: 0.39, maxDrawdownR: 10.8, maxLossStreak: 9, weeks: 350 }),
-    setup("NAS100", "NDX100", "ema833-zones", "8/33 EMA + Swing Zones", "1h", { trades: 177, winRatePct: 29.4, avgR: 0.16, profitFactor: 1.23, perWeek: 0.5, maxDrawdownR: 12.3, maxLossStreak: 12, weeks: 356 }),
+    // NAS100 on 5m (1h: PF 1.23 in the app, 1.10 in the tester). 5m and 15m lost on
+    // the other seven markets, gold and ETH included; NAS100 5m made money every
+    // year since 2020 and held at double costs, but it is one pick out of 16.
+    setup("NAS100", "NDX100", "ema833-zones", "8/33 EMA + Swing Zones", "5m", { trades: 1539, winRatePct: 28.6, avgR: 0.14, profitFactor: 1.18, perWeek: 4.3, maxDrawdownR: 28.7, maxLossStreak: 16, weeks: 358 }),
     // Weaker on the app's 1h bars than on 1m (PF 1.30) or the MT5 tester (1.33, all hours).
     setup("ETHUSDT", "ETHUSD", "ema833-zones", "8/33 EMA + Swing Zones", "1h", { trades: 165, winRatePct: 29.7, avgR: 0.13, profitFactor: 1.17, perWeek: 0.46, maxDrawdownR: 19.5, maxLossStreak: 16, weeks: 357 }),
   ].map((s): PlaybookSetup => ({ ...s, riskScale: 0.25, ungradedFullRisk: true })),
