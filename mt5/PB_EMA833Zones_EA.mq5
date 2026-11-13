@@ -6,7 +6,7 @@
 //| checked in FundingPips' own Strategy Tester.                   |
 //|                                                                |
 //| Port of the app research script ema833.mts (tf 60, rr 3,       |
-//| zones on), run on closed H1 bars:                              |
+//| zones on), run on the chart's closed bars (H1, or M5 NDX100): |
 //| 1 Trend   : EMA8 above EMA33 (buys) / below (sells).           |
 //| 2 Candle  : closes beyond both EMAs, body >= 60% of its range, |
 //|             in the trend direction.                            |
@@ -20,7 +20,7 @@
 //| 7 Zones   : skip if any swing high/low (3 candles each side)   |
 //|             of the last 200 candles lies between entry and     |
 //|             target + 0.25R.                                    |
-//| Market order at the next H1 open, one trade at a time, held    |
+//| Market order at the next bar's open, one trade at a time, held |
 //| until the stop or target (no time exit).                       |
 //| Session (All by default): only take signals whose candle closes |
 //| in London 08:00-16:30 London time and/or New York 08:00-17:00  |
@@ -29,8 +29,8 @@
 //| at 4R to 3R, and so on, one R behind the best R reached.       |
 //+------------------------------------------------------------------+
 #property copyright "Playbook"
-#property version   "1.20"
-#property description "Research Strategy Tester EA: 8/33 EMA dominance candle with swing-zone filter, H1, 1:3. Not part of the Playbook."
+#property version   "1.30"
+#property description "8/33 EMA dominance candle with swing-zone filter on the chart timeframe (Playbook: gold and ETH H1, NDX100 M5)."
 #include <Trade/Trade.mqh>
 
 enum ENUM_SESS { SESS_ALL = 0,    // All hours
@@ -67,10 +67,10 @@ input long   InpMagic     = 260920; // Magic number
 input bool   InpLog       = true;   // Write each trade to the journal
 
 #define EA_NAME "PB_EMA833Zones"
-#define BARS    1500   // H1 candles read each hour (EMA warm-up + 200 zone candles)
+#define BARS    1500   // candles read each new bar (EMA warm-up + 200 zone candles)
 
 CTrade   trade;
-datetime g_lastH1 = 0, g_lastTraded = 0;
+datetime g_lastBar = 0, g_lastTraded = 0;
 double   g_entry = 0, g_risk = 0;   // the signal's entry (its close) and risk, for the trailing steps
 ulong    g_ticket = 0;
 double   O[], H[], L[], C[], EF[], ES[];
@@ -204,9 +204,9 @@ void Compute()
 {
    MqlRates r[];
    ArraySetAsSeries(r, false);
-   int got = CopyRates(_Symbol, PERIOD_H1, 1, BARS, r);      // closed candles only, oldest first
+   int got = CopyRates(_Symbol, _Period, 1, BARS, r);        // the chart's timeframe, closed candles only, oldest first
    if(got < InpZoneLook + 50) return;
-   g_lastH1 = iTime(_Symbol, PERIOD_H1, 0);
+   g_lastBar = iTime(_Symbol, _Period, 0);
    ArrayResize(O, got); ArrayResize(H, got); ArrayResize(L, got); ArrayResize(C, got); ArrayResize(T, got);
    for(int i = 0; i < got; i++) { O[i] = r[i].open; H[i] = r[i].high; L[i] = r[i].low; C[i] = r[i].close; T[i] = r[i].time; }
    Ema(C, got, InpFast, EF);
@@ -216,7 +216,7 @@ void Compute()
    bool first = g_lastTraded == 0;
    g_lastTraded = T[j];
    if(first) return;                                          // never trade a candle from before the EA started
-   if(!InSession(T[j] + 3600)) return;                        // the signal candle closes outside the session
+   if(!InSession(T[j] + PeriodSeconds(_Period))) return;     // the signal candle closes outside the session
    for(int s = 1; s >= -1; s -= 2)
    {
       if(s > 0 && !InpLong) continue;
@@ -274,7 +274,7 @@ void Trail()
 void OnTick()
 {
    Trail();
-   datetime h1 = iTime(_Symbol, PERIOD_H1, 0);
-   if(h1 != 0 && h1 != g_lastH1) Compute();   // once per new H1 bar
+   datetime bar = iTime(_Symbol, _Period, 0);
+   if(bar != 0 && bar != g_lastBar) Compute();   // once per new bar on the chart's timeframe
 }
 //+------------------------------------------------------------------+
