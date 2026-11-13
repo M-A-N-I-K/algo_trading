@@ -100,10 +100,11 @@ export const PLAYBOOK_ACCOUNTS: readonly PlaybookAccount[] = [
       { id: "sr-sweep-trendline:NAS100:1h", riskScale: 1, why: "Best tester result: PF 2.26, +48.8R, worst drawdown 7.8R" },
       { id: "smc:XAUUSDT:4h", riskScale: 1, why: "Tester PF 1.50, but 8 losses in a row in the backtest: too deep for the Pro" },
       { id: "liquidity-reversal:GBPUSD:1h", riskScale: 0.5, why: "Tester PF 1.37 with a 12.6R drawdown, the whole max loss at full risk: half size" },
-      // The 8/33 EMA basket: about 1.4 trades a week between them, but a 36.6R
-      // drawdown as a basket in the tester, so a quarter size (about 9% of the account).
+      // The 8/33 EMA basket (gold 1h, ETH 1h, NAS100 5m): about 5 trades a week
+      // between them, but a 38.3R drawdown as a basket in the tester, so a
+      // quarter size (about 9.6% of the account).
       { id: "ema833-zones:XAUUSDT:1h", riskScale: 0.25, why: "8/33 EMA basket: tester PF 1.33 on gold, but 9 losses in a row and found by trying many versions: quarter size" },
-      { id: "ema833-zones:NAS100:5m", riskScale: 0.25, why: "8/33 EMA on NAS100 5m: PF 1.18, every year since 2020 up, about 4 trades a week; picked after 5m lost on the other seven markets: quarter size" },
+      { id: "ema833-zones:NAS100:5m", riskScale: 0.25, why: "8/33 EMA on NAS100 5m: tester PF 1.17 over 1,573 trades (app 1.18), about 4 a week, only 2023 lost; 5m lost on the other seven markets, so it may be luck: quarter size" },
       { id: "ema833-zones:ETHUSDT:1h", riskScale: 0.25, why: "8/33 EMA basket: PF 1.17 on the app's 1h bars, 16 losses in a row: quarter size" },
     ],
   },
@@ -231,10 +232,11 @@ export const PLAYBOOK_SETUPS: PlaybookSetup[] = [
   // app's engine at the platform's costs. The video's own 5m version lost on
   // every market; these rules were found by testing about 15 versions on
   // eight markets and keeping the three that did best, so expect less live.
-  // As one basket in MT5's Strategy Tester (ETH run on all hours): PF 1.25,
-  // +90R over 495 trades, 1.4 a week, worst drawdown 36.6R, 2023 lost 17R. So
-  // it trades at a quarter of the account's risk (36.6R = 9% of the Flex), in
-  // the Flex's plan only: on the Pro that drawdown is past the 6% limit.
+  // As one basket in MT5's Strategy Tester (gold and ETH 1h, NAS100 5m; ETH
+  // run on all hours): PF 1.20, +274R over 1,890 trades, 5.3 a week, worst
+  // drawdown 38.3R, 2023 lost 15R. So it trades at a quarter of the account's
+  // risk (38.3R = 9.6% of the Flex), in the Flex's plan only: on the Pro that
+  // drawdown is past the 6% limit (the tester's Pro breach: 24% at half edge).
   ...[
     setup("XAUUSDT", "XAUUSD", "ema833-zones", "8/33 EMA + Swing Zones", "1h", { trades: 135, winRatePct: 30.4, avgR: 0.37, profitFactor: 1.51, perWeek: 0.39, maxDrawdownR: 10.8, maxLossStreak: 9, weeks: 350 }),
     // NAS100 on 5m (1h: PF 1.23 in the app, 1.10 in the tester). 5m and 15m lost on

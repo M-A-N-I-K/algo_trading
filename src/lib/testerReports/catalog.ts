@@ -47,12 +47,12 @@ export const TESTER_REPORTS: TesterReportInfo[] = [
   {
     slug: "ema833-zones-basket-1h",
     file: "",
-    parts: ["ema833-zones-xauusd-1h", "ema833-zones-nas100-1h", "ema833-zones-ethusd-1h"],
+    parts: ["ema833-zones-xauusd-1h", "ema833-zones-nas100-5m", "ema833-zones-ethusd-1h"],
     setupId: "ema833-zones:XAUUSDT:1h",
     title: "8/33 EMA + Swing Zones basket",
     market: "Gold + NAS100 + ETH",
-    timeframe: "1h",
-    note: "The three 8/33 EMA runs below as one account: every trade by its close time, one position per market. The three markets were picked because they did best in the app's test of eight, so expect less live. The ETH run is all hours, not London or New York only like the other two and the live signals; re-run it with Session = London or NY. The live NAS100 signals are on 5m, not the 1h run here.",
+    timeframe: "1h + 5m",
+    note: "The three 8/33 EMA runs below as one account: every trade by its close time, one position per market. The three markets were picked because they did best in the app's test of eight, so expect less live. The ETH run is all hours, not London or New York only like the other two and the live signals; re-run it with Session = London or NY. NAS100 is the 5m run, as the live signals trade it; gold and ETH are 1h.",
   },
   {
     slug: "ema833-zones-xauusd-1h",
@@ -80,7 +80,7 @@ export const TESTER_REPORTS: TesterReportInfo[] = [
     title: "8/33 EMA + Swing Zones",
     market: "NAS100",
     timeframe: "5m",
-    note: "The live NAS100 signal: London or New York hours, stepped trail from 3R. Moved here from 1h because NAS100 was the one market where 5m worked in the app; 5m and 15m lost on the other seven, so this is one pick out of 16. This run has Stop lookback 7, not the default 5: the app with 7 makes 1,351 trades, PF 1.17, worst drawdown 42.2R and a losing 2023, close to this run; with 5 the app makes 1,539 trades, PF 1.18, drawdown 28.7R and every year up. Re-run with 5 to test the live rules. Traded at a quarter of the account's risk.",
+    note: "The live NAS100 signal: London or New York hours, stepped trail from 3R. Moved here from 1h because NAS100 was the one market where 5m worked in the app; 5m and 15m lost on the other seven, so this is one pick out of 16. The app on the same bars: 1,539 trades, PF 1.18, +212R, worst drawdown 28.7R; this run 1,573, 1.17, +197R, 32.3R, so the two agree. Just under the 1.2 bar for a challenge on its own, and far better than the 1h run (1.10). Traded at a quarter of the account's risk.",
   },
   {
     slug: "ema833-zones-ethusd-1h",
