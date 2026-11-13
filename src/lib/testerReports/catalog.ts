@@ -74,6 +74,15 @@ export const TESTER_REPORTS: TesterReportInfo[] = [
     note: "London or New York hours, stepped trail from 3R. The Playbook now signals NAS100 on 5m instead (the app: PF 1.18 on 5m vs 1.23 on 1h, but about 4 trades a week instead of 0.5). Run PB_EMA833Zones_EA on NDX100 M5 with the same inputs to check it.",
   },
   {
+    slug: "ema833-zones-nas100-5m",
+    file: "833_EMA_5M_LN_NY.xlsx",
+    setupId: "ema833-zones:NAS100:5m",
+    title: "8/33 EMA + Swing Zones",
+    market: "NAS100",
+    timeframe: "5m",
+    note: "The live NAS100 signal: London or New York hours, stepped trail from 3R. Moved here from 1h because NAS100 was the one market where 5m worked in the app; 5m and 15m lost on the other seven, so this is one pick out of 16. This run has Stop lookback 7, not the default 5: the app with 7 makes 1,351 trades, PF 1.17, worst drawdown 42.2R and a losing 2023, close to this run; with 5 the app makes 1,539 trades, PF 1.18, drawdown 28.7R and every year up. Re-run with 5 to test the live rules. Traded at a quarter of the account's risk.",
+  },
+  {
     slug: "ema833-zones-ethusd-1h",
     file: "833EMA_ETH.xlsx",
     setupId: "ema833-zones:ETHUSDT:1h",
