@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import TradesTable from "@/components/trading-journal/TradesTable";
 import { useDashboard } from "@/components/trading-journal/DashboardContext";
+import { AccountNotice, AccountSelect, useAccountTrades } from "@/components/trading-journal/AccountSource";
 import { STRATEGY_CATALOG } from "@/lib/strategyCatalog";
 import { pnlBreakdown, summarize } from "@/lib/journal/metrics";
 import { Button, Panel, Segmented, SelectInput, Stat, TextInput, money, pct, toneClass } from "@/components/kit";
@@ -12,7 +13,9 @@ type Outcome = "ALL" | "WIN" | "LOSS";
 type Side = "ALL" | "LONG" | "SHORT";
 
 export default function TradesPage() {
-  const { trades, symbols, openTradeForm, handleDeleteTrade, openNotes } = useDashboard();
+  const { openTradeForm, handleDeleteTrade } = useDashboard();
+  const { source, chooseSource, isCoinDcx, trades, symbols, error, empty, canModify, inspect } = useAccountTrades();
+  const accountLabel = isCoinDcx ? "CoinDCX" : "this account's";
 
   const [symbol, setSymbol] = useState("ALL");
   const [strategy, setStrategy] = useState("ALL");
@@ -55,6 +58,13 @@ export default function TradesPage() {
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
+        <AccountSelect
+          value={source}
+          onChange={(key) => {
+            chooseSource(key);
+            reset();
+          }}
+        />
         <Segmented
           label="Outcome"
           value={outcome}
@@ -106,6 +116,8 @@ export default function TradesPage() {
         </div>
       </div>
 
+      <AccountNotice error={error} empty={empty} />
+
       <div className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-[10px] border border-rule bg-deck px-5 py-4 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label={isFiltered ? "Matching trades" : "Trades"} value={b.count} note={s.winRate == null ? undefined : `${pct(s.winRate, 0)} won`} />
         <Stat label="Net" value={money(b.net)} tone={toneClass(b.net)} />
@@ -115,12 +127,15 @@ export default function TradesPage() {
         <Stat label="Expectancy" value={s.expectancy == null ? "—" : money(s.expectancy)} note="Per trade, net" />
       </div>
 
-      <Panel title={isFiltered ? `${filtered.length} of ${trades.length} trades` : "All trades"} note="Select a trade to open its notes, tags and checklist.">
+      <Panel title={isFiltered ? `${filtered.length} of ${trades.length} trades` : `All ${accountLabel} trades`}
+        note={isCoinDcx ? "Select a trade to open its notes, tags and checklist." : "Trades logged in the Playbook open there; trades linked from this page open their notes."}
+      >
         <TradesTable
           filteredTrades={filtered}
           onEdit={(t) => openTradeForm(t)}
           onDelete={handleDeleteTrade}
-          onInspect={(t) => openNotes(t)}
+          onInspect={inspect}
+          canModify={canModify}
           isFullLog
         />
       </Panel>

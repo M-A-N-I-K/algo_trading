@@ -18,6 +18,8 @@ interface TradesTableProps {
   /** Full journal view: taller scroll area and every column. */
   isFullLog?: boolean;
   hideActions?: boolean;
+  /** Per-row: false hides that row's edit and delete buttons. */
+  canModify?: (t: Trade) => boolean;
   timeOnly?: boolean;
   /** Kept for call-site compatibility; filters now live on the journal page. */
   symbols?: string[];
@@ -40,6 +42,7 @@ export default function TradesTable({
   onInspect,
   isFullLog = false,
   hideActions = false,
+  canModify,
   timeOnly = false,
 }: TradesTableProps) {
   const th = "sticky top-0 z-[1] bg-deck py-2.5 pr-4 text-left text-xs font-normal text-mist";
@@ -147,6 +150,7 @@ export default function TradesTable({
                 </td>
                 {!hideActions && (
                   <td className="py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                    {canModify && !canModify(t) ? null : (
                     <div className="flex justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                       <button
                         type="button"
@@ -165,6 +169,7 @@ export default function TradesTable({
                         <Trash2 size={14} />
                       </button>
                     </div>
+                    )}
                   </td>
                 )}
               </tr>

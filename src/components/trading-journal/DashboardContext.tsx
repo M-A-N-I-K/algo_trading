@@ -246,6 +246,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       }),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: TRADES_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ["playbook-account-trades"] });
       // A trade linked to a prop account changes that account's Playbook view.
       queryClient.invalidateQueries({ queryKey: ["playbook"] });
       queryClient.invalidateQueries({ queryKey: ["playbook-signals"] });
@@ -283,6 +284,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: TRADES_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ["playbook-account-trades"] });
       // A trade linked to a prop account changes that account's Playbook view.
       queryClient.invalidateQueries({ queryKey: ["playbook"] });
       queryClient.invalidateQueries({ queryKey: ["playbook-signals"] });
@@ -320,6 +322,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: TRADES_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ["playbook-account-trades"] });
       addNotification("Strategy notes saved successfully!", "success");
       closeNotes();
     },
