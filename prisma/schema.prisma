@@ -66,6 +66,7 @@ model User {
   backtestRuns    BacktestRun[]
   walletTransactions CoindcxWalletTransaction[]
   playbookTrades  PlaybookTrade[]
+  playbookCheckIns PlaybookCheckIn[]
   mt5Trades       Mt5Trade[]
 
   @@map("users")
@@ -498,6 +499,23 @@ model PlaybookTrade {
   @@index([userId, status])
   @@index([userId, accountId, status])
   @@map("playbook_trades")
+}
+
+// A trading day closed out on the Playbook's discipline streak: the manual
+// rules ticked that day (src/lib/playbook/discipline.ts). The automatic rules
+// are worked out from the journal, so only the ticks are stored.
+model PlaybookCheckIn {
+  id        String   @id @default(uuid())
+  userId    String
+  day       String   // platform day, YYYY-MM-DD
+  kept      String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, day])
+  @@map("playbook_check_ins")
 }
 
 // A position from a MetaTrader 5 account (the FundingPips prop account),

@@ -36,7 +36,7 @@ async function send(url: string, method: string, body: unknown) {
 
 function useRefresh() {
   const qc = useQueryClient();
-  return () => Promise.all([qc.invalidateQueries({ queryKey: PLAYBOOK_KEY }), qc.invalidateQueries({ queryKey: PLAYBOOK_SIGNALS_KEY })]);
+  return () => Promise.all([qc.invalidateQueries({ queryKey: PLAYBOOK_KEY }), qc.invalidateQueries({ queryKey: PLAYBOOK_SIGNALS_KEY }), qc.invalidateQueries({ queryKey: ["playbook-discipline"] })]);
 }
 
 const ICON = {

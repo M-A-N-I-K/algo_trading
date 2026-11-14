@@ -117,7 +117,10 @@ export const PLAYBOOK_ACCOUNTS: readonly PlaybookAccount[] = [
     targetPct: 6,
     timeZone: FUNDINGPIPS_TZ,
     priorPnl: 0,
-    rules: { ...SHARED_RULES, riskPctA: 0.75, riskPctB: null, dailyStopPct: 1.5 },
+    // 0.5% from 16 Nov 2026 (was 0.75%): after week 46 only $242 of room was
+    // left above the floor, about 6 losses at 0.75%. Back to 0.75% once the
+    // balance is above $5,000 again.
+    rules: { ...SHARED_RULES, riskPctA: 0.5, riskPctB: null, dailyStopPct: 1.5 },
     // 6% of room is 8R at 0.75%: only setups whose tester drawdown stayed
     // near 4–6R and whose worst losing streak was 4 or fewer.
     setups: [

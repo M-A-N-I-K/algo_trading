@@ -13,6 +13,7 @@ import { fmtPrice } from "@/lib/plan/weeklyPlan";
 import { cn } from "@/lib/utils";
 import { CloseTradeDialog, EditTradeDialog, PLAYBOOK_KEY, PLAYBOOK_SIGNALS_KEY, PlanTradeDialog, type PlanDefaults } from "./TradeDialogs";
 import { registerSpecs, type SymbolSpec } from "@/lib/mt5/specs";
+import DisciplinePanel from "./DisciplinePanel";
 
 interface SignalsResponse {
   asOf: number;
@@ -598,6 +599,7 @@ export default function PlaybookBoard() {
         </p>
         <Button variant="primary" onClick={() => setPlan({})}><Plus size={16} aria-hidden="true" /> Plan a trade</Button>
       </div>
+      <DisciplinePanel />
       <AccountSwitcher view={view} onSelect={selectAccount} />
       <AccountPanel view={view} />
       <SignalsPanel account={view.account} onPlan={setPlan} freeSlots={Math.max(0, view.rules.maxOpen - view.status.openCount)} />
