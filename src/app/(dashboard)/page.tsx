@@ -1,15 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import TradesTable from "@/components/trading-journal/TradesTable";
 import LossLimitBanner from "@/components/trading-journal/LossLimitBanner";
 import LivePulse from "@/components/market-pulse/LivePulse";
 import PlanCard from "@/components/plan/PlanCard";
 import MarketInsightCard from "@/components/trading-journal/MarketInsightCard";
 import PnlCalendar from "@/components/trading-journal/PnlCalendar";
-import { useDashboard } from "@/components/trading-journal/DashboardContext";
+import { useDashboard, type Trade } from "@/components/trading-journal/DashboardContext";
+import { PLAYBOOK_ACCOUNTS } from "@/lib/playbook/config";
+import { fetchJson } from "@/lib/apiClient";
 import type { DashboardSectionKey } from "@/components/dashboard/sections";
 import PnlBridge from "@/components/viz/PnlBridge";
 import EquityChart from "@/components/viz/EquityChart";
@@ -46,6 +49,24 @@ function periodStart(key: PeriodKey): number {
   return now.getTime() - days * 24 * 60 * 60 * 1000;
 }
 
+// Whose trades the dashboard shows: CoinDCX futures, or one funding account.
+// Never mixed: they're different money with different rules.
+const COINDCX = "coindcx";
+const SOURCES = [
+  { key: COINDCX, label: "CoinDCX futures" },
+  ...PLAYBOOK_ACCOUNTS.map((a) => ({ key: a.id, label: a.name })),
+];
+const SOURCE_STORAGE_KEY = "dashboard-source";
+
+function readStoredSource(): string {
+  try {
+    const v = window.localStorage.getItem(SOURCE_STORAGE_KEY);
+    return v && SOURCES.some((s) => s.key === v) ? v : COINDCX;
+  } catch {
+    return COINDCX;
+  }
+}
+
 const EXIT_LABELS: Record<string, string> = {
   tpsl: "Take-profit or stop",
   manual: "Closed by hand",
@@ -61,8 +82,31 @@ interface FundingStats {
 }
 
 export default function DashboardPage() {
-  const { trades, symbols, hiddenKpiCards, openTradeForm, handleDeleteTrade, openNotes } = useDashboard();
+  const { trades: journalTrades, hiddenKpiCards, openTradeForm, handleDeleteTrade, openNotes } = useDashboard();
+  const router = useRouter();
   const [period, setPeriod] = useState<PeriodKey>("all");
+  const [source, setSource] = useState<string>(COINDCX);
+  useEffect(() => setSource(readStoredSource()), []);
+  const chooseSource = (key: string) => {
+    setSource(key);
+    try {
+      window.localStorage.setItem(SOURCE_STORAGE_KEY, key);
+    } catch {
+      // Not remembered in private windows; the choice still applies.
+    }
+  };
+  const isCoinDcx = source === COINDCX;
+
+  const coindcxTrades = useMemo(() => journalTrades.filter((t) => !t.playbookAccountId), [journalTrades]);
+  const accountTrades = useQuery({
+    queryKey: ["playbook-account-trades", source],
+    queryFn: () => fetchJson<Trade[]>(`/api/playbook/account-trades?account=${encodeURIComponent(source)}`),
+    enabled: !isCoinDcx,
+  });
+  const trades = useMemo(() => (isCoinDcx ? coindcxTrades : (accountTrades.data ?? [])), [isCoinDcx, coindcxTrades, accountTrades.data]);
+  const symbols = useMemo(() => Array.from(new Set(trades.map((t) => t.symbol))), [trades]);
+  // Playbook-logged trades are edited on the Playbook page; journal trades here.
+  const inspect = (t: Trade) => (t.id.startsWith("playbook:") ? router.push("/playbook") : openNotes(t));
   const hidden = new Set(hiddenKpiCards);
   const show = (key: DashboardSectionKey) => !hidden.has(key);
 
@@ -107,10 +151,24 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <LossLimitBanner trades={trades} />
+      {isCoinDcx && <LossLimitBanner trades={coindcxTrades} />}
 
-      <div className="mb-8 flex flex-wrap items-center gap-3" role="group" aria-label="Period">
-        <div className="inline-flex rounded-md border border-rule bg-deck p-0.5">
+      <div className="mb-8 flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-sm text-fog">
+          <span>Account</span>
+          <select
+            value={source}
+            onChange={(e) => chooseSource(e.target.value)}
+            className="rounded-md border border-rule bg-deck px-3 py-1.5 text-sm text-paper focus:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+          >
+            {SOURCES.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="inline-flex rounded-md border border-rule bg-deck p-0.5" role="group" aria-label="Period">
           {PERIODS.map((p) => (
             <button
               key={p.key}
@@ -125,7 +183,7 @@ export default function DashboardPage() {
             </button>
           ))}
         </div>
-        {Math.abs(openFunding) >= 0.005 && (
+        {isCoinDcx && Math.abs(openFunding) >= 0.005 && (
           <p className="text-sm text-fog">
             Open positions have {openFunding < 0 ? "paid" : "received"}{" "}
             <span className="text-funding-ink">{money(Math.abs(openFunding), { sign: false })}</span> in funding so far.
@@ -133,7 +191,14 @@ export default function DashboardPage() {
         )}
       </div>
 
-      <PnlBridge breakdown={m.breakdown} summary={m.summary} fundingEvents={fundingStats.data?.eventCount} />
+      {!isCoinDcx && accountTrades.error && (
+        <p className="mb-6 text-sm text-loss-ink">Couldn&apos;t load this account&apos;s trades: {accountTrades.error.message}</p>
+      )}
+      {!isCoinDcx && accountTrades.isSuccess && trades.length === 0 && (
+        <p className="mb-6 text-sm text-fog">No closed trades on this account yet.</p>
+      )}
+
+      <PnlBridge breakdown={m.breakdown} summary={m.summary} fundingEvents={isCoinDcx ? fundingStats.data?.eventCount : undefined} />
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
         {show("plan") && <PlanCard className="xl:col-span-12" />}
@@ -210,7 +275,7 @@ export default function DashboardPage() {
 
         {show("calendar") && (
           <div className="xl:col-span-12">
-            <PnlCalendar trades={trades} onInspect={(t) => openNotes(t)} />
+            <PnlCalendar key={source} trades={trades} onInspect={inspect} />
           </div>
         )}
 
@@ -219,17 +284,18 @@ export default function DashboardPage() {
             className="xl:col-span-12"
             title="Recent trades"
             aside={
-              <Link href="/trades" className="text-sm text-signal hover:underline">
-                Open the journal
+              <Link href={isCoinDcx ? "/trades" : "/playbook"} className="text-sm text-signal hover:underline">
+                {isCoinDcx ? "Open the journal" : "Open the Playbook"}
               </Link>
             }
           >
             <TradesTable
               filteredTrades={recent}
               symbols={symbols}
-              onEdit={(t) => openTradeForm(t)}
-              onDelete={handleDeleteTrade}
-              onInspect={(t) => openNotes(t)}
+              onEdit={isCoinDcx ? (t) => openTradeForm(t) : undefined}
+              onDelete={isCoinDcx ? handleDeleteTrade : undefined}
+              onInspect={inspect}
+              hideActions={!isCoinDcx}
               isFullLog={false}
             />
           </Panel>
