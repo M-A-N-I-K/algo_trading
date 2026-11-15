@@ -2,13 +2,13 @@ import Link from "next/link";
 import { Callout, Tag, tableClass, tdClass, thClass } from "@/components/kit";
 import { signedNumber, toneClass } from "@/components/viz/format";
 import { VerdictPill } from "@/components/testerReports/parts";
-import { loadDashboards } from "@/lib/testerReports/dashboard";
+import { loadSummaries } from "@/lib/testerReports/dashboard";
 import { cn } from "@/lib/utils";
 
 const R = (v: number) => signedNumber(v, 1, "R");
 
 export default async function TesterReportsPage() {
-  const all = await loadDashboards();
+  const all = await loadSummaries();
   return (
     <div className="flex flex-col gap-6">
       <Callout title="What these are">
