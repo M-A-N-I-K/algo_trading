@@ -3,6 +3,7 @@ import { signedNumber, toneClass } from "@/components/viz/format";
 import type { ChallengeResult } from "@/lib/testerReports/analyze";
 import type { AccountView, Dashboard } from "@/lib/testerReports/dashboard";
 import { cn } from "@/lib/utils";
+import FullReport from "./FullReport";
 import { BackLink, Bar, RCurve, Section, Stepper, VerdictPill } from "./parts";
 
 const R = (v: number, d = 1) => signedNumber(v, d, "R");
@@ -51,6 +52,10 @@ export default function TesterReportView({ d }: { d: Dashboard }) {
         <p className="text-[13px] text-fog">
           MT5 Strategy Tester: {d.meta.expert} on {d.meta.symbol}, {d.meta.period}, history quality {d.meta.historyQuality}, FundingPips spreads and commission. Every result is in R: the P&amp;L
           over what the trade&apos;s stop would have lost, so lot rounding doesn&apos;t blur it.
+        </p>
+        <p className="text-[13px]">
+          <a href="#report" className="text-signal underline-offset-4 hover:underline">Jump to the full report</a>
+          <span className="text-mist"> · balance and drawdown, month by month, splits, every trade</span>
         </p>
         {info.note && <Callout tone="warning">{info.note}</Callout>}
       </div>
@@ -269,6 +274,8 @@ export default function TesterReportView({ d }: { d: Dashboard }) {
           </p>
         </div>
       </section>
+
+      <FullReport d={d} />
     </div>
   );
 }

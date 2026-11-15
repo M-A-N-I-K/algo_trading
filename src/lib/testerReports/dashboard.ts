@@ -5,6 +5,7 @@ import { accountSetup, OTHER_SETUP_RISK_SCALE, PLAYBOOK_ACCOUNTS, setupById, typ
 import { setupRiskScale } from "@/lib/playbook/rules";
 import { days, numbers, simulateChallenge, streaks, verdict, type ChallengeResult, type Days, type Numbers, type ReportTrade, type Streaks } from "./analyze";
 import { TESTER_REPORTS, type TesterReportInfo } from "./catalog";
+import { fullReport, type FullReport } from "./report";
 
 export interface AccountView {
   account: PlaybookAccount;
@@ -25,6 +26,7 @@ export interface Dashboard {
   accounts: AccountView[];
   home: AccountView; // the account that trades it, or the Flex for a setup neither does
   verdict: ReturnType<typeof verdict>;
+  report: FullReport; // the MT5-style views: balance and drawdown over time, months, splits, trade list
 }
 
 interface ReportFile {
@@ -90,6 +92,7 @@ export function buildDashboard(info: TesterReportInfo, file: ReportFile, sims = 
     accounts,
     home,
     verdict: verdict(n, home.half),
+    report: fullReport(trades),
   };
 }
 
@@ -142,6 +145,12 @@ export async function loadSummaries(sims = 2000): Promise<SummaryRow[]> {
     ),
   );
   return all.filter((d): d is SummaryRow => d !== null);
+}
+
+/** One report's trades, for the CSV download. */
+export async function loadReportTrades(slug: string): Promise<ReportTrade[] | null> {
+  if (!TESTER_REPORTS.some((r) => r.slug === slug)) return null;
+  return (await loadFile(slug))?.trades ?? null;
 }
 
 /** Every report that has been imported, in catalog order, with every simulation. */
