@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { withOffPlanMistake } from "./config";
 
 // The live playbook changes as setups are re-tested; the rules don't. Two
 // retired setups are put back as active fixtures here so these tests keep
@@ -487,5 +488,16 @@ describe("index lot sizes", () => {
     expect(lotUnits("NDX100")).toBe(20);
     // 1% of $10k on a 50-point stop: $100 / (50 × 20) = 0.1 lot
     expect(sizePosition("NAS100", 25_000, 24_950, 100)?.lots).toBeCloseTo(0.1, 5);
+  });
+});
+
+describe("withOffPlanMistake", () => {
+  it("tags custom and linked journal trades as not a playbook signal, once", () => {
+    expect(withOffPlanMistake("custom:XAUUSDT", [])).toEqual(["not-in-playbook"]);
+    expect(withOffPlanMistake("journal:FOO", ["late-entry"])).toEqual(["late-entry", "not-in-playbook"]);
+    expect(withOffPlanMistake("custom:XAUUSDT", ["not-in-playbook"])).toEqual(["not-in-playbook"]);
+  });
+  it("leaves Playbook setups alone", () => {
+    expect(withOffPlanMistake("smc:XAUUSDT:4h", [])).toEqual([]);
   });
 });

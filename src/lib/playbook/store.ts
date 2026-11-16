@@ -2,7 +2,7 @@ import type { PlaybookTrade } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { appError } from "@/lib/errors";
 import { loadFeedSpecs } from "@/lib/mt5/feed";
-import { accountById, lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, loggableSetupById, setupById, type PlaybookAccount } from "./config";
+import { accountById, lotUnits, MANUAL_CHECKS, MISTAKES, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, loggableSetupById, setupById, withOffPlanMistake, type PlaybookAccount } from "./config";
 import { journalToEntry } from "./journalLink";
 import { accountStatus, adherence, hardFailures, preTradeChecks, scorecard, usdPerUnitMove, type AccountStatus, type Check, type JournalEntry } from "./rules";
 
@@ -35,7 +35,7 @@ export function toEntry(t: PlaybookTrade): JournalEntry {
     swap: t.swap,
     rMultiple: t.rMultiple,
     exitReason: t.exitReason,
-    mistakes: t.mistakes,
+    mistakes: withOffPlanMistake(t.setupId, t.mistakes),
     notes: t.notes,
   };
 }

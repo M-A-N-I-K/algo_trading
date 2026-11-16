@@ -325,6 +325,16 @@ export function customSetup(id: string): PlaybookSetup | undefined {
   };
 }
 
+/**
+ * A trade's mistakes with "not-in-playbook" always present when it wasn't a
+ * Playbook signal (a custom trade, or a journal trade linked to an account),
+ * so off-plan trades are counted as rule breaks even when nobody ticked it.
+ */
+export function withOffPlanMistake(setupId: string, mistakes: readonly string[]): string[] {
+  const offPlan = isCustomSetupId(setupId) || setupId.startsWith("journal:");
+  return offPlan && !mistakes.includes("not-in-playbook") ? [...mistakes, "not-in-playbook"] : [...mistakes];
+}
+
 /** Any setup, retired and custom ones included: for showing logged trades. */
 export const setupById = (id: string) => PLAYBOOK_SETUPS.find((s) => s.id === id) ?? RETIRED_SETUPS.find((s) => s.id === id) ?? customSetup(id);
 /** What a new trade can be logged on: a playbook setup or a custom trade. */
