@@ -20,6 +20,15 @@ export interface BacktestRunResult {
   trades: unknown[]; // the last 100 round trips, for display
   equityCurve: number[]; // evenly sampled across the whole run, for display
   metrics?: StoredBacktestMetrics;
+  // Where the candles came from and how many were used. Absent on runs saved
+  // before MT5 bars were used.
+  data?: {
+    source: "MT5" | "Binance" | "Yahoo";
+    requested: number;
+    candles: number;
+    from: number; // UTC ms
+    to: number;
+  };
 }
 
 export function isLegacyResult(result: Pick<BacktestRunResult, "metrics">): boolean {

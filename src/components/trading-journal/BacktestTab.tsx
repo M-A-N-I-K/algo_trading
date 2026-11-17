@@ -6,7 +6,7 @@ import { inputClass } from "@/components/kit";
 import TraderLoader from "@/components/trading-journal/TraderLoader";
 import BacktestHistoryPanel, { BacktestRunRecord } from "@/components/trading-journal/BacktestHistoryPanel";
 import { STRATEGY_CATALOG } from "@/lib/strategyCatalog";
-import type { StoredBacktestMetrics } from "@/db/repositories/backtestRunRepository";
+import type { BacktestRunResult, StoredBacktestMetrics } from "@/db/repositories/backtestRunRepository";
 
 interface BacktestTrade {
   side: "LONG" | "SHORT";
@@ -36,6 +36,32 @@ interface BacktestResult {
   equityCurve: number[];
   // Full-run metrics. Absent on legacy runs (saved before the simulation engine).
   metrics?: StoredBacktestMetrics;
+  // Where the candles came from. Absent on runs saved before MT5 bars were used.
+  data?: BacktestRunResult["data"];
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+  MT5: "MT5 (FundingPips prices)",
+  Binance: "Binance",
+  Yahoo: "Yahoo Finance",
+};
+
+const day = (ms: number) => new Date(ms).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+
+function DataSourceLine({ data }: { data: NonNullable<BacktestResult["data"]> }) {
+  const short = data.candles < data.requested;
+  return (
+    <p className="text-[13px] text-fog">
+      Data: <span className="font-semibold text-paper">{SOURCE_LABELS[data.source] ?? data.source}</span> ·{" "}
+      {data.candles.toLocaleString()} candles · {day(data.from)} – {day(data.to)}
+      {short && (
+        <span className="text-amber-400">
+          {" "}
+          (asked for {data.requested.toLocaleString()}; that&apos;s all the history {data.source} has)
+        </span>
+      )}
+    </p>
+  );
 }
 
 const EXIT_LABELS: Record<string, string> = {
@@ -104,7 +130,11 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
           setActiveRunId(data.savedRunId);
           setHistoryRefreshTrigger((n) => n + 1);
         }
-        addNotification("Backtest completed successfully!", "success");
+        if (data.missing?.length) {
+          addNotification(`No candles for ${data.missing.join(", ")}: not in the MT5 bar files, Binance or Yahoo.`, "error");
+        } else {
+          addNotification("Backtest completed successfully!", "success");
+        }
       } else {
         addNotification(data.error || "Simulation failed.", "error");
       }
@@ -218,7 +248,7 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
               className={inputClass}
             />
             <p className="text-xs leading-snug text-mist">
-              Currency pairs: EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD. Indices: NAS100 (Nasdaq 100), SPX500 (S&amp;P 500), from the futures. They have 2 years of 1h and 4h history but only 60 days below 1h.
+              Markets in the MT5 bar files (gold, silver, BTC, ETH, NAS100, SPX500, FTSE100, UKOIL and the major currency pairs) use FundingPips&apos; own prices at 5m, 15m, 1h and 4h: about 20,000 1h, 75,000 15m and 60,000 5m candles. Anything else comes from Binance, or Yahoo for currency pairs and indices (only 60 days below 1h).
             </p>
           </div>
 
@@ -326,6 +356,7 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
 
           {activeResult && (
             <div className="flex flex-col gap-6">
+              {activeResult.data && <DataSourceLine data={activeResult.data} />}
 
               {/* Metrics cards grid */}
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">

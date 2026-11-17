@@ -31,17 +31,30 @@ export async function POST(request: NextRequest) {
     const minRrNum = minRiskRewardRatio !== undefined && minRiskRewardRatio !== "" ? Number(minRiskRewardRatio) : undefined;
 
     const results: BacktestRunResult[] = [];
+    const missing: string[] = [];
 
     for (const sym of symbols) {
-      const loaded = await loadCodedStrategy(strategyKey, sym, interval, limitNum);
-      if (!loaded) continue;
+      // The MT5 terminal's bar files first (the prop firm's own prices),
+      // then Binance or Yahoo.
+      const loaded = await loadCodedStrategy(strategyKey, sym, interval, limitNum, { preferMt5: true });
+      if (!loaded) {
+        missing.push(sym);
+        continue;
+      }
 
       const result = runCodedBacktest(loaded.candles, loaded.strategy, {
         initialBalance: balanceNum,
         positionSizePercent: 1,
         minRiskRewardRatio: minRrNum,
       });
-      results.push(toRunResult(sym, result));
+      results.push(toRunResult(sym, result, loaded.data));
+    }
+
+    if (results.length === 0) {
+      return NextResponse.json(
+        { error: `No candles for ${missing.join(", ")}: not in the MT5 bar files, and Binance and Yahoo don't carry it at this timeframe.` },
+        { status: 404 },
+      );
     }
 
     // Persist every completed run (with at least one symbol's results) so
@@ -68,7 +81,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ results, savedRunId });
+    return NextResponse.json({ results, savedRunId, missing });
   } catch (e: any) {
     console.error("Backtest API execution failed:", e);
     return NextResponse.json({ error: "Backtest simulation failed: " + e.message }, { status: 500 });
