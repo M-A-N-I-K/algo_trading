@@ -77,3 +77,11 @@ describe("loadCodedStrategy candle source", () => {
     expect((await loadCodedStrategy("ema833-zones", "XAUUSDT", "1h", 200, { now: NOW }))?.data.source).toBe("Binance");
   });
 });
+
+describe("feedFile", () => {
+  it("never leaves the feed folder", async () => {
+    const { feedFile } = await import("../lib/mt5/feed");
+    expect(feedFile("XAUUSDT", "1h", "/feed")).toBe("/feed/XAUUSD_H1.csv");
+    for (const bad of ["../../etc/x", "..", "a/b", "X\\Y", "", "x".repeat(40)]) expect(feedFile(bad, "1h", "/feed")).toBeNull();
+  });
+});

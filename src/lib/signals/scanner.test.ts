@@ -77,4 +77,14 @@ describe("loadSeries with the MT5 feed", () => {
     expect(web).toHaveBeenCalledWith("NAS100", "1h", expect.any(Number));
     expect(scanner.candleSources().NAS100).toBe("web");
   });
+
+  it("ignores the terminal's bars when they're hours old, even while it beats", async () => {
+    const { scanner, web, beat } = await setup();
+    // A day later the feed still ends at 09:00 UTC on the 11th: disconnected.
+    const later = now + 24 * HOUR;
+    beat(later - 10_000);
+    await scanner.loadSeries("1h", later);
+    expect(web).toHaveBeenCalledWith("NAS100", "1h", expect.any(Number));
+    expect(scanner.candleSources().NAS100).toBe("web");
+  });
 });

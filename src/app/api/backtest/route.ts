@@ -22,7 +22,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Unknown strategy key: ${strategyKey}` }, { status: 400 });
     }
 
-    const symbols = symbol.split(",").map((s: string) => s.trim().toUpperCase());
+    const symbols: string[] = String(symbol).split(",").map((s: string) => s.trim().toUpperCase()).filter(Boolean);
+    const bad = symbols.filter((s) => !/^[A-Z0-9]{2,20}$/.test(s));
+    if (symbols.length === 0 || symbols.length > 20 || bad.length) {
+      return NextResponse.json({ error: bad.length ? `Not a market symbol: ${bad.join(", ")}` : "Give 1 to 20 symbols." }, { status: 400 });
+    }
     const limitNum = Number(limit) || 1000;
     if (!Number.isInteger(limitNum) || limitNum < 1 || limitNum > MAX_HISTORY_CANDLES) {
       return NextResponse.json({ error: `limit must be a whole number from 1 to ${MAX_HISTORY_CANDLES}` }, { status: 400 });

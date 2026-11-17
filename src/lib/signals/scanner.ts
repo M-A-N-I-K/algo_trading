@@ -139,6 +139,8 @@ export async function loadSeries(interval: string, now = Date.now()): Promise<{ 
   return { series, errors };
 }
 
+const FEED_BARS_MAX_AGE_MS = 6 * 3_600_000;
+
 async function fetchSeries(symbol: string, interval: string, now: number): Promise<OHLC[]> {
   const key = `${symbol}:${interval}`;
   const step = intervalToMs(interval);
@@ -153,7 +155,11 @@ async function fetchSeries(symbol: string, interval: string, now: number): Promi
   if (feedSupports(interval) && (await feedLive(now))) {
     if (sources.get(key) === "mt5" && upToDate(last)) return cached!;
     const feed = await readFeedCandles(symbol, interval);
-    if (feed?.length) {
+    // A terminal that has lost its connection keeps beating but writes old
+    // bars: past FEED_BARS_MAX_AGE_MS (longer than an index's daily break)
+    // they're not used, and the web feeds take over.
+    const feedLast = feed?.[feed.length - 1];
+    if (feed?.length && feedLast && now - feedLast.closeTime < FEED_BARS_MAX_AGE_MS) {
       let next = closedOnly(feed, now);
       if (next.length > bars) next = next.slice(next.length - bars);
       if (next.length) {

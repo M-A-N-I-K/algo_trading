@@ -22,6 +22,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import FeedStatus from "@/components/trading-journal/FeedStatus";
 
 interface SidebarProps {
   user: { name?: string | null; email?: string | null; image?: string | null } | null;
@@ -142,7 +143,11 @@ export default function Sidebar({ user, onLogout, isOpen, onClose }: SidebarProp
         ))}
       </nav>
 
-      <div className="mt-6 flex items-center gap-3 border-t border-rule px-2 pt-5">
+      <div className="mt-4">
+        <FeedStatus />
+      </div>
+
+      <div className="mt-2 flex items-center gap-3 border-t border-rule px-2 pt-5">
         {user?.image ? (
           <img src={user.image} alt="" className="h-8 w-8 rounded-full" referrerPolicy="no-referrer" />
         ) : (
