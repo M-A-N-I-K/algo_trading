@@ -4,6 +4,9 @@ import { fetchYahooCandles, isYahooMarket } from "../lib/markets/yahoo";
 
 const MAX_LIMIT_PER_REQUEST = 1000;
 
+/** Most candles one fetch (and one UI backtest) will load. */
+export const MAX_HISTORY_CANDLES = 100_000;
+
 const INTERVAL_MS: Record<string, number> = {
   "1m": 60_000,
   "3m": 3 * 60_000,
@@ -44,8 +47,9 @@ const fetchPage = async (symbol: string, interval: string, start: number, limit:
 export async function fetchCandlestickHistory(
   symbol: string,
   interval: string,
-  totalCandles: number,
+  requested: number,
 ): Promise<Candlestick[]> {
+  const totalCandles = Number.isFinite(requested) ? Math.min(Math.max(Math.floor(requested), 0), MAX_HISTORY_CANDLES) : 0;
   if (isYahooMarket(symbol)) {
     // One request covers the whole span. Forex and index futures shut from
     // Friday night to Sunday night, so look back ~1.45× as far to get `totalCandles` bars.

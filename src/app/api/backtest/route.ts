@@ -3,6 +3,7 @@ import { BacktestRunResult, createBacktestRun } from "@/db/repositories/backtest
 import { loadCodedStrategy, runCodedBacktest, toRunResult } from "@/backtest/codedBacktest";
 import { authenticateRequest, authChallengeResponse } from "@/lib/auth";
 import { CODED_STRATEGIES } from "@/strategies/registry";
+import { MAX_HISTORY_CANDLES } from "@/backtest/fetchHistory";
 
 export async function POST(request: NextRequest) {
   const user = await authenticateRequest(request);
@@ -23,6 +24,9 @@ export async function POST(request: NextRequest) {
 
     const symbols = symbol.split(",").map((s: string) => s.trim().toUpperCase());
     const limitNum = Number(limit) || 1000;
+    if (!Number.isInteger(limitNum) || limitNum < 1 || limitNum > MAX_HISTORY_CANDLES) {
+      return NextResponse.json({ error: `limit must be a whole number from 1 to ${MAX_HISTORY_CANDLES}` }, { status: 400 });
+    }
     const balanceNum = Number(initialBalance) || 10000;
     const minRrNum = minRiskRewardRatio !== undefined && minRiskRewardRatio !== "" ? Number(minRiskRewardRatio) : undefined;
 
