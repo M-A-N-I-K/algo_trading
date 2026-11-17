@@ -165,7 +165,7 @@ function PlanTradeForm({ defaults, entries, account, stoppedElsewhere, onDone }:
           label="Setup"
           htmlFor="pb-setup"
           className="sm:col-span-2"
-          hint={custom ? "A custom trade has no backtest behind it, so it's logged as a rule break and needs a reason. It still counts toward this account's balance, daily loss and open risk." : undefined}
+          hint={custom ? "Your own trade, not a Playbook signal. That's fine: it's sized at the account's risk and still has to pass the stop, slot and daily-loss rules." : undefined}
         >
           <SelectInput id="pb-setup" value={setupId} onChange={(ev) => { setSetupId(ev.target.value); setLotsText(null); }}>
             <optgroup label="This account's setups">
@@ -182,10 +182,10 @@ function PlanTradeForm({ defaults, entries, account, stoppedElsewhere, onDone }:
                 </option>
               ))}
             </optgroup>
-            <optgroup label="Custom trade (not in the playbook)">
+            <optgroup label="Your own trade (not a Playbook signal)">
               {CUSTOM_MARKETS.map((m) => (
                 <option key={m.symbol} value={customSetupId(m.symbol)}>
-                  {m.platformSymbol} · Custom trade
+                  {m.platformSymbol} · Own trade
                 </option>
               ))}
             </optgroup>

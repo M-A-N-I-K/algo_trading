@@ -277,20 +277,23 @@ export function preTradeChecks(plan: TradePlan, entries: JournalEntry[], account
   const custom = setup ? undefined : customSetup(plan.setupId);
   const retired = setup || custom ? undefined : setupById(plan.setupId)?.retired;
   const symbol = (setup ?? custom)?.symbol ?? "";
+  // Signals are alerts, not a gate: your own trades are fine. Every risk rule
+  // below still applies to them.
   add(
     "setup",
-    "A playbook setup",
-    Boolean(setup),
+    setup ? "A playbook setup" : "Your own trade",
+    setup ? true : custom ? "warn" : false,
     setup
       ? `${setup.strategyName} on ${setup.platformSymbol} ${setup.interval}`
       : custom
-        ? `Custom trade on ${custom.platformSymbol}: no backtest behind it.`
+        ? `Your own trade on ${custom.platformSymbol}, not a Playbook signal. The risk, loss and slot rules still apply.`
         : retired
           ? `Retired: ${retired}.`
           : "This strategy and market aren't in the playbook.",
+    !custom,
   );
 
-  const budget = riskBudget(symbol, plan.grade, account, setup);
+  const budget = riskBudget(symbol, plan.grade, account, setup ?? custom);
   if (setup) {
     const own = accountSetup(account, setup.id);
     add(

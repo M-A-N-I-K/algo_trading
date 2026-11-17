@@ -58,7 +58,7 @@ export function journalToEntry(t: Trade): JournalEntry | null {
     swap: null,
     rMultiple: risk > 0 ? t.pnl / risk : null,
     exitReason: "manual",
-    mistakes: ["not-in-playbook"], // never a Playbook signal
+    mistakes: [],
     notes: t.notes,
     source: "journal",
   };

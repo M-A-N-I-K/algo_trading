@@ -321,19 +321,11 @@ export function customSetup(id: string): PlaybookSetup | undefined {
     strategy: "custom",
     strategyName: "Custom trade",
     interval: "",
+    ungradedFullRisk: true, // your own trade: the account's full risk unless graded B
     baseline: { trades: 0, winRatePct: 0, avgR: 0, profitFactor: 0, perWeek: 0, maxDrawdownR: 0, maxLossStreak: 0, weeks: 0 },
   };
 }
 
-/**
- * A trade's mistakes with "not-in-playbook" always present when it wasn't a
- * Playbook signal (a custom trade, or a journal trade linked to an account),
- * so off-plan trades are counted as rule breaks even when nobody ticked it.
- */
-export function withOffPlanMistake(setupId: string, mistakes: readonly string[]): string[] {
-  const offPlan = isCustomSetupId(setupId) || setupId.startsWith("journal:");
-  return offPlan && !mistakes.includes("not-in-playbook") ? [...mistakes, "not-in-playbook"] : [...mistakes];
-}
 
 /** Any setup, retired and custom ones included: for showing logged trades. */
 export const setupById = (id: string) => PLAYBOOK_SETUPS.find((s) => s.id === id) ?? RETIRED_SETUPS.find((s) => s.id === id) ?? customSetup(id);
@@ -366,7 +358,6 @@ export const MISTAKES = [
   { id: "closed-early", label: "Closed before stop or target" },
   { id: "late-entry", label: "Entered late or chased" },
   { id: "oversized", label: "Risked more than the plan" },
-  { id: "not-in-playbook", label: "Not a playbook signal" },
   { id: "revenge", label: "Revenge or boredom trade" },
   { id: "news", label: "Traded into news" },
 ] as const;
@@ -376,5 +367,5 @@ export const MANUAL_CHECKS = [
   { id: "news", label: "No high-impact news on this market in the next 30 minutes" },
   { id: "stop-placed", label: "Stop loss is placed on the platform, not just planned" },
   { id: "size-matches", label: "Position size on the platform matches the size here" },
-  { id: "calm", label: "Taking it because it's a signal, not to win back a loss" },
+  { id: "calm", label: "Not taking it to win back a loss" },
 ] as const;

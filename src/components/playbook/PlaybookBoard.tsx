@@ -377,7 +377,7 @@ function OpenTrades({ trades, onClose, onEdit }: { trades: JournalEntry[]; onClo
 function History({ trades, onEdit }: { trades: JournalEntry[]; onEdit: (t: JournalEntry) => void }) {
   const [all, setAll] = useState(false);
   const shown = all ? trades : trades.slice(0, 15);
-  const mistakeLabel = (id: string) => ({ "moved-stop": "Moved stop", "closed-early": "Closed early", "late-entry": "Late entry", oversized: "Oversized", "not-in-playbook": "Off-plan", revenge: "Revenge", news: "News" })[id] ?? id;
+  const mistakeLabel = (id: string) => ({ "moved-stop": "Moved stop", "closed-early": "Closed early", "late-entry": "Late entry", oversized: "Oversized", revenge: "Revenge", news: "News" })[id] ?? id;
   return (
     <Panel title="Closed trades" note="Newest first." aside={trades.length > 15 && <Button size="sm" variant="ghost" onClick={() => setAll(!all)}>{all ? "Show fewer" : `Show all ${trades.length}`}</Button>}>
       {trades.length === 0 ? (

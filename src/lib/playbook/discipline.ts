@@ -1,8 +1,8 @@
-import { accountSetup, activeSetupById, type PlaybookAccount } from "./config";
+import { activeSetupById, customSetup, type PlaybookAccount } from "./config";
 import { platformDay, riskBudget, type JournalEntry } from "./rules";
 
 // The discipline streak: a daily checklist of the habits that cost money in
-// week 46 (9–13 Nov 2026: 16 of 18 trades off-plan, −$215 of −$240). Most
+// week 46 (9–13 Nov 2026: −$240, most of it oversized and revenge trades). Most
 // rules are checked against the journal automatically; the rest are ticked
 // when the day is closed out. A trading day counts toward the streak only when
 // it's closed out and every rule was kept, like a Snapchat streak: miss a day
@@ -18,21 +18,20 @@ export interface DisciplineRule {
 }
 
 export const DISCIPLINE_RULES: readonly DisciplineRule[] = [
-  { id: "plan-only", kind: "auto", label: "Only this account's Playbook setups", why: "No custom trades, retired setups or another account's setups. No signal, no trade." },
   { id: "loss-limit", kind: "auto", label: "No trade after 2 losses or the daily stop", why: "Once an account is stopped for the day, close the platform." },
   { id: "no-revenge", kind: "auto", label: "No re-entry within an hour of a loss", why: "And never flip direction in the same market on the same day after a loss." },
-  { id: "right-size", kind: "auto", label: "Risk no more than the plan's size", why: "The Playbook's A/B risk times the setup's scale (8/33 setups: a quarter)." },
+  { id: "right-size", kind: "auto", label: "Risk no more than the plan's size", why: "The Playbook's A/B risk times the setup's scale (8/33 setups: a quarter). Your own trades: the account's A risk, or B if graded B." },
   { id: "logged-first", kind: "auto", label: "Logged in the Playbook before entry", why: "Trades logged afterwards on the Trades page skip the pre-trade checks." },
   { id: "stop-line", kind: "auto", label: "Stay above this week's stop line", why: "No new trades on an account below its line." },
   { id: "all-logged", kind: "manual", label: "Every trade I took today is logged here", why: "The automatic checks only see logged trades." },
-  { id: "weekly-review", kind: "manual", fridayOnly: true, label: "Compared the week's trades with the Playbook's signals", why: "Friday: the goal is that every trade matched a signal." },
+  { id: "weekly-review", kind: "manual", fridayOnly: true, label: "Reviewed the week's trades", why: "Friday: which of your own trades and which signals paid, and why." },
 ];
 
 /** This week's goals and limits, shown above the checklist. */
 export const WEEK_PLAN = {
   weekOf: "2026-11-16",
   goals: [
-    "Every trade is a Playbook signal on its own account. Zero custom trades.",
+    "Signals are alerts; take your own trades, but every one sized from the plan with its stop on the platform.",
     "Stop after 2 losses or the daily stop, on every account.",
     "Pro at 0.5% risk; done for the week below $4,850.",
     "Flex: the 8/33 basket at $25 a trade, the other setups at their Playbook size.",
@@ -75,12 +74,6 @@ export function evaluateAutoRules(day: string, entries: JournalEntry[], accounts
   const acct = (id: string) => accounts.find((a) => a.id === id);
   const results: RuleResult[] = [];
 
-  // plan-only
-  const offPlan = todays.filter((e) => { const a = acct(e.accountId); return !a || !activeSetupById(e.setupId) || !accountSetup(a, e.setupId); });
-  results.push(offPlan.length
-    ? { id: "plan-only", status: "broken", detail: `${plural(offPlan.length, "trade")} outside the account's setups (${[...new Set(offPlan.map(marketOf))].join(", ")})` }
-    : { id: "plan-only", status: "kept", detail: todays.length ? `${plural(todays.length, "trade")}, all Playbook setups` : "No trades" });
-
   // loss-limit: a trade entered after its account was already stopped that day
   const afterStop: JournalEntry[] = [];
   for (const e of todays) {
@@ -103,9 +96,9 @@ export function evaluateAutoRules(day: string, entries: JournalEntry[], accounts
     ? { id: "no-revenge", status: "broken", detail: `${revenge.length} ${revenge.length === 1 ? "re-entry" : "re-entries"} after a loss (${[...new Set(revenge.map(marketOf))].join(", ")})` }
     : { id: "no-revenge", status: "kept", detail: "No revenge trades" });
 
-  // right-size: only for Playbook setups (off-plan trades are already broken above)
+  // right-size: Playbook setups and your own trades alike
   const oversized = todays.filter((e) => {
-    const a = acct(e.accountId), s = activeSetupById(e.setupId);
+    const a = acct(e.accountId), s = activeSetupById(e.setupId) ?? customSetup(e.setupId);
     if (!a || !s) return false;
     const budget = riskBudget(e.symbol, e.grade, a, s).amount;
     return budget > 0 && e.riskAmount > budget * RISK_TOLERANCE;

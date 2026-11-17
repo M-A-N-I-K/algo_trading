@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { withOffPlanMistake } from "./config";
 
 // The live playbook changes as setups are re-tested; the rules don't. Two
 // retired setups are put back as active fixtures here so these tests keep
@@ -240,14 +239,18 @@ describe("pre-trade checks", () => {
   it("fails a setup that isn't in the playbook", () => {
     expect(status(preTradeChecks(plan({ setupId: "vwap:ETHUSDT:5m" }), []), "setup")).toBe("fail");
   });
-  it("takes a custom trade as a rule break that still counts on the account", () => {
+  it("allows your own trade: a warning, not a rule break, and it still counts on the account", () => {
     const id = customSetupId("BTCUSDT");
     expect(loggableSetupById(id)?.platformSymbol).toBe("BTCUSD");
     expect(setupById(id)?.strategyName).toBe("Custom trade");
     expect(loggableSetupById("custom:NOPE")).toBeUndefined();
     const checks = preTradeChecks(plan({ setupId: id, side: "SHORT", entry: 73000, stop: 73500, target: 72000 }), []);
-    expect(status(checks, "setup")).toBe("fail");
-    expect(hardFailures(checks).map((c) => c.id)).toEqual(["setup"]);
+    expect(status(checks, "setup")).toBe("warn");
+    expect(hardFailures(checks)).toEqual([]);
+    // Ungraded, it gets the account's full risk, even on the A-grade-only Pro.
+    const pro = PLAYBOOK_ACCOUNTS.find((a) => a.id === "pro-5k")!;
+    expect(hardFailures(preTradeChecks(plan({ setupId: id, grade: null, riskAmount: 25 }), [], pro))).toEqual([]);
+    expect(status(preTradeChecks(plan({ setupId: id, grade: null, riskAmount: 40 }), [], pro), "risk")).toBe("fail");
     // Its market still counts for doubling up: an open ETH short is the same crypto bet.
     expect(status(preTradeChecks(plan({ setupId: id, side: "SHORT", entry: 73000, stop: 73500 }), [entry({ side: "SHORT" })]), "overlap")).toBe("fail");
   });
@@ -488,16 +491,5 @@ describe("index lot sizes", () => {
     expect(lotUnits("NDX100")).toBe(20);
     // 1% of $10k on a 50-point stop: $100 / (50 × 20) = 0.1 lot
     expect(sizePosition("NAS100", 25_000, 24_950, 100)?.lots).toBeCloseTo(0.1, 5);
-  });
-});
-
-describe("withOffPlanMistake", () => {
-  it("tags custom and linked journal trades as not a playbook signal, once", () => {
-    expect(withOffPlanMistake("custom:XAUUSDT", [])).toEqual(["not-in-playbook"]);
-    expect(withOffPlanMistake("journal:FOO", ["late-entry"])).toEqual(["late-entry", "not-in-playbook"]);
-    expect(withOffPlanMistake("custom:XAUUSDT", ["not-in-playbook"])).toEqual(["not-in-playbook"]);
-  });
-  it("leaves Playbook setups alone", () => {
-    expect(withOffPlanMistake("smc:XAUUSDT:4h", [])).toEqual([]);
   });
 });

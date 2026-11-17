@@ -17,13 +17,14 @@ const status = (entries: JournalEntry[], day = MON) => Object.fromEntries(evalua
 
 describe("evaluateAutoRules", () => {
   it("keeps every rule on a clean day and on a day without trades", () => {
-    expect(Object.values(status([trade()]))).toEqual(Array(6).fill("kept"));
-    expect(Object.values(status([]))).toEqual(Array(6).fill("kept"));
+    expect(Object.values(status([trade()]))).toEqual(Array(5).fill("kept"));
+    expect(Object.values(status([]))).toEqual(Array(5).fill("kept"));
   });
 
-  it("flags custom trades and another account's setups", () => {
-    expect(status([trade({ setupId: customSetupId("ETHUSDT"), symbol: "custom:ETHUSDT" })])["plan-only"]).toBe("broken");
-    expect(status([trade({ setupId: "ema833-zones:NAS100:5m" })])["plan-only"]).toBe("broken"); // a Flex setup on the Pro
+  it("allows your own trades but holds them to the plan's size", () => {
+    const own = (riskAmount: number) => trade({ setupId: customSetupId("ETHUSDT"), symbol: "ETHUSDT", grade: null, riskAmount });
+    expect(Object.values(status([own(25)]))).toEqual(Array(5).fill("kept"));
+    expect(status([own(40)])["right-size"]).toBe("broken");
   });
 
   it("flags a trade after two losses", () => {
