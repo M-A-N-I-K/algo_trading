@@ -250,6 +250,8 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
               <option value="2000">Last 2,000 candles</option>
               <option value="5000">Last 5,000 candles</option>
               <option value="10000">Last 10,000 candles</option>
+              <option value="50000">Last 50,000 candles</option>
+              <option value="100000">Last 1,00,000 candles</option>
             </select>
           </div>
 

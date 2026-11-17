@@ -27,9 +27,20 @@ export function intervalToMs(interval: string): number {
   return ms;
 }
 
-// Binance's klines endpoint caps a single request at 1000 candles. This
-// pages through it (walking `startTime` forward using each batch's close
-// time) until `totalCandles` have been collected.
+// Pages fetched at once. 100 pages (100,000 candles) took ~32 s one after
+// another; Binance's weight limits allow far more than this.
+const PAGE_CONCURRENCY = 10;
+
+const fetchPage = async (symbol: string, interval: string, start: number, limit: number) =>
+  (await getCandleSticks(symbol, interval, start.toString(), undefined, limit)) ??
+  (await getCandleSticks(symbol, interval, start.toString(), undefined, limit)); // one retry
+
+// Binance's klines endpoint caps a single request at 1000 candles, so the
+// span is split into fixed 1000-candle pages fetched in parallel. Each page
+// keeps only candles opening before the next page starts, so pages that
+// begin before the market listed (Binance answers them from the listing
+// onwards) don't duplicate bars. A page that fails twice drops it and every
+// older page: the result is always a gap-free run up to now.
 export async function fetchCandlestickHistory(
   symbol: string,
   interval: string,
@@ -42,29 +53,30 @@ export async function fetchCandlestickHistory(
     return (await fetchYahooCandles(symbol, interval, Date.now() - span)).slice(-totalCandles);
   }
 
-  const allCandles: Candlestick[] = [];
-  let cursor = Date.now() - totalCandles * intervalToMs(interval);
-
-  while (allCandles.length < totalCandles) {
-    const remaining = totalCandles - allCandles.length;
-    const limit = Math.min(MAX_LIMIT_PER_REQUEST, remaining);
-
-    const batch = await getCandleSticks(
-      symbol,
-      interval,
-      cursor.toString(),
-      undefined,
-      limit,
-    );
-    if (!batch || batch.length === 0) break;
-
-    allCandles.push(...batch);
-
-    const lastCloseTime = batch[batch.length - 1][6];
-    cursor = lastCloseTime + 1;
-
-    if (batch.length < limit) break; // no more data available from Binance
+  const step = intervalToMs(interval);
+  const start = Date.now() - totalCandles * step;
+  const pages: { start: number; end: number; limit: number }[] = [];
+  for (let done = 0; done < totalCandles; done += MAX_LIMIT_PER_REQUEST) {
+    const limit = Math.min(MAX_LIMIT_PER_REQUEST, totalCandles - done);
+    pages.push({ start: start + done * step, end: start + (done + limit) * step, limit });
   }
 
+  const results: (Candlestick[] | undefined)[] = new Array(pages.length);
+  for (let i = 0; i < pages.length; i += PAGE_CONCURRENCY) {
+    const chunk = pages.slice(i, i + PAGE_CONCURRENCY);
+    const got = await Promise.all(chunk.map((p) => fetchPage(symbol, interval, p.start, p.limit)));
+    got.forEach((batch, j) => (results[i + j] = batch));
+  }
+
+  const lastFailed = results.findLastIndex((r) => r === undefined);
+  const allCandles: Candlestick[] = [];
+  for (let i = lastFailed + 1; i < pages.length; i++) {
+    const isLast = i === pages.length - 1;
+    for (const c of results[i]!) {
+      if (!isLast && Number(c[0]) >= pages[i].end) break;
+      if (allCandles.length && Number(c[0]) <= Number(allCandles[allCandles.length - 1][0])) continue;
+      allCandles.push(c);
+    }
+  }
   return allCandles;
 }
