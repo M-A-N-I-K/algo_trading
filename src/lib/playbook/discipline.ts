@@ -61,6 +61,8 @@ export const rulesForDay = (day: string) => DISCIPLINE_RULES.filter((r) => !r.fr
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const marketOf = (e: JournalEntry) => e.symbol;
+/** A real loss: a stop moved to breakeven that closes a few dollars down on commission isn't one. */
+const isLoss = (e: JournalEntry) => e.pnl !== null && e.pnl < 0 && e.exitReason !== "breakeven";
 
 /**
  * Checks one platform day's trades against the automatic rules. `entries` is
@@ -80,7 +82,7 @@ export function evaluateAutoRules(day: string, entries: JournalEntry[], accounts
     const a = acct(e.accountId);
     if (!a) continue;
     const before = entries.filter((x) => x.accountId === a.id && x.id !== e.id && x.status === "CLOSED" && x.pnl !== null && x.exitTime !== null && x.exitTime <= e.entryTime && dayOf(x.exitTime) === day);
-    const losses = before.filter((x) => x.pnl! < 0 && x.exitReason !== "breakeven").length;
+    const losses = before.filter(isLoss).length;
     const pnl = before.reduce((s, x) => s + x.pnl!, 0);
     if (losses >= a.rules.maxLossesPerDay || pnl <= -(a.size * a.rules.dailyStopPct) / 100) afterStop.push(e);
   }
@@ -90,7 +92,7 @@ export function evaluateAutoRules(day: string, entries: JournalEntry[], accounts
 
   // no-revenge
   const revenge = todays.filter((b) => entries.some((a) =>
-    a.id !== b.id && a.symbol === b.symbol && a.pnl !== null && a.pnl < 0 && a.exitTime !== null && a.exitTime <= b.entryTime &&
+    a.id !== b.id && a.symbol === b.symbol && isLoss(a) && a.exitTime !== null && a.exitTime <= b.entryTime &&
     (b.entryTime - a.exitTime < HOUR || (a.side !== b.side && dayOf(a.exitTime) === day))));
   results.push(revenge.length
     ? { id: "no-revenge", status: "broken", detail: `${revenge.length} ${revenge.length === 1 ? "re-entry" : "re-entries"} after a loss (${[...new Set(revenge.map(marketOf))].join(", ")})` }

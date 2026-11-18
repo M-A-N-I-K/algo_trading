@@ -39,6 +39,9 @@ describe("evaluateAutoRules", () => {
     expect(status([loss, trade({ entryTime: at(MON, "09:30"), exitTime: at(MON, "10:30") })])["no-revenge"]).toBe("broken");
     expect(status([loss, trade({ side: "SHORT", entryTime: at(MON, "13:00"), exitTime: at(MON, "14:00") })])["no-revenge"]).toBe("broken");
     expect(status([loss, trade({ entryTime: at(MON, "13:00"), exitTime: at(MON, "14:00") })])["no-revenge"]).toBe("kept");
+    // A breakeven exit that lost a few dollars on commission isn't a loss.
+    const scratch = trade({ entryTime: at(MON, "08:00"), exitTime: at(MON, "09:00"), pnl: -3.17, exitReason: "breakeven" });
+    expect(status([scratch, trade({ side: "SHORT", entryTime: at(MON, "13:00"), exitTime: at(MON, "14:00") })])["no-revenge"]).toBe("kept");
   });
 
   it("flags oversized and journal-logged trades", () => {
