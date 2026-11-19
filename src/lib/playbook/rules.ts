@@ -101,6 +101,18 @@ export interface AccountStatus {
   targetReached: boolean;
 }
 
+/**
+ * A losing trade for the 2-loss and revenge rules. Breakeven isn't one: a
+ * stop moved to entry (or past it) that closes a few dollars down on
+ * commission, whether it was logged as "breakeven" or as "stop".
+ */
+export function isLoss(e: JournalEntry): boolean {
+  if (e.pnl === null || e.pnl >= 0 || e.exitReason === "breakeven") return false;
+  if (e.exitPrice === null) return true;
+  const d = e.side === "LONG" ? 1 : -1;
+  return (e.exitPrice - e.entryPrice) * d < 0; // lost on price, not just on costs
+}
+
 export function accountStatus(entries: JournalEntry[], now: number, account: PlaybookAccount = PLAYBOOK_ACCOUNT): AccountStatus {
   const rules = account.rules;
   const today = platformDay(now, account.timeZone);
@@ -117,7 +129,7 @@ export function accountStatus(entries: JournalEntry[], now: number, account: Pla
       closedPnl += e.pnl;
       if (e.exitTime !== null && platformDay(e.exitTime, account.timeZone) === today) {
         todayPnl += e.pnl;
-        if (e.pnl < 0 && e.exitReason !== "breakeven") lossesToday++; // costs on a breakeven exit aren't a loss
+        if (isLoss(e)) lossesToday++;
       }
     }
   }

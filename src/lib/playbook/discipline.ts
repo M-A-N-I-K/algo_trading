@@ -1,5 +1,5 @@
 import { activeSetupById, customSetup, type PlaybookAccount } from "./config";
-import { platformDay, riskBudget, type JournalEntry } from "./rules";
+import { isLoss, platformDay, riskBudget, type JournalEntry } from "./rules";
 
 // The discipline streak: a daily checklist of the habits that cost money in
 // week 46 (9–13 Nov 2026: −$240, most of it oversized and revenge trades). Most
@@ -61,8 +61,6 @@ export const rulesForDay = (day: string) => DISCIPLINE_RULES.filter((r) => !r.fr
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const marketOf = (e: JournalEntry) => e.symbol;
-/** A real loss: a stop moved to breakeven that closes a few dollars down on commission isn't one. */
-const isLoss = (e: JournalEntry) => e.pnl !== null && e.pnl < 0 && e.exitReason !== "breakeven";
 
 /**
  * Checks one platform day's trades against the automatic rules. `entries` is

@@ -7,10 +7,11 @@ const MON = "2026-11-16";
 const at = (day: string, hhmm: string) => Date.parse(`${day}T${hhmm}:00Z`);
 let n = 0;
 // A Pro trade on a Playbook setup, sized at the plan's $25 (0.5% of $5,000).
+// A loss closes at the stop unless the test gives an exit price.
 const trade = (over: Partial<JournalEntry> = {}): JournalEntry => ({
   id: `t${++n}`, accountId: "pro-5k", setupId: "macd-200ema-sr:NAS100:4h", symbol: "NAS100", side: "LONG", grade: "A", status: "CLOSED",
   entryTime: at(MON, "10:00"), entryPrice: 100, stopLoss: 99, takeProfit: 102, quantity: 1, lots: 1, riskAmount: 25, rulesFollowed: true,
-  overrideReason: "", exitTime: at(MON, "11:00"), exitPrice: 102, pnl: 50, commission: 0, swap: 0, rMultiple: 2, exitReason: "target", mistakes: [], notes: "",
+  overrideReason: "", exitTime: at(MON, "11:00"), exitPrice: (over.pnl ?? 50) < 0 ? 99 : 102, pnl: 50, commission: 0, swap: 0, rMultiple: 2, exitReason: "target", mistakes: [], notes: "",
   ...over,
 });
 const status = (entries: JournalEntry[], day = MON) => Object.fromEntries(evaluateAutoRules(day, entries, PLAYBOOK_ACCOUNTS).map((r) => [r.id, r.status]));
@@ -42,6 +43,9 @@ describe("evaluateAutoRules", () => {
     // A breakeven exit that lost a few dollars on commission isn't a loss.
     const scratch = trade({ entryTime: at(MON, "08:00"), exitTime: at(MON, "09:00"), pnl: -3.17, exitReason: "breakeven" });
     expect(status([scratch, trade({ side: "SHORT", entryTime: at(MON, "13:00"), exitTime: at(MON, "14:00") })])["no-revenge"]).toBe("kept");
+    // So is a stop trailed to entry that's logged as "stop": it closed at or past entry on price.
+    const trailed = trade({ entryTime: at(MON, "08:00"), exitTime: at(MON, "09:00"), entryPrice: 100, exitPrice: 100.01, pnl: -3, exitReason: "stop" });
+    expect(status([trailed, trade({ side: "SHORT", entryTime: at(MON, "13:00"), exitTime: at(MON, "14:00") })])["no-revenge"]).toBe("kept");
   });
 
   it("flags oversized and journal-logged trades", () => {

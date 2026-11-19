@@ -103,7 +103,7 @@ function entry(over: Partial<JournalEntry>): JournalEntry {
   };
 }
 const closed = (pnl: number, exitTime = NOON - 1000, over: Partial<JournalEntry> = {}) =>
-  entry({ status: "CLOSED", pnl, rMultiple: pnl / 25, exitTime, exitPrice: 100, ...over });
+  entry({ status: "CLOSED", pnl, rMultiple: pnl / 25, exitTime, exitPrice: pnl < 0 ? 95 : pnl > 0 ? 110 : 100, ...over });
 
 const plan = (over: Partial<TradePlan> = {}): TradePlan => ({
   setupId: ETH_MTF,
@@ -431,6 +431,9 @@ describe("the two FundingPips accounts", () => {
   it("stops the day after 2 losses, not counting breakeven exits", () => {
     expect(accountStatusOn([lossOn(flex, -100)], NOON, flex).dailyStopHit).toBe(false);
     expect(accountStatusOn([lossOn(flex, -100), lossOn(pro, -2, { exitReason: "breakeven" })], NOON, flex).dailyStopHit).toBe(false);
+    // A stop trailed to entry, logged as "stop": closed at entry on price, down only on costs.
+    const trailed = lossOn(flex, -3, { exitReason: "stop" });
+    expect(accountStatusOn([lossOn(flex, -100), { ...trailed, exitPrice: trailed.entryPrice }], NOON, flex).lossesToday).toBe(1);
     const s = accountStatusOn([lossOn(flex, -40), lossOn(flex, -40)], NOON, flex);
     expect(s.lossesToday).toBe(2);
     expect(s.dailyStopHit).toBe(true);
