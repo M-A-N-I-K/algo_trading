@@ -73,18 +73,18 @@ export interface PlanDefaults {
   signalEntry?: number | null;
 }
 
-export function PlanTradeDialog({ open, onClose, defaults, entries, account, stoppedElsewhere }: { open: boolean; onClose: () => void; defaults: PlanDefaults; entries: JournalEntry[]; account: PlaybookAccount; stoppedElsewhere: string[] }) {
+export function PlanTradeDialog({ open, onClose, defaults, entries, account, stoppedElsewhere, tradesElsewhere }: { open: boolean; onClose: () => void; defaults: PlanDefaults; entries: JournalEntry[]; account: PlaybookAccount; stoppedElsewhere: string[]; tradesElsewhere: number }) {
   // Remount the form whenever it opens with new defaults.
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className={dialogClass}>
-        {open && <PlanTradeForm key={`${account.id}:${JSON.stringify(defaults)}`} defaults={defaults} entries={entries} account={account} stoppedElsewhere={stoppedElsewhere} onDone={onClose} />}
+        {open && <PlanTradeForm key={`${account.id}:${JSON.stringify(defaults)}`} defaults={defaults} entries={entries} account={account} stoppedElsewhere={stoppedElsewhere} tradesElsewhere={tradesElsewhere} onDone={onClose} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function PlanTradeForm({ defaults, entries, account, stoppedElsewhere, onDone }: { defaults: PlanDefaults; entries: JournalEntry[]; account: PlaybookAccount; stoppedElsewhere: string[]; onDone: () => void }) {
+function PlanTradeForm({ defaults, entries, account, stoppedElsewhere, tradesElsewhere, onDone }: { defaults: PlanDefaults; entries: JournalEntry[]; account: PlaybookAccount; stoppedElsewhere: string[]; tradesElsewhere: number; onDone: () => void }) {
   const refresh = useRefresh();
   const [setupId, setSetupId] = useState(loggableSetupById(defaults.setupId ?? "")?.id ?? account.setups[0]?.id ?? PLAYBOOK_SETUPS[0].id);
   const [side, setSide] = useState<Side>(defaults.side ?? "LONG");
@@ -120,10 +120,11 @@ function PlanTradeForm({ defaults, entries, account, stoppedElsewhere, onDone }:
       entries,
       account,
       stoppedElsewhere,
+      tradesElsewhere,
     );
     const manual: Check[] = MANUAL_CHECKS.map((m) => ({ id: m.id, label: m.label, status: ticked.has(m.id) ? "pass" : "fail", detail: ticked.has(m.id) ? "Ticked" : "Not ticked yet", hard: true }));
     return [...auto, ...manual];
-  }, [setupId, side, g, e, s, t, riskAmount, defaults.signalEntry, time, entries, account, stoppedElsewhere, ticked]);
+  }, [setupId, side, g, e, s, t, riskAmount, defaults.signalEntry, time, entries, account, stoppedElsewhere, tradesElsewhere, ticked]);
   const broken = hardFailures(checks);
 
   const save = useMutation({

@@ -1,5 +1,6 @@
 import { activeSetupById, customSetup, type PlaybookAccount } from "./config";
 import { isLoss, platformDay, riskBudget, type JournalEntry } from "./rules";
+import { MAX_TRADES_PER_DAY } from "./config";
 
 // The discipline streak: a daily checklist of the habits that cost money in
 // week 46 (9–13 Nov 2026: −$240, most of it oversized and revenge trades). Most
@@ -18,7 +19,8 @@ export interface DisciplineRule {
 }
 
 export const DISCIPLINE_RULES: readonly DisciplineRule[] = [
-  { id: "loss-limit", kind: "auto", label: "No trade after 2 losses or the daily stop", why: "Once an account is stopped for the day, close the platform." },
+  { id: "loss-limit", kind: "auto", label: "No trade after the loss limit or the daily stop", why: "Flex: 2 losses. Pro: 1 loss. Once an account is stopped for the day, close it." },
+  { id: "day-limits", kind: "auto", label: `Stop at the profit lock; at most ${MAX_TRADES_PER_DAY} trades`, why: `Flex done at +1% ($100), Pro at +1% ($50). ${MAX_TRADES_PER_DAY} trades a day across both accounts.` },
   { id: "no-revenge", kind: "auto", label: "No re-entry within an hour of a loss", why: "And never flip direction in the same market on the same day after a loss." },
   { id: "right-size", kind: "auto", label: "Risk no more than the plan's size", why: "The Playbook's A/B risk times the setup's scale (8/33 setups: a quarter). Your own trades: the account's A risk, or B if graded B." },
   { id: "logged-first", kind: "auto", label: "Logged in the Playbook before entry", why: "Trades logged afterwards on the Trades page skip the pre-trade checks." },
@@ -29,12 +31,12 @@ export const DISCIPLINE_RULES: readonly DisciplineRule[] = [
 
 /** This week's goals and limits, shown above the checklist. */
 export const WEEK_PLAN = {
-  weekOf: "2026-11-16",
+  weekOf: "2026-11-23",
   goals: [
-    "Signals are alerts; take your own trades, but every one sized from the plan with its stop on the platform.",
-    "Stop after 2 losses or the daily stop, on every account.",
-    "Pro at 0.5% risk; done for the week below $4,850.",
-    "Flex: the 8/33 basket at $25 a trade, the other setups at their Playbook size.",
+    "Flex: stop after 2 losses. Pro: stop after 1 loss. At most 3 losing trades a day.",
+    `Profit lock: Flex done at +$100, Pro at +$50. At most ${MAX_TRADES_PER_DAY} trades a day across both.`,
+    "Risk: Flex up to $50 a trade, Pro $25, with the stop on the platform before entry.",
+    "Gold and NAS100 first; BTC only with a target 2R or more away (costs ate it last week).",
   ],
   // No new trades on an account whose balance is below its line.
   stopLines: { "pro-5k": 4850 } as Record<string, number>,
@@ -87,6 +89,18 @@ export function evaluateAutoRules(day: string, entries: JournalEntry[], accounts
   results.push(afterStop.length
     ? { id: "loss-limit", status: "broken", detail: `${plural(afterStop.length, "trade")} taken after the account was stopped for the day` }
     : { id: "loss-limit", status: "kept", detail: "Stopped when the rules said to" });
+
+  // day-limits: a trade after the account's closed profit reached its lock, or past the day's cap
+  const pastLock = todays.filter((e) => {
+    const a = acct(e.accountId);
+    if (!a) return false;
+    const pnl = entries.filter((x) => x.accountId === a.id && x.id !== e.id && x.pnl !== null && x.exitTime !== null && x.exitTime <= e.entryTime && dayOf(x.exitTime) === day).reduce((s, x) => s + x.pnl!, 0);
+    return pnl >= (a.size * a.rules.profitLockPct) / 100;
+  });
+  const overCap = Math.max(0, todays.length - MAX_TRADES_PER_DAY);
+  results.push(pastLock.length || overCap
+    ? { id: "day-limits", status: "broken", detail: [pastLock.length && `${plural(pastLock.length, "trade")} after the profit lock`, overCap && `${todays.length} trades, ${MAX_TRADES_PER_DAY} allowed`].filter(Boolean).join("; ") }
+    : { id: "day-limits", status: "kept", detail: `${plural(todays.length, "trade")} of ${MAX_TRADES_PER_DAY}` });
 
   // no-revenge
   const revenge = todays.filter((b) => entries.some((a) =>

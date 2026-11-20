@@ -34,6 +34,7 @@ export interface PlaybookRules {
   maxOpen: number; // trades open at once
   dailyStopPct: number; // own daily stop, % of the starting balance: half the firm's limit
   maxLossesPerDay: number; // stop for the day after this many losing trades
+  profitLockPct: number; // stop for the day once this much profit (% of the starting balance) is closed
   skipBOnForex: boolean; // B-grade currency trades lost money in the backtest
   riskTolerance: number; // rounding to a lot size may add up to 5%
   chaseR: number; // entering more than this many R from the signal is chasing
@@ -66,9 +67,14 @@ export interface AccountSetup {
 // Risk share for a playbook setup that isn't in the account's own list.
 export const OTHER_SETUP_RISK_SCALE = 0.5;
 
+// Trades a day across every account (20 Nov 2026: 2 losses on the Flex plus
+// 1 on the Pro is at most 3 losing trades a day; 6 trades caps a winning day).
+export const MAX_TRADES_PER_DAY = 6;
+
 const SHARED_RULES = {
   maxOpen: 2,
   maxLossesPerDay: 2,
+  profitLockPct: 1,
   skipBOnForex: true,
   riskTolerance: 1.05,
   chaseR: 0.25,
@@ -120,7 +126,8 @@ export const PLAYBOOK_ACCOUNTS: readonly PlaybookAccount[] = [
     // 0.5% from 16 Nov 2026 (was 0.75%): after week 46 only $242 of room was
     // left above the floor, about 6 losses at 0.75%. Back to 0.75% once the
     // balance is above $5,000 again.
-    rules: { ...SHARED_RULES, riskPctA: 0.5, riskPctB: null, dailyStopPct: 1.5 },
+    // One loss and it's done for the day (20 Nov 2026): $331 of room above the floor.
+    rules: { ...SHARED_RULES, riskPctA: 0.5, riskPctB: null, dailyStopPct: 1.5, maxLossesPerDay: 1 },
     // 6% of room is 8R at 0.75%: only setups whose tester drawdown stayed
     // near 4–6R and whose worst losing streak was 4 or fewer.
     setups: [

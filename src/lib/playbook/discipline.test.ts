@@ -18,21 +18,33 @@ const status = (entries: JournalEntry[], day = MON) => Object.fromEntries(evalua
 
 describe("evaluateAutoRules", () => {
   it("keeps every rule on a clean day and on a day without trades", () => {
-    expect(Object.values(status([trade()]))).toEqual(Array(5).fill("kept"));
-    expect(Object.values(status([]))).toEqual(Array(5).fill("kept"));
+    expect(Object.values(status([trade()]))).toEqual(Array(6).fill("kept"));
+    expect(Object.values(status([]))).toEqual(Array(6).fill("kept"));
   });
 
   it("allows your own trades but holds them to the plan's size", () => {
     const own = (riskAmount: number) => trade({ setupId: customSetupId("ETHUSDT"), symbol: "ETHUSDT", grade: null, riskAmount });
-    expect(Object.values(status([own(25)]))).toEqual(Array(5).fill("kept"));
+    expect(Object.values(status([own(25)]))).toEqual(Array(6).fill("kept"));
     expect(status([own(40)])["right-size"]).toBe("broken");
   });
 
-  it("flags a trade after two losses", () => {
-    const loss = (h: string) => trade({ symbol: "SPX500", setupId: "liquidity-reversal:SPX500:4h", entryTime: at(MON, h), exitTime: at(MON, h.replace(":00", ":30")), pnl: -25, exitReason: "stop" });
-    const third = trade({ entryTime: at(MON, "15:00"), exitTime: at(MON, "16:00") });
+  it("stops the Flex after two losses and the Pro after one", () => {
+    const loss = (h: string, accountId = "flex-10k") => trade({ accountId, symbol: "SPX500", setupId: "liquidity-reversal:SPX500:4h", entryTime: at(MON, h), exitTime: at(MON, h.replace(":00", ":30")), pnl: -25, exitReason: "stop" });
+    const third = trade({ accountId: "flex-10k", entryTime: at(MON, "15:00"), exitTime: at(MON, "16:00") });
     expect(status([loss("08:00"), loss("09:00"), third])["loss-limit"]).toBe("broken");
     expect(status([loss("08:00"), third])["loss-limit"]).toBe("kept");
+    // The Pro is done after one; a Flex loss doesn't stop it.
+    expect(status([loss("08:00", "pro-5k"), trade({ entryTime: at(MON, "15:00"), exitTime: at(MON, "16:00") })])["loss-limit"]).toBe("broken");
+    expect(status([loss("08:00"), trade({ entryTime: at(MON, "15:00"), exitTime: at(MON, "16:00") })])["loss-limit"]).toBe("kept");
+  });
+
+  it("flags trades after the profit lock or past 6 a day", () => {
+    const win = trade({ entryTime: at(MON, "08:00"), exitTime: at(MON, "09:00"), pnl: 50 }); // Pro lock: +$50
+    expect(status([win, trade({ entryTime: at(MON, "13:00"), exitTime: at(MON, "14:00") })])["day-limits"]).toBe("broken");
+    expect(status([trade({ pnl: 49 }), trade({ entryTime: at(MON, "13:00"), exitTime: at(MON, "14:00") })])["day-limits"]).toBe("kept");
+    const seven = Array.from({ length: 7 }, (_, i) => trade({ accountId: i % 2 ? "pro-5k" : "flex-10k", pnl: 1, entryTime: at(MON, `${String(8 + i).padStart(2, "0")}:00`), exitTime: at(MON, `${String(8 + i).padStart(2, "0")}:30`) }));
+    expect(status(seven)["day-limits"]).toBe("broken");
+    expect(status(seven.slice(0, 6))["day-limits"]).toBe("kept");
   });
 
   it("flags re-entry within an hour of a loss and same-day flips", () => {

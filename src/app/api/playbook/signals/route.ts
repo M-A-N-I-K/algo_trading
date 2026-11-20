@@ -18,9 +18,9 @@ export async function GET(request: NextRequest) {
     const now = Date.now();
     // MT5's contract specs size the markets the app has no lot size for (FTSE 100).
     const [scan, state, specs] = await Promise.all([runSignalScan(), loadAccountsState(user.id, now), loadFeedSpecs(now)]);
-    const { account, entries, stoppedElsewhere } = forAccount(state, accountId);
+    const { account, entries, stoppedElsewhere, tradesElsewhere } = forAccount(state, accountId);
     const lastCandle = Object.fromEntries(scan.playbook.map((r) => [r.id, r.lastCloseTime]));
-    return NextResponse.json({ asOf: scan.asOf, signals: rankSignals(scan.playbook, entries, now, account, stoppedElsewhere), lastCandle, specs, errors: scan.errors });
+    return NextResponse.json({ asOf: scan.asOf, signals: rankSignals(scan.playbook, entries, now, account, stoppedElsewhere, tradesElsewhere), lastCandle, specs, errors: scan.errors });
   } catch (err) {
     const { body, status } = toErrorResponse(err);
     return NextResponse.json(body, { status });

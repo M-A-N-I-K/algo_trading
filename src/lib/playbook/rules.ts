@@ -4,6 +4,7 @@ import { specFor } from "@/lib/mt5/specs";
 import type { LatestSignal } from "@/lib/signals/scan";
 import {
   lotUnits,
+  MAX_TRADES_PER_DAY,
   MISTAKES,
   PLAYBOOK_ACCOUNT,
   accountSetup,
@@ -98,6 +99,9 @@ export interface AccountStatus {
   toTarget: number;
   lossesToday: number; // losing trades closed today, platform time
   dailyStopHit: boolean; // own daily stop reached, or too many losses today
+  tradesToday: number; // entered today, platform time
+  profitLock: number; // $, positive: done for the day once this much is closed
+  profitLockHit: boolean;
   targetReached: boolean;
 }
 
@@ -124,10 +128,12 @@ export function accountStatus(entries: JournalEntry[], now: number, account: Pla
   let closedPnl = 0;
   let todayPnl = 0;
   let lossesToday = 0;
+  let tradesToday = 0;
   let openCount = 0;
   let openRisk = 0;
   for (const e of entries) {
     if (e.entryTime > now) continue;
+    if (platformDay(e.entryTime, account.timeZone) === today) tradesToday++;
     if (openAt(e, now)) {
       openCount++;
       openRisk += e.riskAmount;
@@ -144,6 +150,7 @@ export function accountStatus(entries: JournalEntry[], now: number, account: Pla
   const floor = account.size * (1 - account.maxLossPct / 100);
   const ownDailyStop = (account.size * rules.dailyStopPct) / 100;
   const targetBalance = account.size * (1 + account.targetPct / 100);
+  const profitLock = (account.size * rules.profitLockPct) / 100;
   return {
     size: account.size,
     balance,
@@ -163,6 +170,9 @@ export function accountStatus(entries: JournalEntry[], now: number, account: Pla
     toTarget: targetBalance - balance,
     lossesToday,
     dailyStopHit: todayPnl <= -ownDailyStop || lossesToday >= rules.maxLossesPerDay,
+    tradesToday,
+    profitLock,
+    profitLockHit: todayPnl >= profitLock,
     targetReached: balance >= targetBalance,
   };
 }
@@ -283,9 +293,11 @@ const usd = (n: number) => `${n < 0 ? "−" : ""}$${Math.abs(n).toFixed(2)}`;
 /**
  * The checks for one trade on one account. `entries` are that account's
  * trades; `stoppedElsewhere` names other accounts that hit their daily stop
+ * today, and `tradesElsewhere` counts today's trades on them (for the
+ * all-accounts cap of MAX_TRADES_PER_DAY).
  * today (a bad day on one is a reason to stop on all).
  */
-export function preTradeChecks(plan: TradePlan, entries: JournalEntry[], account: PlaybookAccount = PLAYBOOK_ACCOUNT, stoppedElsewhere: string[] = []): Check[] {
+export function preTradeChecks(plan: TradePlan, entries: JournalEntry[], account: PlaybookAccount = PLAYBOOK_ACCOUNT, stoppedElsewhere: string[] = [], tradesElsewhere = 0): Check[] {
   const rules = account.rules;
   const checks: Check[] = [];
   const add = (id: string, label: string, ok: boolean | "warn", detail: string, hard = true) =>
@@ -365,7 +377,16 @@ export function preTradeChecks(plan: TradePlan, entries: JournalEntry[], account
       ? `${status.lossesToday} losing trades today; you stop after ${rules.maxLossesPerDay}`
       : `${usd(status.todayPnl)} today, ${lossesLeft} loss${lossesLeft === 1 ? "" : "es"} left; you stop at ${usd(-status.ownDailyStop)} or after ${rules.maxLossesPerDay} losses`,
   );
-  if (stoppedElsewhere.length > 0) add("linked-stop", "Other accounts still trading", false, `${stoppedElsewhere.join(" and ")} hit the daily stop today: stop on every account until the reset.`);
+  // Each account stops on its own losses (Flex 2, Pro 1): another account's stop is a warning.
+  if (stoppedElsewhere.length > 0) add("linked-stop", "Other accounts still trading", "warn", `${stoppedElsewhere.join(" and ")} hit the daily stop today. This account has its own loss limit, but take only your best setup.`, false);
+  add(
+    "profit-lock",
+    "Not past the day's profit lock",
+    !status.profitLockHit,
+    status.profitLockHit ? `${usd(status.todayPnl)} today: done for the day at ${usd(status.profitLock)}. Keep it.` : `${usd(status.todayPnl)} today; you stop at ${usd(status.profitLock)} profit`,
+  );
+  const tradesToday = status.tradesToday + tradesElsewhere;
+  add("day-trades", `At most ${MAX_TRADES_PER_DAY} trades today`, tradesToday < MAX_TRADES_PER_DAY, `${tradesToday} of ${MAX_TRADES_PER_DAY} trades taken today across your accounts`);
   const worstDay = status.worstCaseToday - plan.riskAmount;
   add(
     "own-daily",
@@ -457,7 +478,7 @@ export interface RankedSignal {
  * setups before the others, ones you can take before blocked ones, then by tier (S, A+, A, B, C), new before running, and
  * the setup with the higher backtest average R.
  */
-export function rankSignals(rows: SignalInput[], entries: JournalEntry[], now: number, account: PlaybookAccount = PLAYBOOK_ACCOUNT, stoppedElsewhere: string[] = []): RankedSignal[] {
+export function rankSignals(rows: SignalInput[], entries: JournalEntry[], now: number, account: PlaybookAccount = PLAYBOOK_ACCOUNT, stoppedElsewhere: string[] = [], tradesElsewhere = 0): RankedSignal[] {
   const out: RankedSignal[] = [];
   for (const row of rows) {
     const s = row.signal;
@@ -472,7 +493,7 @@ export function rankSignals(rows: SignalInput[], entries: JournalEntry[], now: n
       const budget = riskBudget(setup.symbol, grade, account, setup);
       sizing = sizePosition(setup.symbol, entry, s.stop, budget.amount);
       plan = { setupId: setup.id, side: s.side, grade, entry, stop: s.stop, target: s.target, riskAmount: sizing?.riskAtLots ?? budget.amount, signalEntry: s.entry, time: now };
-      checks = preTradeChecks(plan, entries, account, stoppedElsewhere);
+      checks = preTradeChecks(plan, entries, account, stoppedElsewhere, tradesElsewhere);
     }
     const chasing = checks.some((c) => c.id === "chase" && c.status === "warn");
     const { tier, reason } = signalTier(setup, grade, account, chasing);

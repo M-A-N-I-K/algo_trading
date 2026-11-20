@@ -194,12 +194,17 @@ function AccountPanel({ view }: { view: PlaybookView }) {
       {editing && <BalanceEditor accountId={view.account.id} current={s.balance} onDone={() => setEditing(false)} />}
       {s.dailyStopHit && (
         <Callout tone="critical" title="Daily stop hit" className="mt-5">
-          {s.lossesToday >= view.rules.maxLossesPerDay ? `${s.lossesToday} losing trades today` : `You're down ${usd(-s.todayPnl)} today`}. No more trades on any account until the firm&apos;s day resets at 00:00 platform time.
+          {s.lossesToday >= view.rules.maxLossesPerDay ? `${s.lossesToday} losing ${s.lossesToday === 1 ? "trade" : "trades"} today` : `You're down ${usd(-s.todayPnl)} today`}. No more trades on this account until the firm&apos;s day resets at 00:00 platform time.
         </Callout>
       )}
-      {!s.dailyStopHit && view.stoppedElsewhere.length > 0 && (
-        <Callout tone="critical" title="Stopped on another account" className="mt-5">
-          {view.stoppedElsewhere.join(" and ")} hit the daily stop today. A bad day on one account is a reason to stop on all of them until the reset.
+      {!s.dailyStopHit && s.profitLockHit && (
+        <Callout tone="good" title="Profit lock reached" className="mt-5">
+          Up {usd(s.todayPnl)} today, past the {usd(s.profitLock)} lock. Done on this account until the reset: keep the day.
+        </Callout>
+      )}
+      {!s.dailyStopHit && !s.profitLockHit && view.stoppedElsewhere.length > 0 && (
+        <Callout tone="warning" title="Stopped on another account" className="mt-5">
+          {view.stoppedElsewhere.join(" and ")} hit the daily stop today. This account still has its own loss limit, but take only your best setup.
         </Callout>
       )}
       {s.targetReached && (
@@ -608,7 +613,7 @@ export default function PlaybookBoard() {
       <Scorecard view={view} />
       <History trades={view.closed} onEdit={setClosing} />
       <RulesPanel view={view} />
-      <PlanTradeDialog open={plan !== null} defaults={plan ?? {}} entries={entries} account={view.account} stoppedElsewhere={view.stoppedElsewhere} onClose={() => setPlan(null)} />
+      <PlanTradeDialog open={plan !== null} defaults={plan ?? {}} entries={entries} account={view.account} stoppedElsewhere={view.stoppedElsewhere} tradesElsewhere={view.tradesElsewhere} onClose={() => setPlan(null)} />
       <CloseTradeDialog trade={closing} onClose={() => setClosing(null)} />
       <EditTradeDialog trade={editing} onClose={() => setEditing(null)} />
     </div>

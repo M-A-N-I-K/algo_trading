@@ -446,6 +446,16 @@ describe("the two FundingPips accounts", () => {
     // A trade closed after `now` was still open then.
     expect(accountStatusOn([lossOn(flex, -40, { exitTime: NOON + 1000 })], NOON, flex).openCount).toBe(1);
   });
+  it("stops the Pro after one loss, at the profit lock, and at 6 trades across accounts", () => {
+    expect(accountStatusOn([lossOn(pro, -25)], NOON, pro).dailyStopHit).toBe(true);
+    expect(accountStatusOn([lossOn(flex, -25)], NOON, flex).dailyStopHit).toBe(false);
+    expect(status(preTradeChecksOn(flexPlan(), [closed(100, NOON - 1000, { accountId: flex.id })], flex), "profit-lock")).toBe("fail");
+    expect(status(preTradeChecksOn(flexPlan(), [closed(99, NOON - 1000, { accountId: flex.id })], flex), "profit-lock")).toBe("pass");
+    expect(status(preTradeChecksOn(proPlan(), [closed(50, NOON - 1000, { accountId: pro.id })], pro), "profit-lock")).toBe("fail");
+    const three = [1, 2, 3].map((i) => closed(1, NOON - i * 1000, { accountId: flex.id, entryTime: NOON - i * 2000 }));
+    expect(status(preTradeChecksOn(flexPlan(), three, flex, [], 2), "day-trades")).toBe("pass");
+    expect(status(preTradeChecksOn(flexPlan(), three, flex, [], 3), "day-trades")).toBe("fail");
+  });
   it("keeps closed losses plus open risk inside the own daily stop", () => {
     // −$100 today and $100 open: another $100 could reach −$300, past the $200 stop.
     const entries = [lossOn(flex, -100), entry({ accountId: flex.id, setupId: XAU_SMC, riskAmount: 100 })];
@@ -456,9 +466,10 @@ describe("the two FundingPips accounts", () => {
     expect(status(preTradeChecksOn(proPlan(), [entry({ accountId: pro.id, setupId: XAU_SMC, riskAmount: 37.5 })], pro), "own-daily")).toBe("pass");
     expect(status(preTradeChecksOn(proPlan(), [lossOn(pro, -37.5), entry({ accountId: pro.id, setupId: XAU_SMC, riskAmount: 37.5 })], pro), "own-daily")).toBe("fail");
   });
-  it("blocks every account when another hit its daily stop", () => {
+  it("warns, without blocking, when another account hit its daily stop", () => {
     const checks = preTradeChecksOn(flexPlan(), [], flex, [pro.name]);
-    expect(status(checks, "linked-stop")).toBe("fail");
+    expect(status(checks, "linked-stop")).toBe("warn");
+    expect(hardFailures(checks).some((c) => c.id === "linked-stop")).toBe(false);
     expect(checks.find((c) => c.id === "linked-stop")?.detail).toContain(pro.name);
     expect(preTradeChecksOn(flexPlan(), [], flex).some((c) => c.id === "linked-stop")).toBe(false);
   });

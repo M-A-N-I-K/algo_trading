@@ -92,7 +92,8 @@ export function stoppedElsewhere(state: AccountsState, accountId: string): strin
 /** One account's slice of the state. */
 export function forAccount(state: AccountsState, accountId: string) {
   const account = state.accounts.find((a) => a.id === accountId)!;
-  return { account, entries: state.entries.get(accountId) ?? [], stoppedElsewhere: stoppedElsewhere(state, accountId) };
+  const tradesElsewhere = state.accounts.filter((a) => a.id !== accountId).reduce((n, a) => n + (state.statuses.get(a.id)?.tradesToday ?? 0), 0);
+  return { account, entries: state.entries.get(accountId) ?? [], stoppedElsewhere: stoppedElsewhere(state, accountId), tradesElsewhere };
 }
 
 /**
@@ -117,7 +118,7 @@ export async function setPlatformBalance(userId: string, body: Body): Promise<Pl
 
 export async function playbookView(userId: string, accountId: string, now = Date.now()) {
   const state = await loadAccountsState(userId, now);
-  const { account, entries, stoppedElsewhere: stopped } = forAccount(state, accountId);
+  const { account, entries, stoppedElsewhere: stopped, tradesElsewhere } = forAccount(state, accountId);
   return {
     asOf: now,
     account,
@@ -125,6 +126,7 @@ export async function playbookView(userId: string, accountId: string, now = Date
     // Every account, for the switcher.
     accounts: state.accounts.map((a) => ({ account: a, status: state.statuses.get(a.id)! })),
     stoppedElsewhere: stopped,
+    tradesElsewhere,
     setups: PLAYBOOK_SETUPS,
     manualChecks: MANUAL_CHECKS,
     mistakes: MISTAKES,
@@ -194,12 +196,13 @@ export async function openTrade(userId: string, body: Body, now = Date.now()): P
   const quantity = lots !== null && lots > 0 ? lots * lotUnits(setup.symbol) : (riskInput ?? 0) / perUnitRisk;
   const riskAmount = quantity * perUnitRisk;
 
-  const { account, entries, stoppedElsewhere: stopped } = forAccount(await loadAccountsState(userId, entryTime), accountId);
+  const { account, entries, stoppedElsewhere: stopped, tradesElsewhere } = forAccount(await loadAccountsState(userId, entryTime), accountId);
   const checks = preTradeChecks(
     { setupId: setup.id, side, grade, entry, stop, target, riskAmount, signalEntry: num(body, "signalEntry", false), time: entryTime },
     entries,
     account,
     stopped,
+    tradesElsewhere,
   );
   const ticked = Array.isArray(body.manualChecks) ? new Set((body.manualChecks as unknown[]).map(String)) : new Set<string>();
   for (const m of MANUAL_CHECKS) {
