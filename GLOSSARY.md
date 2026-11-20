@@ -40,7 +40,7 @@ Domain terms for the trading journal. Use these names in code, comments and revi
 
 **Backtest**: one simulation of a signal source over one candle series (`simulate()` in `src/domain/backtesting`). It produces round trips and an equity curve, with the same money vocabulary as the journal: net P&L = gross − fees + funding.
 
-**Signal source**: the seam between a strategy and the simulation. After each bar closes it decides what to do at the next bar's open: enter, exit, or nothing. It must decide bar *t* from bars 0..*t* only. Two adapters: a Strategy Builder definition (`fromStrategyDefinition`) and a hand-coded strategy (`fromCodedStrategy`).
+**Signal source**: the seam between a strategy and the simulation. After each bar closes it decides what to do at the next bar's open: enter, exit, or nothing. It must decide bar *t* from bars 0..*t* only. One adapter: a hand-coded strategy from `src/strategies` (`fromCodedStrategy`). The Strategy Builder and its adapter were deleted on 21 Nov 2026 (no strategy was ever saved).
 
 **Look-ahead**: a signal source using bars after *t* to decide bar *t*. `detectLookAhead` replays a source on truncated history and flags any decision that changes.
 
@@ -60,13 +60,9 @@ Domain terms for the trading journal. Use these names in code, comments and revi
 
 **Warm-up**: bars loaded before the backtest range so indicators are already formed on its first bar. The run takes the strategy's longest indicator period or lookback × 3, at least 100 bars. No decisions are taken and no equity is recorded until the last warm-up bar closes, and metrics cover the range only.
 
-**Candle cache**: historical candles live in the `candles` table. For a Binance instrument, a backtest fetches only the spans missing from the cache, in pages of 1,000, and never stores the candle that's still forming. The first run on a long range is slow; later runs read from the cache.
 
-**Data source**: where a backtest's candles came from, stored in its configuration: `binance-spot` (Binance spot history, the crypto pairs), `binance-futures` (Binance USDⓈ-M futures, for markets spot doesn't list, such as gold XAUUSDT; instruments on exchange `BINANCE_FUTURES`), or `demo` (a seeded random walk, for instruments not on Binance). CoinDCX futures prices track these closely but not exactly, so live fills would differ slightly.
 
-**Demo backtest**: a backtest that ran on demo candles. It checks a strategy's mechanics, not its edge, and is labelled as such everywhere it's shown.
 
-**Builder backtest**: a backtest of one saved Strategy Builder version, stored with its configuration, metrics, curves and every round trip (`runStrategyBacktest`). The builder saves unsaved changes as a new version before running, so every result maps to an exact definition.
 
 ## Market structure (coded strategies)
 

@@ -6,14 +6,11 @@ import {
   LayoutDashboard,
   NotebookPen,
   Stethoscope,
-  Layers,
   FlaskConical,
   Lightbulb,
   BookOpen,
   Activity,
   Compass,
-  Ruler,
-  ShieldHalf,
   RefreshCw,
   Settings,
   Target,
@@ -51,20 +48,12 @@ const NAV_GROUPS: { title: string; items: { href: string; label: string; icon: L
   {
     title: "Research",
     items: [
-      { href: "/strategies", label: "Strategies", icon: Layers },
       { href: "/tester-reports", label: "Tester reports", icon: ClipboardCheck },
       { href: "/backtest", label: "Backtests", icon: FlaskConical },
       { href: "/insights", label: "Backtest insights", icon: Lightbulb },
       { href: "/plan", label: "Weekly plan", icon: Compass },
       { href: "/markets", label: "Markets", icon: Activity },
       { href: "/guides", label: "Guides", icon: BookOpen },
-    ],
-  },
-  {
-    title: "Risk",
-    items: [
-      { href: "/risk", label: "Position size", icon: Ruler },
-      { href: "/risk-calculator", label: "Account risk", icon: ShieldHalf },
     ],
   },
   {

@@ -183,11 +183,11 @@ export default function StrategyGuideView({ guide }: { guide: StrategyGuide }) {
       <Panel title="While you're in the trade">
         <Steps steps={guide.manage} />
         <p className="mt-4 text-sm text-fog">
-          Not sure how big to go? Use{" "}
-          <Link href="/risk" className="text-paper underline underline-offset-2">
-            Position size
+          Not sure how big to go? Log the trade in the{" "}
+          <Link href="/playbook" className="text-paper underline underline-offset-2">
+            Playbook
           </Link>
-          : enter your entry, stop and the amount you're willing to lose, and it gives you the quantity.
+          : enter your entry and stop, and it suggests the lots for your account&apos;s risk.
         </p>
       </Panel>
 

@@ -138,8 +138,8 @@ export default function TradeReview() {
                 ))}
               </ol>
               <p className="mt-3 text-xs text-mist">
-                Size each trade on the <Link href="/risk" className="underline underline-offset-4">Position size</Link> page, and only take setups
-                from the <Link href="/playbook" className="underline underline-offset-4">Playbook</Link> while you rebuild.
+                Log and size each trade in the <Link href="/playbook" className="underline underline-offset-4">Playbook</Link> before entry, so the
+                pre-trade checks run.
               </p>
             </Panel>
           )}
