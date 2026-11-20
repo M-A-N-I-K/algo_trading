@@ -1,5 +1,5 @@
 import axios from "axios";
-import { CalendarEvent } from "@/domain/market-pulse/catalysts";
+import { CalendarEvent } from "@/lib/news/catalysts";
 
 // ForexFactory's public weekly calendar feed. Unofficial: no API key, and
 // its shape could change without notice, so callers should tolerate failure.

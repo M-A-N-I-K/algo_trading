@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { CloseTradeDialog, EditTradeDialog, PLAYBOOK_KEY, PLAYBOOK_SIGNALS_KEY, PlanTradeDialog, type PlanDefaults } from "./TradeDialogs";
 import { registerSpecs, type SymbolSpec } from "@/lib/mt5/specs";
 import DisciplinePanel from "./DisciplinePanel";
+import { NewsPanel } from "./News";
 
 interface SignalsResponse {
   asOf: number;
@@ -550,10 +551,10 @@ function RulesPanel({ view }: { view: PlaybookView }) {
         <li>Take only trades with the strategy&apos;s own target: at least 2 : 1 reward to risk (1.5 : 1 on MACD gold).</li>
         <li>At most {k.maxOpen} trades open. BTC and ETH in the same direction are one bet, so are gold and silver, and so are currency pairs that bet the same way on the dollar.</li>
         <li>Stop for the day at {money(-(view.account.size * k.dailyStopPct) / 100)} or after {k.maxLossesPerDay} losing trades, whichever comes first. Today&apos;s losses plus the risk on open trades must never pass that stop. The firm&apos;s limit is {view.account.dailyLossPct}%, and open trades count toward it.</li>
-        <li>If any account hits its daily stop, stop trading every account until the reset.</li>
+        <li>Each account stops on its own losses. When the other account is stopped, take only your best setup here.</li>
         <li>Never raise risk to catch up when you&apos;re behind.</li>
         <li>Leave stops and targets where the strategy puts them. Moving them makes your results stop matching the backtest.</li>
-        <li>No trades within 30 minutes of high-impact news or of the daily rollover (00:00 platform time).</li>
+        <li>No trades within 30 minutes of high-impact news (the News panel above) or of the daily rollover (00:00 platform time).</li>
         <li>Judge a setup after 25 trades, not after a losing streak.</li>
       </ul>
       <p className="mt-4 text-xs leading-relaxed text-mist">
@@ -607,6 +608,7 @@ export default function PlaybookBoard() {
       <DisciplinePanel />
       <AccountSwitcher view={view} onSelect={selectAccount} />
       <AccountPanel view={view} />
+      <NewsPanel symbols={[...view.account.setups.map((a) => setupById(a.id)?.symbol).filter((s): s is string => !!s), ...view.open.map((t) => t.symbol)]} />
       <SignalsPanel account={view.account} onPlan={setPlan} freeSlots={Math.max(0, view.rules.maxOpen - view.status.openCount)} />
       <OpenTrades trades={view.open} onClose={setClosing} onEdit={setEditing} />
       <Discipline view={view} />

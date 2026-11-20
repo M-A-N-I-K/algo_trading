@@ -21,7 +21,6 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   "/backtest": { title: "Backtests", subtitle: "Run a strategy against historical candles." },
   "/insights": { title: "Backtest insights", subtitle: "Compare every backtest run side by side." },
   "/plan": { title: "Weekly plan", subtitle: "Top-down read of every market: last week's range, today's levels and which side is A-grade." },
-  "/markets": { title: "Markets", subtitle: "Live bias, zones, volatility and upcoming events for crypto and commodities." },
   "/guides": { title: "Guides", subtitle: "Step-by-step playbooks for trading each strategy by hand." },
   "/import": { title: "Sync", subtitle: "Import your MT5 trade history (FundingPips), or pull trades from CoinDCX." },
   "/settings": { title: "Settings", subtitle: "Account size, loss limits and dashboard preferences." },

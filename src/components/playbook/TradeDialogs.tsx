@@ -10,6 +10,7 @@ import { hardFailures, inAccountPlan, pnlUsd, preTradeChecks, riskBudget, sizePo
 import { roundTripCostPerUnitUsd } from "@/lib/costs/fundingpips";
 import { fmtPrice } from "@/lib/plan/weeklyPlan";
 import { cn } from "@/lib/utils";
+import { NewsNote } from "./News";
 
 // Prefixes: each account's view and signals sit under [...KEY, accountId], so
 // invalidating a prefix refreshes every account.
@@ -247,7 +248,10 @@ function PlanTradeForm({ defaults, entries, account, stoppedElsewhere, tradesEls
                 checked={ticked.has(m.id)}
                 onChange={(ev) => setTicked((prev) => { const next = new Set(prev); if (ev.target.checked) next.add(m.id); else next.delete(m.id); return next; })}
               />
-              {m.label}
+              <span className="flex flex-col gap-0.5">
+                {m.label}
+                {m.id === "news" && <NewsNote symbol={setup.symbol} at={fromLocalInput(time)} />}
+              </span>
             </label>
           ))}
         </div>

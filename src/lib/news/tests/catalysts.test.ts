@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectCatalysts, CalendarEvent } from "../catalysts";
+import { newsClash, newsCurrencies, nextHighImpact, selectCatalysts, CalendarEvent } from "../catalysts";
 
 const NOW = Date.parse("2026-11-03T12:00:00Z");
 
@@ -22,5 +22,38 @@ describe("catalysts", () => {
 
   it("drops events with an unreadable date", () => {
     expect(selectCatalysts([{ ...feed[0], date: "soon" }], ["USD"], NOW)).toEqual([]);
+  });
+
+  it("keeps every currency when none is given", () => {
+    expect(selectCatalysts(feed, null, NOW).map((e) => e.currency)).toContain("AUD");
+  });
+});
+
+describe("news for a market", () => {
+  it("maps markets to the currencies whose news moves them", () => {
+    expect(newsCurrencies("XAUUSDT")).toEqual(["USD"]);
+    expect(newsCurrencies("BTCUSDT")).toEqual(["USD"]);
+    expect(newsCurrencies("NAS100")).toEqual(["USD"]);
+    expect(newsCurrencies("FTSE100")).toEqual(["GBP"]);
+    expect(newsCurrencies("GBPUSD")).toEqual(["GBP", "USD"]);
+    expect(newsCurrencies("EURJPY")).toEqual(["EUR", "JPY"]);
+    expect(newsCurrencies("UKOIL")).toEqual(["USD", "CAD"]);
+  });
+
+  const cats = selectCatalysts(feed, null, NOW);
+  const cpi = Date.parse("2026-11-04T13:30:00Z");
+
+  it("flags high-impact news within 30 minutes either side, for that market only", () => {
+    expect(newsClash(cats, "XAUUSDT", cpi - 20 * 60_000).map((c) => c.title)).toEqual(["CPI m/m"]);
+    expect(newsClash(cats, "XAUUSDT", cpi + 25 * 60_000).map((c) => c.title)).toEqual(["CPI m/m"]);
+    expect(newsClash(cats, "XAUUSDT", cpi - 45 * 60_000)).toEqual([]);
+    expect(newsClash(cats, "FTSE100", cpi)).toEqual([]);
+    // medium impact never blocks
+    expect(newsClash(cats, "XAUUSDT", Date.parse("2026-11-05T15:00:00Z"))).toEqual([]);
+  });
+
+  it("finds the next high-impact event", () => {
+    expect(nextHighImpact(cats, "NAS100", NOW)?.title).toBe("CPI m/m");
+    expect(nextHighImpact(cats, "GBPUSD", cpi)).toBeUndefined();
   });
 });
