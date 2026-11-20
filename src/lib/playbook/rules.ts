@@ -113,6 +113,11 @@ export function isLoss(e: JournalEntry): boolean {
   return (e.exitPrice - e.entryPrice) * d < 0; // lost on price, not just on costs
 }
 
+/** Open at `t`: entered by then and not yet closed. A trade logged after the fact is judged as things stood at its entry. */
+export const openAt = (e: JournalEntry, t: number) =>
+  e.entryTime <= t && (e.status === "OPEN" || e.exitTime === null || e.exitTime > t);
+
+/** The account as it stood at `now`: trades entered or closed later are left out. */
 export function accountStatus(entries: JournalEntry[], now: number, account: PlaybookAccount = PLAYBOOK_ACCOUNT): AccountStatus {
   const rules = account.rules;
   const today = platformDay(now, account.timeZone);
@@ -122,7 +127,8 @@ export function accountStatus(entries: JournalEntry[], now: number, account: Pla
   let openCount = 0;
   let openRisk = 0;
   for (const e of entries) {
-    if (e.status === "OPEN") {
+    if (e.entryTime > now) continue;
+    if (openAt(e, now)) {
       openCount++;
       openRisk += e.riskAmount;
     } else if (e.pnl !== null) {
@@ -337,7 +343,7 @@ export function preTradeChecks(plan: TradePlan, entries: JournalEntry[], account
   const allowed = budget.amount * rules.riskTolerance;
   add("risk", "Risk within plan", plan.riskAmount > 0 && plan.riskAmount <= allowed, `${usd(plan.riskAmount)} at risk; the plan allows ${usd(budget.amount)}`);
 
-  const open = entries.filter((e) => e.status === "OPEN");
+  const open = entries.filter((e) => openAt(e, plan.time));
   add("slots", "A free slot", open.length < rules.maxOpen, `${open.length} of ${rules.maxOpen} trades open`);
 
   if (symbol) {

@@ -439,6 +439,13 @@ describe("the two FundingPips accounts", () => {
     expect(s.dailyStopHit).toBe(true);
     expect(status(preTradeChecksOn(flexPlan(), [lossOn(flex, -40), lossOn(flex, -40)], flex), "daily-stop")).toBe("fail");
   });
+  it("judges a trade logged afterwards as things stood at its entry", () => {
+    const later = [lossOn(flex, -40, { exitTime: NOON + 1000 }), lossOn(flex, -40, { exitTime: NOON + 2000 })];
+    expect(accountStatusOn(later, NOON, flex).dailyStopHit).toBe(false);
+    expect(accountStatusOn(later, NOON + 3000, flex).dailyStopHit).toBe(true);
+    // A trade closed after `now` was still open then.
+    expect(accountStatusOn([lossOn(flex, -40, { exitTime: NOON + 1000 })], NOON, flex).openCount).toBe(1);
+  });
   it("keeps closed losses plus open risk inside the own daily stop", () => {
     // −$100 today and $100 open: another $100 could reach −$300, past the $200 stop.
     const entries = [lossOn(flex, -100), entry({ accountId: flex.id, setupId: XAU_SMC, riskAmount: 100 })];
