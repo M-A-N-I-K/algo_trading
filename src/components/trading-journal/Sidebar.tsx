@@ -7,9 +7,7 @@ import {
   NotebookPen,
   Stethoscope,
   FlaskConical,
-  Lightbulb,
   BookOpen,
-  Compass,
   RefreshCw,
   Settings,
   Target,
@@ -49,8 +47,6 @@ const NAV_GROUPS: { title: string; items: { href: string; label: string; icon: L
     items: [
       { href: "/tester-reports", label: "Tester reports", icon: ClipboardCheck },
       { href: "/backtest", label: "Backtests", icon: FlaskConical },
-      { href: "/insights", label: "Backtest insights", icon: Lightbulb },
-      { href: "/plan", label: "Weekly plan", icon: Compass },
       { href: "/guides", label: "Guides", icon: BookOpen },
     ],
   },

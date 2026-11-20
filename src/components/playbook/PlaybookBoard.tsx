@@ -15,6 +15,7 @@ import { CloseTradeDialog, EditTradeDialog, PLAYBOOK_KEY, PLAYBOOK_SIGNALS_KEY, 
 import { registerSpecs, type SymbolSpec } from "@/lib/mt5/specs";
 import DisciplinePanel from "./DisciplinePanel";
 import { NewsPanel } from "./News";
+import { WeeklyLevels } from "./WeeklyLevels";
 
 interface SignalsResponse {
   asOf: number;
@@ -597,6 +598,8 @@ export default function PlaybookBoard() {
   if (error || !view) return <Callout tone="critical" title="Couldn't load the playbook">{error instanceof Error ? error.message : "Try again in a minute."}</Callout>;
 
   const entries = [...view.open, ...view.closed];
+  // The account's own markets plus anything open on it, for the news and levels panels.
+  const markets = [...new Set([...view.account.setups.map((a) => setupById(a.id)?.symbol).filter((s): s is string => !!s), ...view.open.map((t) => t.symbol)])];
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -608,7 +611,8 @@ export default function PlaybookBoard() {
       <DisciplinePanel />
       <AccountSwitcher view={view} onSelect={selectAccount} />
       <AccountPanel view={view} />
-      <NewsPanel symbols={[...view.account.setups.map((a) => setupById(a.id)?.symbol).filter((s): s is string => !!s), ...view.open.map((t) => t.symbol)]} />
+      <NewsPanel symbols={markets} />
+      <WeeklyLevels symbols={markets} />
       <SignalsPanel account={view.account} onPlan={setPlan} freeSlots={Math.max(0, view.rules.maxOpen - view.status.openCount)} />
       <OpenTrades trades={view.open} onClose={setClosing} onEdit={setEditing} />
       <Discipline view={view} />

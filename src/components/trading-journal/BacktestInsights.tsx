@@ -13,7 +13,7 @@ async function fetchAnalytics(): Promise<BacktestRunAnalyticsRow[]> {
   return json.runs;
 }
 
-export default function InsightsPage() {
+export default function BacktestInsights() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["backtest-analytics"],
     queryFn: fetchAnalytics,
