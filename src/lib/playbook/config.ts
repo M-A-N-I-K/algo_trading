@@ -44,6 +44,7 @@ export interface PlaybookRules {
 export interface PlaybookAccount {
   id: string; // stored on each PlaybookTrade
   name: string;
+  shortName: string; // for tabs and tight spaces
   size: number; // starting balance, $
   maxLossPct: number; // static: equity may never touch size × (1 − this)
   dailyLossPct: number; // of the day's opening balance
@@ -93,6 +94,7 @@ export const PLAYBOOK_ACCOUNTS: readonly PlaybookAccount[] = [
   {
     id: "flex-10k",
     name: "FundingPips $10k 2-Step Flex",
+    shortName: "Flex $10k",
     size: 10_000,
     maxLossPct: 12,
     dailyLossPct: 4,
@@ -117,6 +119,7 @@ export const PLAYBOOK_ACCOUNTS: readonly PlaybookAccount[] = [
   {
     id: "pro-5k",
     name: "FundingPips $5k 2-Step Pro",
+    shortName: "Pro $5k",
     size: 5_000,
     maxLossPct: 6,
     dailyLossPct: 3,

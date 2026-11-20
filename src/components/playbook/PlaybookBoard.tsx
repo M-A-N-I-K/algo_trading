@@ -9,6 +9,7 @@ import { fetchJson } from "@/lib/apiClient";
 import { MAX_TRADES_PER_DAY, OTHER_SETUP_RISK_SCALE, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "@/lib/playbook/config";
 import { MID_AVG_R, STRONG_AVG_R, type JournalEntry, type RankedSignal, type SetupVerdict, type Tier } from "@/lib/playbook/rules";
 import type { PlaybookView } from "@/lib/playbook/store";
+import { dayVerdict, tradesAcross, type AccountDay, type VerdictTone } from "@/lib/playbook/verdict";
 import { fmtPrice } from "@/lib/plan/weeklyPlan";
 import { cn } from "@/lib/utils";
 import { CloseTradeDialog, EditTradeDialog, PLAYBOOK_KEY, PLAYBOOK_SIGNALS_KEY, PlanTradeDialog, type PlanDefaults } from "./TradeDialogs";
@@ -88,14 +89,14 @@ function BalanceEditor({ accountId, current, onDone }: { accountId: string; curr
   const n = Number(value);
   return (
     <form
-      className="mt-5 flex flex-col gap-3 rounded-[10px] border border-rule bg-ink/40 p-4"
+      className="flex flex-col gap-3 rounded-[10px] border border-rule bg-ink/40 p-4"
       onSubmit={(e) => {
         e.preventDefault();
         save.mutate();
       }}
     >
-      <Field label="Balance on your platform ($)" htmlFor="pb-balance" hint="The closed balance FundingPips shows, without open trades. Trades you log here are added on top from now on.">
-        <TextInput id="pb-balance" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} className="sm:max-w-48" />
+      <Field label="Balance on your platform ($)" htmlFor={`pb-balance-${accountId}`} hint="The closed balance FundingPips shows, without open trades. Trades you log here are added on top from now on.">
+        <TextInput id={`pb-balance-${accountId}`} inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} className="sm:max-w-48" />
       </Field>
       {save.error && <p className="text-[13px] text-loss-ink">{save.error.message}</p>}
       <div className="flex gap-2">
@@ -109,151 +110,143 @@ function BalanceEditor({ accountId, current, onDone }: { accountId: string; curr
 const usd0 = (v: number) => money(v, { sign: false, digits: 0 });
 const money0 = (v: number) => money(v, { digits: 0 });
 
-/** One line for whether this account can take a trade now, worst reason first. */
-function verdictOf(view: PlaybookView, status = view.status): { word: string; line: string; tone: "gain" | "loss" | "fees" | "signal" } {
-  const k = view.rules;
-  const dayTrades = status.tradesToday + view.tradesElsewhere;
-  if (status.targetReached) return { word: "Target", line: "Target reached. Close what's open and stop this phase.", tone: "gain" };
-  if (status.dailyStopHit)
-    return { word: "Stopped", line: status.lossesToday >= k.maxLossesPerDay ? `Stopped for today: ${status.lossesToday} of ${k.maxLossesPerDay} losses taken.` : `Stopped for today: down ${usd0(-status.todayPnl)}.`, tone: "loss" };
-  if (status.profitLockHit) return { word: "Locked", line: `Done for today: up ${usd0(status.todayPnl)}, past the ${usd0(status.profitLock)} lock. Keep it.`, tone: "gain" };
-  if (dayTrades >= MAX_TRADES_PER_DAY) return { word: "Done", line: `Done for today: ${dayTrades} trades across both accounts.`, tone: "fees" };
-  if (status.openCount >= k.maxOpen) return { word: "Full", line: `Every slot is in use (${status.openCount} of ${k.maxOpen}). Manage what's open.`, tone: "fees" };
-  if (view.stoppedElsewhere.length && status === view.status) return { word: "Careful", line: `Clear to trade, but ${view.stoppedElsewhere.join(" and ")} is stopped. Best setup only.`, tone: "fees" };
-  return { word: "Clear", line: "Clear to trade.", tone: "gain" };
-}
-
-const DOT: Record<"gain" | "loss" | "fees" | "signal", string> = { gain: "bg-gain", loss: "bg-loss", fees: "bg-fees", signal: "bg-signal" };
-
-function AccountSwitcher({ view, onSelect }: { view: PlaybookView; onSelect: (id: string) => void }) {
-  return (
-    <div role="tablist" aria-label="Prop account" className="flex flex-wrap gap-2">
-      {view.accounts.map(({ account, status }) => {
-        const active = account.id === view.account.id;
-        const v = verdictOf(view, status);
-        return (
-          <button
-            key={account.id}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onSelect(account.id)}
-            className={cn(
-              "flex min-w-0 items-center gap-3 rounded-full border py-2 pl-3 pr-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-signal",
-              active ? "border-signal bg-deck" : "border-rule hover:border-mist",
-            )}
-          >
-            <span className={cn("size-2.5 shrink-0 rounded-full", DOT[v.tone])} aria-hidden="true" />
-            <span className="font-display text-[15px] font-semibold text-paper">{account.name}</span>
-            <span className="text-[13px] text-fog">{v.word}</span>
-            <span className={cn("text-[13px] tabular-nums", toneClass(status.todayPnl))}>{money0(status.todayPnl)}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+const TONE_DOT: Record<VerdictTone, string> = { gain: "bg-gain", loss: "bg-loss", fees: "bg-fees" };
+const TONE_TEXT: Record<VerdictTone, string> = { gain: "text-gain-ink", loss: "text-loss-ink", fees: "text-fees-ink" };
 
 /**
  * Today's corridor: closed P&L between the daily stop (left) and the profit
  * lock (right). The hatched stretch is where open trades could still take it
  * if every stop is hit.
  */
-function Corridor({ stop, lock, pnl, openRisk }: { stop: number; lock: number; pnl: number; openRisk: number }) {
+function Corridor({ stop, lock, pnl, openRisk, muted }: { stop: number; lock: number; pnl: number; openRisk: number; muted?: boolean }) {
   const span = stop + lock || 1;
   const at = (v: number) => Math.max(0, Math.min(100, ((v + stop) / span) * 100));
   const zero = at(0), now = at(pnl), worst = at(pnl - openRisk);
-  const tone = pnl >= 0 ? "bg-gain" : "bg-loss";
+  const fill = muted ? "bg-mist" : pnl >= 0 ? "bg-gain" : "bg-loss";
+  // Keep the P&L label inside the bar's ends.
+  const labelAlign = now < 12 ? "translate-x-0" : now > 88 ? "-translate-x-full" : "-translate-x-1/2";
   return (
-    <figure className="flex flex-col gap-2" aria-label={`Today ${money0(pnl)}. Daily stop ${money0(-stop)}, profit lock ${money0(lock)}.${openRisk > 0 ? ` ${usd0(openRisk)} at risk in open trades.` : ""}`}>
-      <div className="relative h-11" aria-hidden="true">
-        <div className="absolute inset-x-0 top-5 h-3 overflow-hidden rounded-full bg-deck-2">
+    <figure className="flex flex-col gap-1.5" aria-label={`Today ${money0(pnl)}. Daily stop ${money0(-stop)}, profit lock ${money0(lock)}.${openRisk > 0 ? ` ${usd0(openRisk)} at risk in open trades.` : ""}`}>
+      <div className="relative h-10" aria-hidden="true">
+        <span className={cn("absolute top-0 whitespace-nowrap font-display text-sm font-semibold tabular-nums", labelAlign, muted ? "text-fog" : pnl >= 0 ? "text-gain-ink" : "text-loss-ink")} style={{ left: `${now}%` }}>
+          {money0(pnl)}
+        </span>
+        <div className="absolute inset-x-0 bottom-1 h-2.5 overflow-hidden rounded-full bg-deck-2">
           <div className="absolute inset-y-0 left-0 bg-loss/15" style={{ width: `${zero}%` }} />
           <div className="absolute inset-y-0 right-0 bg-gain/15" style={{ width: `${100 - zero}%` }} />
-          <div className={cn("absolute inset-y-0", tone)} style={{ left: `${Math.min(zero, now)}%`, width: `${Math.abs(now - zero)}%` }} />
+          <div className={cn("absolute inset-y-0", fill)} style={{ left: `${Math.min(zero, now)}%`, width: `${Math.abs(now - zero)}%` }} />
           {openRisk > 0 && (
-            <div
-              className="absolute inset-y-0"
-              style={{ left: `${worst}%`, width: `${now - worst}%`, backgroundImage: "repeating-linear-gradient(135deg, var(--loss) 0 2px, transparent 2px 6px)", opacity: 0.7 }}
-            />
+            <div className="absolute inset-y-0 opacity-80" style={{ left: `${worst}%`, width: `${now - worst}%`, backgroundImage: "repeating-linear-gradient(135deg, var(--loss) 0 2px, transparent 2px 6px)" }} />
           )}
         </div>
-        <div className="absolute top-[17px] h-[18px] w-px bg-fog" style={{ left: `${zero}%` }} />
-        <div className="absolute top-0 flex -translate-x-1/2 flex-col items-center" style={{ left: `${now}%` }}>
-          <span className={cn("whitespace-nowrap font-display text-[13px] font-semibold tabular-nums", pnl >= 0 ? "text-gain-ink" : "text-loss-ink")}>{money0(pnl)}</span>
-          <span className="mt-0.5 h-[22px] w-1 rounded-full bg-paper" />
-        </div>
+        <div className="absolute bottom-0 h-[18px] w-px bg-fog/70" style={{ left: `${zero}%` }} />
+        <div className="absolute bottom-[-1px] h-[18px] w-[3px] -translate-x-1/2 rounded-full bg-paper" style={{ left: `${now}%` }} />
       </div>
-      <figcaption className="relative flex justify-between gap-2 whitespace-nowrap text-xs tabular-nums text-mist">
+      <figcaption className="flex justify-between gap-2 whitespace-nowrap text-[11px] tabular-nums text-mist">
         <span>Stop {money0(-stop)}</span>
-        {openRisk > 0 && <span className="hidden text-loss-ink/90 sm:inline">{usd0(openRisk)} open risk</span>}
+        {openRisk > 0 && <span className="text-loss-ink">{usd0(openRisk)} open risk</span>}
         <span>Lock {money0(lock)}</span>
       </figcaption>
     </figure>
   );
 }
 
-/** Used and left, as pips: losses against the limit, trades against the day's cap. */
+/** Used against allowed, as small blocks. */
 function Pips({ label, used, max, tone }: { label: string; used: number; max: number; tone: "loss" | "signal" }) {
   return (
-    <div className="flex items-center gap-2" aria-label={`${label}: ${used} of ${max}`}>
-      <span className="flex gap-1" aria-hidden="true">
+    <span className="flex items-center gap-1.5 whitespace-nowrap text-[12px] text-fog">
+      <span className="flex gap-[3px]" aria-hidden="true">
         {Array.from({ length: max }, (_, i) => (
-          <span key={i} className={cn("h-3.5 w-2 rounded-[2px]", i < used ? (tone === "loss" ? "bg-loss" : "bg-signal") : "border border-rule")} />
+          <span key={i} className={cn("h-3 w-[7px] rounded-[2px]", i < used ? (tone === "loss" ? "bg-loss" : "bg-signal") : "border border-rule")} />
         ))}
       </span>
-      <span className="whitespace-nowrap text-[13px] text-fog">{label} <span className="tabular-nums text-paper">{used}/{max}</span></span>
-    </div>
+      {label} <span className="tabular-nums text-paper">{used}/{max}</span>
+    </span>
   );
 }
 
-function TodayPanel({ view }: { view: PlaybookView }) {
-  const s = view.status;
+function AccountLane({ day, all, selected, onSelect }: { day: AccountDay; all: readonly AccountDay[]; selected: boolean; onSelect: () => void }) {
+  const { account: a, status: s } = day;
+  const v = dayVerdict(day, all);
   const [editing, setEditing] = useState(false);
-  const v = verdictOf(view);
-  const floorSpan = s.size - s.floor;
   const sinceStart = s.balance - s.size;
-  const dayTrades = Math.min(MAX_TRADES_PER_DAY, s.tradesToday + view.tradesElsewhere);
+  const lowRoom = s.roomToFloor < (s.size - s.floor) * 0.4;
+  const stopped = v.word === "Stopped" || v.word === "Target" || v.word === "Locked" || v.word === "Done";
   return (
-    <section className="rounded-[12px] border border-rule bg-deck p-5 sm:p-6" aria-labelledby="pb-verdict">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
-        <div className="min-w-0 lg:max-w-[46ch]">
-          <p className="flex items-center gap-2 text-[13px] text-fog">
-            <span className={cn("size-2 rounded-full", DOT[v.tone])} aria-hidden="true" />
-            {view.account.name}, today
-          </p>
-          <h2 id="pb-verdict" className={cn("mt-1 font-display text-[26px] font-semibold leading-tight tracking-[-0.02em] sm:text-[30px]", v.tone === "loss" ? "text-loss-ink" : "text-paper")}>
-            {v.line}
-          </h2>
-          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
-            <Pips label="Losses" used={Math.min(s.lossesToday, view.rules.maxLossesPerDay)} max={view.rules.maxLossesPerDay} tone="loss" />
-            <Pips label="Trades, both accounts" used={dayTrades} max={MAX_TRADES_PER_DAY} tone="signal" />
-            <Pips label="Open" used={Math.min(s.openCount, view.rules.maxOpen)} max={view.rules.maxOpen} tone="signal" />
-          </div>
-        </div>
-        <div className="min-w-0 flex-1 lg:max-w-[560px]">
-          <Corridor stop={s.ownDailyStop} lock={s.profitLock} pnl={s.todayPnl} openRisk={s.openRisk} />
-        </div>
+    <article
+      className={cn(
+        "relative flex min-w-0 flex-col gap-4 rounded-[12px] border bg-deck p-5 transition-colors",
+        selected ? "border-signal/70" : "border-rule hover:border-mist",
+      )}
+    >
+      {/* The whole lane selects the account; the balance button sits above it. */}
+      <button type="button" onClick={onSelect} aria-pressed={selected} className="absolute inset-0 rounded-[12px] focus-visible:outline-2 focus-visible:outline-signal" aria-label={`Show ${a.shortName} below`} />
+      <header className="flex items-center justify-between gap-3">
+        <span className="flex items-center gap-2">
+          <span className={cn("size-2.5 rounded-full", TONE_DOT[v.tone])} aria-hidden="true" />
+          <span className="font-display text-[17px] font-semibold text-paper">{a.shortName}</span>
+          {selected && <span className="text-xs text-signal">Showing below</span>}
+        </span>
+        <span className={cn("text-sm font-medium", TONE_TEXT[v.tone])}>{v.word}</span>
+      </header>
+
+      <p className={cn("font-display text-[19px] font-medium leading-snug tracking-[-0.01em]", v.tone === "loss" ? "text-loss-ink" : "text-paper")}>{v.line}</p>
+
+      <Corridor stop={s.ownDailyStop} lock={s.profitLock} pnl={s.todayPnl} openRisk={s.openRisk} muted={stopped && v.tone !== "gain"} />
+
+      <div className="flex flex-wrap gap-x-5 gap-y-2">
+        <Pips label="Losses" used={Math.min(s.lossesToday, a.rules.maxLossesPerDay)} max={a.rules.maxLossesPerDay} tone="loss" />
+        <Pips label="Open" used={Math.min(s.openCount, a.rules.maxOpen)} max={a.rules.maxOpen} tone="signal" />
       </div>
 
-      <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-rule pt-4 text-[13px] sm:grid-cols-4">
-        <div>
+      <dl className="grid grid-cols-3 gap-3 border-t border-rule pt-4 text-[12px]">
+        <div className="min-w-0">
           <dt className="text-mist">Balance</dt>
-          <dd className="tabular-nums text-paper">{usd0(s.balance)} <span className={toneClass(sinceStart)}>{money0(sinceStart)}</span></dd>
+          <dd className="truncate text-sm tabular-nums text-paper">{usd0(s.balance)}</dd>
+          <dd className={cn("tabular-nums", toneClass(sinceStart))}>{money0(sinceStart)}</dd>
         </div>
-        <div>
-          <dt className="text-mist">Room to the floor</dt>
-          <dd className={cn("tabular-nums", s.roomToFloor < floorSpan * 0.4 ? "text-loss-ink" : "text-paper")}>{usd0(s.roomToFloor)} <span className="text-mist">above {usd0(s.floor)}</span></dd>
+        <div className="min-w-0">
+          <dt className="text-mist">To target</dt>
+          <dd className="truncate text-sm tabular-nums text-paper">{s.targetReached ? "Reached" : usd0(s.toTarget)}</dd>
+          <dd className="tabular-nums text-mist">at {usd0(s.targetBalance)}</dd>
         </div>
-        <div>
-          <dt className="text-mist">To the target</dt>
-          <dd className="tabular-nums text-paper">{s.targetReached ? "Reached" : usd0(s.toTarget)} <span className="text-mist">of +{view.account.targetPct}%</span></dd>
-        </div>
-        <div className="flex items-end">
-          {!editing && <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>Match platform balance</Button>}
+        <div className="min-w-0">
+          <dt className="text-mist">Above the floor</dt>
+          <dd className={cn("truncate text-sm tabular-nums", lowRoom ? "text-loss-ink" : "text-paper")}>{usd0(s.roomToFloor)}</dd>
+          <dd className="tabular-nums text-mist">floor {usd0(s.floor)}</dd>
         </div>
       </dl>
-      {editing && <BalanceEditor accountId={view.account.id} current={s.balance} onDone={() => setEditing(false)} />}
+
+      <div className="relative z-10 -mt-1">
+        {editing ? (
+          <BalanceEditor accountId={a.id} current={s.balance} onDone={() => setEditing(false)} />
+        ) : (
+          <button type="button" onClick={() => setEditing(true)} className="text-[12px] text-mist underline-offset-2 hover:text-paper hover:underline">
+            Balance different on FundingPips? Match it
+          </button>
+        )}
+      </div>
+    </article>
+  );
+}
+
+const platformDayFmt = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+
+/** Both accounts side by side, with the day's shared trade cap above them. */
+function TodayBoard({ view, onSelect }: { view: PlaybookView; onSelect: (id: string) => void }) {
+  const all: AccountDay[] = view.accounts;
+  const used = Math.min(MAX_TRADES_PER_DAY, tradesAcross(all));
+  return (
+    <section className="flex flex-col gap-3" aria-label="Today">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+        <h2 className="font-display text-lg font-semibold text-paper">{platformDayFmt.format(new Date(`${view.status.today}T12:00:00Z`))}</h2>
+        <Pips label="Trades today, both accounts" used={used} max={MAX_TRADES_PER_DAY} tone="signal" />
+      </div>
+      <div className={cn("grid gap-4", all.length > 1 && "lg:grid-cols-2")}>
+        {all.map((d) => (
+          <AccountLane key={d.account.id} day={d} all={all} selected={d.account.id === view.account.id} onSelect={() => onSelect(d.account.id)} />
+        ))}
+      </div>
     </section>
   );
 }
@@ -664,13 +657,10 @@ export default function PlaybookBoard() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <AccountSwitcher view={view} onSelect={selectAccount} />
-        <Button variant="primary" onClick={() => setPlan({})}><Plus size={16} aria-hidden="true" /> Plan a trade</Button>
-      </div>
-      <TodayPanel view={view} />
+      <TodayBoard view={view} onSelect={selectAccount} />
 
-      <div role="tablist" aria-label="Playbook" className="flex gap-1 overflow-x-auto border-b border-rule">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule">
+      <div role="tablist" aria-label={`Playbook for ${view.account.shortName}`} className="-mb-px flex gap-1 overflow-x-auto">
         {TABS.map((t, i) => (
           <button
             key={t.id}
@@ -683,7 +673,7 @@ export default function PlaybookBoard() {
             onClick={() => setTab(t.id)}
             onKeyDown={(e) => onTabKey(e, i)}
             className={cn(
-              "-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-signal",
+              "whitespace-nowrap border-b-2 px-3 py-2.5 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-signal",
               tab === t.id ? "border-signal text-paper" : "border-transparent text-fog hover:text-paper",
             )}
           >
@@ -691,6 +681,8 @@ export default function PlaybookBoard() {
             {t.id === "closed" && view.closed.length > 0 && <span className="ml-1.5 text-xs tabular-nums text-mist">{view.closed.length}</span>}
           </button>
         ))}
+      </div>
+        <Button variant="primary" size="sm" className="mb-2" onClick={() => setPlan({})}><Plus size={15} aria-hidden="true" /> Plan a trade on {view.account.shortName}</Button>
       </div>
 
       <div id={`pb-panel-${tab}`} role="tabpanel" aria-labelledby={`pb-tab-${tab}`} className="flex flex-col gap-6">
