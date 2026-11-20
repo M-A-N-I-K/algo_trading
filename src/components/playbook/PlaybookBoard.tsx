@@ -6,14 +6,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { Button, Callout, EmptyState, Field, Panel, Stat, Tag, TextInput, money, signedNumber, tableClass, tdClass, thClass, toneClass } from "@/components/kit";
 import { fetchJson } from "@/lib/apiClient";
-import { OTHER_SETUP_RISK_SCALE, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "@/lib/playbook/config";
+import { MAX_TRADES_PER_DAY, OTHER_SETUP_RISK_SCALE, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "@/lib/playbook/config";
 import { MID_AVG_R, STRONG_AVG_R, type JournalEntry, type RankedSignal, type SetupVerdict, type Tier } from "@/lib/playbook/rules";
 import type { PlaybookView } from "@/lib/playbook/store";
 import { fmtPrice } from "@/lib/plan/weeklyPlan";
 import { cn } from "@/lib/utils";
 import { CloseTradeDialog, EditTradeDialog, PLAYBOOK_KEY, PLAYBOOK_SIGNALS_KEY, PlanTradeDialog, type PlanDefaults } from "./TradeDialogs";
 import { registerSpecs, type SymbolSpec } from "@/lib/mt5/specs";
-import DisciplinePanel from "./DisciplinePanel";
 import { NewsPanel } from "./News";
 import { WeeklyLevels } from "./WeeklyLevels";
 
@@ -29,16 +28,6 @@ const date = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short"
 const usd = (v: number) => money(v, { sign: false });
 const r = (v: number) => signedNumber(v, 2, "R");
 const marketOf = (e: { setupId: string; symbol: string }) => setupById(e.setupId)?.platformSymbol ?? e.symbol;
-
-function Meter({ value, max, tone }: { value: number; max: number; tone: "gain" | "loss" | "fees" | "signal" }) {
-  const w = Math.max(0, Math.min(1, max > 0 ? value / max : 0)) * 100;
-  const bg = { gain: "bg-gain", loss: "bg-loss", fees: "bg-fees", signal: "bg-signal" }[tone];
-  return (
-    <div className="mt-2 h-1.5 w-full rounded-full bg-deck-2" aria-hidden="true">
-      <div className={cn("h-full rounded-full", bg)} style={{ width: `${w}%` }} />
-    </div>
-  );
-}
 
 function SideTag({ side }: { side: "LONG" | "SHORT" }) {
   return <Tag tone={side === "LONG" ? "gain" : "loss"}>{side === "LONG" ? "Long" : "Short"}</Tag>;
@@ -117,12 +106,31 @@ function BalanceEditor({ accountId, current, onDone }: { accountId: string; curr
   );
 }
 
+const usd0 = (v: number) => money(v, { sign: false, digits: 0 });
+const money0 = (v: number) => money(v, { digits: 0 });
+
+/** One line for whether this account can take a trade now, worst reason first. */
+function verdictOf(view: PlaybookView, status = view.status): { word: string; line: string; tone: "gain" | "loss" | "fees" | "signal" } {
+  const k = view.rules;
+  const dayTrades = status.tradesToday + view.tradesElsewhere;
+  if (status.targetReached) return { word: "Target", line: "Target reached. Close what's open and stop this phase.", tone: "gain" };
+  if (status.dailyStopHit)
+    return { word: "Stopped", line: status.lossesToday >= k.maxLossesPerDay ? `Stopped for today: ${status.lossesToday} of ${k.maxLossesPerDay} losses taken.` : `Stopped for today: down ${usd0(-status.todayPnl)}.`, tone: "loss" };
+  if (status.profitLockHit) return { word: "Locked", line: `Done for today: up ${usd0(status.todayPnl)}, past the ${usd0(status.profitLock)} lock. Keep it.`, tone: "gain" };
+  if (dayTrades >= MAX_TRADES_PER_DAY) return { word: "Done", line: `Done for today: ${dayTrades} trades across both accounts.`, tone: "fees" };
+  if (status.openCount >= k.maxOpen) return { word: "Full", line: `Every slot is in use (${status.openCount} of ${k.maxOpen}). Manage what's open.`, tone: "fees" };
+  if (view.stoppedElsewhere.length && status === view.status) return { word: "Careful", line: `Clear to trade, but ${view.stoppedElsewhere.join(" and ")} is stopped. Best setup only.`, tone: "fees" };
+  return { word: "Clear", line: "Clear to trade.", tone: "gain" };
+}
+
+const DOT: Record<"gain" | "loss" | "fees" | "signal", string> = { gain: "bg-gain", loss: "bg-loss", fees: "bg-fees", signal: "bg-signal" };
+
 function AccountSwitcher({ view, onSelect }: { view: PlaybookView; onSelect: (id: string) => void }) {
   return (
-    <div role="tablist" aria-label="Prop account" className="grid gap-3 sm:grid-cols-2">
+    <div role="tablist" aria-label="Prop account" className="flex flex-wrap gap-2">
       {view.accounts.map(({ account, status }) => {
         const active = account.id === view.account.id;
-        const since = status.balance - status.size;
+        const v = verdictOf(view, status);
         return (
           <button
             key={account.id}
@@ -131,22 +139,14 @@ function AccountSwitcher({ view, onSelect }: { view: PlaybookView; onSelect: (id
             aria-selected={active}
             onClick={() => onSelect(account.id)}
             className={cn(
-              "flex min-w-0 flex-col gap-1.5 rounded-[10px] border p-4 text-left transition-colors",
-              active ? "border-signal bg-deck" : "border-rule bg-ink/40 hover:border-mist",
+              "flex min-w-0 items-center gap-3 rounded-full border py-2 pl-3 pr-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-signal",
+              active ? "border-signal bg-deck" : "border-rule hover:border-mist",
             )}
           >
-            <span className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-display text-[15px] font-semibold text-paper">{account.name}</span>
-              {status.targetReached ? <Tag tone="gain">Target reached</Tag> : status.dailyStopHit ? <Tag tone="loss">Stopped today</Tag> : status.openCount > 0 ? <Tag tone="signal">{status.openCount} open</Tag> : null}
-            </span>
-            <span className="flex flex-wrap gap-x-4 gap-y-0.5 text-[13px] tabular-nums">
-              <span className="text-paper">{usd(status.balance)}</span>
-              <span className={toneClass(since)}>{money(since)} total</span>
-              <span className={toneClass(status.todayPnl)}>{money(status.todayPnl)} today</span>
-            </span>
-            <span className="text-xs text-mist">
-              {account.setups.length} setups · {account.rules.riskPctA}% ({usd((account.size * account.rules.riskPctA) / 100)}) a trade · stop at {money(-status.ownDailyStop)} a day · floor {usd(status.floor)}
-            </span>
+            <span className={cn("size-2.5 shrink-0 rounded-full", DOT[v.tone])} aria-hidden="true" />
+            <span className="font-display text-[15px] font-semibold text-paper">{account.name}</span>
+            <span className="text-[13px] text-fog">{v.word}</span>
+            <span className={cn("text-[13px] tabular-nums", toneClass(status.todayPnl))}>{money0(status.todayPnl)}</span>
           </button>
         );
       })}
@@ -154,67 +154,107 @@ function AccountSwitcher({ view, onSelect }: { view: PlaybookView; onSelect: (id
   );
 }
 
-function AccountPanel({ view }: { view: PlaybookView }) {
-  const s = view.status;
-  const [editing, setEditing] = useState(false);
-  const room = s.roomToFloor;
-  const floorSpan = s.size - s.floor;
-  const todayLeft = s.ownDailyStop + s.todayPnl;
-  const sinceStart = s.balance - s.size;
+/**
+ * Today's corridor: closed P&L between the daily stop (left) and the profit
+ * lock (right). The hatched stretch is where open trades could still take it
+ * if every stop is hit.
+ */
+function Corridor({ stop, lock, pnl, openRisk }: { stop: number; lock: number; pnl: number; openRisk: number }) {
+  const span = stop + lock || 1;
+  const at = (v: number) => Math.max(0, Math.min(100, ((v + stop) / span) * 100));
+  const zero = at(0), now = at(pnl), worst = at(pnl - openRisk);
+  const tone = pnl >= 0 ? "bg-gain" : "bg-loss";
   return (
-    <Panel
-      title={view.account.name}
-      note={`$${s.size.toLocaleString()} account. Equity may never touch ${usd(s.floor)} (${view.account.maxLossPct}% below the start, it never moves) or lose ${view.account.dailyLossPct}% in a day.`}
-      aside={!editing && <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>Match platform balance</Button>}
-    >
-      <div className="grid grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-5">
-        <div>
-          <Stat
-            label="Balance"
-            value={usd(s.balance)}
-            note={`${money(sinceStart)} since the start${s.priorPnl !== 0 ? ` (${money(s.priorPnl)} before the playbook)` : ""}`}
-            tone={toneClass(sinceStart) === "text-fog" ? undefined : toneClass(sinceStart)}
-          />
+    <figure className="flex flex-col gap-2" aria-label={`Today ${money0(pnl)}. Daily stop ${money0(-stop)}, profit lock ${money0(lock)}.${openRisk > 0 ? ` ${usd0(openRisk)} at risk in open trades.` : ""}`}>
+      <div className="relative h-11" aria-hidden="true">
+        <div className="absolute inset-x-0 top-5 h-3 overflow-hidden rounded-full bg-deck-2">
+          <div className="absolute inset-y-0 left-0 bg-loss/15" style={{ width: `${zero}%` }} />
+          <div className="absolute inset-y-0 right-0 bg-gain/15" style={{ width: `${100 - zero}%` }} />
+          <div className={cn("absolute inset-y-0", tone)} style={{ left: `${Math.min(zero, now)}%`, width: `${Math.abs(now - zero)}%` }} />
+          {openRisk > 0 && (
+            <div
+              className="absolute inset-y-0"
+              style={{ left: `${worst}%`, width: `${now - worst}%`, backgroundImage: "repeating-linear-gradient(135deg, var(--loss) 0 2px, transparent 2px 6px)", opacity: 0.7 }}
+            />
+          )}
         </div>
-        <div>
-          <Stat label="Room to the floor" value={usd(room)} note="If every open trade hits its stop" tone={room < floorSpan * 0.4 ? "text-loss-ink" : undefined} />
-          <Meter value={room} max={floorSpan + Math.max(0, s.balance - s.size)} tone={room < floorSpan * 0.4 ? "loss" : "gain"} />
-        </div>
-        <div>
-          <Stat label="Today" value={money(s.todayPnl)} note={`Your stop ${money(-s.ownDailyStop)} · firm ${money(-s.firmDailyLimit)}`} tone={toneClass(s.todayPnl) === "text-fog" ? undefined : toneClass(s.todayPnl)} />
-          <Meter value={todayLeft} max={s.ownDailyStop} tone={todayLeft < s.ownDailyStop * 0.5 ? "loss" : "gain"} />
-        </div>
-        <div>
-          <Stat label="Open trades" value={`${s.openCount} of ${view.rules.maxOpen}`} note={`${usd(s.openRisk)} at risk`} />
-          <Meter value={s.openCount} max={view.rules.maxOpen} tone={s.openCount >= view.rules.maxOpen ? "fees" : "signal"} />
-        </div>
-        <div>
-          <Stat label="To the target" value={s.targetReached ? "Reached" : usd(s.toTarget)} note={`Target ${usd(s.targetBalance)} (+${view.account.targetPct}%)`} tone={s.targetReached ? "text-gain-ink" : undefined} />
-          <Meter value={s.balance - s.size} max={s.targetBalance - s.size} tone="gain" />
+        <div className="absolute top-[17px] h-[18px] w-px bg-fog" style={{ left: `${zero}%` }} />
+        <div className="absolute top-0 flex -translate-x-1/2 flex-col items-center" style={{ left: `${now}%` }}>
+          <span className={cn("whitespace-nowrap font-display text-[13px] font-semibold tabular-nums", pnl >= 0 ? "text-gain-ink" : "text-loss-ink")}>{money0(pnl)}</span>
+          <span className="mt-0.5 h-[22px] w-1 rounded-full bg-paper" />
         </div>
       </div>
+      <figcaption className="relative flex justify-between gap-2 whitespace-nowrap text-xs tabular-nums text-mist">
+        <span>Stop {money0(-stop)}</span>
+        {openRisk > 0 && <span className="hidden text-loss-ink/90 sm:inline">{usd0(openRisk)} open risk</span>}
+        <span>Lock {money0(lock)}</span>
+      </figcaption>
+    </figure>
+  );
+}
+
+/** Used and left, as pips: losses against the limit, trades against the day's cap. */
+function Pips({ label, used, max, tone }: { label: string; used: number; max: number; tone: "loss" | "signal" }) {
+  return (
+    <div className="flex items-center gap-2" aria-label={`${label}: ${used} of ${max}`}>
+      <span className="flex gap-1" aria-hidden="true">
+        {Array.from({ length: max }, (_, i) => (
+          <span key={i} className={cn("h-3.5 w-2 rounded-[2px]", i < used ? (tone === "loss" ? "bg-loss" : "bg-signal") : "border border-rule")} />
+        ))}
+      </span>
+      <span className="whitespace-nowrap text-[13px] text-fog">{label} <span className="tabular-nums text-paper">{used}/{max}</span></span>
+    </div>
+  );
+}
+
+function TodayPanel({ view }: { view: PlaybookView }) {
+  const s = view.status;
+  const [editing, setEditing] = useState(false);
+  const v = verdictOf(view);
+  const floorSpan = s.size - s.floor;
+  const sinceStart = s.balance - s.size;
+  const dayTrades = Math.min(MAX_TRADES_PER_DAY, s.tradesToday + view.tradesElsewhere);
+  return (
+    <section className="rounded-[12px] border border-rule bg-deck p-5 sm:p-6" aria-labelledby="pb-verdict">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
+        <div className="min-w-0 lg:max-w-[46ch]">
+          <p className="flex items-center gap-2 text-[13px] text-fog">
+            <span className={cn("size-2 rounded-full", DOT[v.tone])} aria-hidden="true" />
+            {view.account.name}, today
+          </p>
+          <h2 id="pb-verdict" className={cn("mt-1 font-display text-[26px] font-semibold leading-tight tracking-[-0.02em] sm:text-[30px]", v.tone === "loss" ? "text-loss-ink" : "text-paper")}>
+            {v.line}
+          </h2>
+          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+            <Pips label="Losses" used={Math.min(s.lossesToday, view.rules.maxLossesPerDay)} max={view.rules.maxLossesPerDay} tone="loss" />
+            <Pips label="Trades, both accounts" used={dayTrades} max={MAX_TRADES_PER_DAY} tone="signal" />
+            <Pips label="Open" used={Math.min(s.openCount, view.rules.maxOpen)} max={view.rules.maxOpen} tone="signal" />
+          </div>
+        </div>
+        <div className="min-w-0 flex-1 lg:max-w-[560px]">
+          <Corridor stop={s.ownDailyStop} lock={s.profitLock} pnl={s.todayPnl} openRisk={s.openRisk} />
+        </div>
+      </div>
+
+      <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-rule pt-4 text-[13px] sm:grid-cols-4">
+        <div>
+          <dt className="text-mist">Balance</dt>
+          <dd className="tabular-nums text-paper">{usd0(s.balance)} <span className={toneClass(sinceStart)}>{money0(sinceStart)}</span></dd>
+        </div>
+        <div>
+          <dt className="text-mist">Room to the floor</dt>
+          <dd className={cn("tabular-nums", s.roomToFloor < floorSpan * 0.4 ? "text-loss-ink" : "text-paper")}>{usd0(s.roomToFloor)} <span className="text-mist">above {usd0(s.floor)}</span></dd>
+        </div>
+        <div>
+          <dt className="text-mist">To the target</dt>
+          <dd className="tabular-nums text-paper">{s.targetReached ? "Reached" : usd0(s.toTarget)} <span className="text-mist">of +{view.account.targetPct}%</span></dd>
+        </div>
+        <div className="flex items-end">
+          {!editing && <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>Match platform balance</Button>}
+        </div>
+      </dl>
       {editing && <BalanceEditor accountId={view.account.id} current={s.balance} onDone={() => setEditing(false)} />}
-      {s.dailyStopHit && (
-        <Callout tone="critical" title="Daily stop hit" className="mt-5">
-          {s.lossesToday >= view.rules.maxLossesPerDay ? `${s.lossesToday} losing ${s.lossesToday === 1 ? "trade" : "trades"} today` : `You're down ${usd(-s.todayPnl)} today`}. No more trades on this account until the firm&apos;s day resets at 00:00 platform time.
-        </Callout>
-      )}
-      {!s.dailyStopHit && s.profitLockHit && (
-        <Callout tone="good" title="Profit lock reached" className="mt-5">
-          Up {usd(s.todayPnl)} today, past the {usd(s.profitLock)} lock. Done on this account until the reset: keep the day.
-        </Callout>
-      )}
-      {!s.dailyStopHit && !s.profitLockHit && view.stoppedElsewhere.length > 0 && (
-        <Callout tone="warning" title="Stopped on another account" className="mt-5">
-          {view.stoppedElsewhere.join(" and ")} hit the daily stop today. This account still has its own loss limit, but take only your best setup.
-        </Callout>
-      )}
-      {s.targetReached && (
-        <Callout tone="good" title="Target reached" className="mt-5">
-          Close any open trades and stop trading this phase: more trades can only risk the pass.
-        </Callout>
-      )}
-    </Panel>
+    </section>
   );
 }
 
@@ -568,22 +608,36 @@ function RulesPanel({ view }: { view: PlaybookView }) {
 /* ---------- page ---------- */
 
 const ACCOUNT_STORAGE_KEY = "playbook-account";
+const TAB_STORAGE_KEY = "playbook-tab";
 
-export default function PlaybookBoard() {
-  const [accountId, setAccountId] = useState<string>(PLAYBOOK_ACCOUNTS[0].id);
-  // Remember the last account picked on this browser.
+type Tab = "trade" | "closed" | "scorecard" | "rules";
+const TABS: { id: Tab; label: string }[] = [
+  { id: "trade", label: "Trade" },
+  { id: "closed", label: "Closed trades" },
+  { id: "scorecard", label: "Scorecard" },
+  { id: "rules", label: "Rules" },
+];
+
+function useStored<T extends string>(key: string, initial: T, valid: (v: string) => boolean): [T, (v: T) => void] {
+  const [value, setValue] = useState<T>(initial);
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(ACCOUNT_STORAGE_KEY);
-      if (saved && PLAYBOOK_ACCOUNTS.some((a) => a.id === saved)) setAccountId(saved);
+      const saved = localStorage.getItem(key);
+      if (saved && valid(saved)) setValue(saved as T);
     } catch {}
-  }, []);
-  const selectAccount = (id: string) => {
-    setAccountId(id);
+  }, [key]);
+  const set = (v: T) => {
+    setValue(v);
     try {
-      localStorage.setItem(ACCOUNT_STORAGE_KEY, id);
+      localStorage.setItem(key, v);
     } catch {}
   };
+  return [value, set];
+}
+
+export default function PlaybookBoard() {
+  const [accountId, selectAccount] = useStored<string>(ACCOUNT_STORAGE_KEY, PLAYBOOK_ACCOUNTS[0].id, (v) => PLAYBOOK_ACCOUNTS.some((a) => a.id === v));
+  const [tab, setTab] = useStored<Tab>(TAB_STORAGE_KEY, "trade", (v) => TABS.some((t) => t.id === v));
   const { data: view, error, isLoading } = useQuery({
     queryKey: [...PLAYBOOK_KEY, accountId],
     queryFn: () => fetchJson<PlaybookView>(`/api/playbook?account=${encodeURIComponent(accountId)}`),
@@ -600,25 +654,68 @@ export default function PlaybookBoard() {
   const entries = [...view.open, ...view.closed];
   // The account's own markets plus anything open on it, for the news and levels panels.
   const markets = [...new Set([...view.account.setups.map((a) => setupById(a.id)?.symbol).filter((s): s is string => !!s), ...view.open.map((t) => t.symbol)])];
+  const onTabKey = (e: React.KeyboardEvent, i: number) => {
+    const next = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : null;
+    if (next === null) return;
+    const t = TABS[(next + TABS.length) % TABS.length];
+    setTab(t.id);
+    document.getElementById(`pb-tab-${t.id}`)?.focus();
+  };
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-[70ch] text-sm text-fog">
-          One place to run the plan: check the account, take the best signal that fits, log it with the pre-trade checks, close it with the real P&L, and let the scorecard tell you which setups and habits are paying.
-        </p>
+        <AccountSwitcher view={view} onSelect={selectAccount} />
         <Button variant="primary" onClick={() => setPlan({})}><Plus size={16} aria-hidden="true" /> Plan a trade</Button>
       </div>
-      <DisciplinePanel />
-      <AccountSwitcher view={view} onSelect={selectAccount} />
-      <AccountPanel view={view} />
-      <NewsPanel symbols={markets} />
-      <WeeklyLevels symbols={markets} />
-      <SignalsPanel account={view.account} onPlan={setPlan} freeSlots={Math.max(0, view.rules.maxOpen - view.status.openCount)} />
-      <OpenTrades trades={view.open} onClose={setClosing} onEdit={setEditing} />
-      <Discipline view={view} />
-      <Scorecard view={view} />
-      <History trades={view.closed} onEdit={setClosing} />
-      <RulesPanel view={view} />
+      <TodayPanel view={view} />
+
+      <div role="tablist" aria-label="Playbook" className="flex gap-1 overflow-x-auto border-b border-rule">
+        {TABS.map((t, i) => (
+          <button
+            key={t.id}
+            id={`pb-tab-${t.id}`}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            aria-controls={`pb-panel-${t.id}`}
+            tabIndex={tab === t.id ? 0 : -1}
+            onClick={() => setTab(t.id)}
+            onKeyDown={(e) => onTabKey(e, i)}
+            className={cn(
+              "-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-signal",
+              tab === t.id ? "border-signal text-paper" : "border-transparent text-fog hover:text-paper",
+            )}
+          >
+            {t.label}
+            {t.id === "closed" && view.closed.length > 0 && <span className="ml-1.5 text-xs tabular-nums text-mist">{view.closed.length}</span>}
+          </button>
+        ))}
+      </div>
+
+      <div id={`pb-panel-${tab}`} role="tabpanel" aria-labelledby={`pb-tab-${tab}`} className="flex flex-col gap-6">
+        {tab === "trade" && (
+          <>
+            {view.open.length > 0 && <OpenTrades trades={view.open} onClose={setClosing} onEdit={setEditing} />}
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+              <SignalsPanel account={view.account} onPlan={setPlan} freeSlots={Math.max(0, view.rules.maxOpen - view.status.openCount)} />
+              <div className="flex min-w-0 flex-col gap-6">
+                <NewsPanel symbols={markets} />
+              </div>
+            </div>
+            <WeeklyLevels symbols={markets} />
+          </>
+        )}
+        {tab === "closed" && <History trades={view.closed} onEdit={setClosing} />}
+        {tab === "scorecard" && (
+          <>
+            <Discipline view={view} />
+            <Scorecard view={view} />
+          </>
+        )}
+        {tab === "rules" && <RulesPanel view={view} />}
+      </div>
+
       <PlanTradeDialog open={plan !== null} defaults={plan ?? {}} entries={entries} account={view.account} stoppedElsewhere={view.stoppedElsewhere} tradesElsewhere={view.tradesElsewhere} onClose={() => setPlan(null)} />
       <CloseTradeDialog trade={closing} onClose={() => setClosing(null)} />
       <EditTradeDialog trade={editing} onClose={() => setEditing(null)} />

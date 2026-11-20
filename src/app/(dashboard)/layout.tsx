@@ -10,10 +10,11 @@ import TradeNotesDrawer from "@/components/trading-journal/TradeNotesDrawer";
 import TraderLoader from "@/components/trading-journal/TraderLoader";
 import { DashboardProvider, useDashboard } from "@/components/trading-journal/DashboardContext";
 import QueryProvider from "@/components/layout/QueryProvider";
+import { DisciplineProvider, StreakButton } from "@/components/discipline/DisciplineDock";
 
 const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   "/": { title: "Dashboard", subtitle: "Where your P&L comes from, and where it leaks." },
-  "/playbook": { title: "Playbook", subtitle: "Your backtested setups, the prop firm's limits, pre-trade checks and a journal that scores each setup against its backtest." },
+  "/playbook": { title: "Playbook", subtitle: "Whether you can trade right now, what to take, and how each setup is doing." },
   "/indicators": { title: "Indicators", subtitle: "TradingView scripts that mark each checkpoint of the liquidity strategies, ready to copy and paste." },
   "/trades": { title: "Journal", subtitle: "Every closed trade, with its notes, tags and checklist." },
   "/review": { title: "Trade review", subtitle: "An honest look at your trades: what's losing you money and what to change." },
@@ -116,6 +117,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <Menu size={22} />
         </button>
         <span className="font-display text-base font-bold tracking-[-0.02em]">{meta.title}</span>
+        <StreakButton variant="chip" />
       </div>
 
       <main className="w-full min-w-0 flex-grow px-4 pb-16 pt-20 sm:px-6 md:pl-[17rem] md:pr-10 md:pt-10">
@@ -176,7 +178,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <QueryProvider>
       <DashboardProvider>
-        <DashboardShell>{children}</DashboardShell>
+        <DisciplineProvider>
+          <DashboardShell>{children}</DashboardShell>
+        </DisciplineProvider>
       </DashboardProvider>
     </QueryProvider>
   );

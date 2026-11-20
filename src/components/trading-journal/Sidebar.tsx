@@ -17,6 +17,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import FeedStatus from "@/components/trading-journal/FeedStatus";
+import { StreakButton } from "@/components/discipline/DisciplineDock";
 
 interface SidebarProps {
   user: { name?: string | null; email?: string | null; image?: string | null } | null;
@@ -127,6 +128,10 @@ export default function Sidebar({ user, onLogout, isOpen, onClose }: SidebarProp
       </nav>
 
       <div className="mt-4">
+        <StreakButton variant="sidebar" />
+      </div>
+
+      <div className="mt-3">
         <FeedStatus />
       </div>
 
