@@ -16,6 +16,7 @@ import { CloseTradeDialog, EditTradeDialog, PLAYBOOK_KEY, PLAYBOOK_SIGNALS_KEY, 
 import { registerSpecs, type SymbolSpec } from "@/lib/mt5/specs";
 import { NewsPanel } from "./News";
 import { WeeklyLevels } from "./WeeklyLevels";
+import { LiquidityLevels } from "@/components/levels/LiquidityLevels";
 
 interface SignalsResponse {
   asOf: number;
@@ -695,6 +696,7 @@ export default function PlaybookBoard() {
                 <NewsPanel symbols={markets} />
               </div>
             </div>
+            <LiquidityLevels symbols={markets} />
             <WeeklyLevels symbols={markets} />
           </>
         )}

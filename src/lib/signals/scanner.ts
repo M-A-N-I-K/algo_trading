@@ -7,7 +7,7 @@ import { withFixedTarget } from "@/strategies/fixedTarget";
 import { scanStrategy, type SignalRow } from "./scan";
 import { locationGrade } from "@/lib/plan/weeklyPlan";
 import { activeSetupById, PLAYBOOK_SETUP_IDS, PLAYBOOK_SETUPS } from "@/lib/playbook/config";
-import { feedLive, feedSupports, readFeedCandles } from "@/lib/mt5/feed";
+import { feedLive, feedStatus, feedSupports, readFeedCandles } from "@/lib/mt5/feed";
 import { isMt5OnlyMarket } from "@/lib/markets/yahoo";
 
 // Server-side signal scanner for the Signals page. Only strategies that
@@ -123,11 +123,15 @@ function refreshSeries(symbol: string, interval: string, now: number): Promise<O
 
 // The cached closed candles for each symbol on one interval, topped up with
 // any that have closed since. Shared with the weekly plan.
-export async function loadSeries(interval: string, now = Date.now()): Promise<{ series: Map<string, OHLC[]>; errors: string[] }> {
+export async function loadSeries(
+  interval: string,
+  now = Date.now(),
+  symbols: readonly string[] = SIGNAL_SYMBOLS,
+): Promise<{ series: Map<string, OHLC[]>; errors: string[] }> {
   const series = new Map<string, OHLC[]>();
   const errors: string[] = [];
   await Promise.all(
-    SIGNAL_SYMBOLS.map(async (symbol) => {
+    symbols.map(async (symbol) => {
       try {
         series.set(symbol, await refreshSeries(symbol, interval, now));
       } catch (e) {
@@ -140,6 +144,18 @@ export async function loadSeries(interval: string, now = Date.now()): Promise<{ 
 }
 
 const FEED_BARS_MAX_AGE_MS = 6 * 3_600_000;
+
+// Whether the terminal is connected: its newest bar on any market (BTC trades
+// all week) is current. Then an old bar on one market means that market is
+// closed (a weekend, a holiday), not a lost connection, and its bars still
+// stand. Checked at most every 30 s, since it reads every M5 file's last line.
+let connected: { at: number; value: Promise<boolean> } | null = null;
+function feedConnected(now: number): Promise<boolean> {
+  if (!connected || now - connected.at > 30_000) {
+    connected = { at: now, value: feedStatus(now).then((s) => s.pricesFresh).catch(() => false) };
+  }
+  return connected.value;
+}
 
 async function fetchSeries(symbol: string, interval: string, now: number): Promise<OHLC[]> {
   const key = `${symbol}:${interval}`;
@@ -157,9 +173,10 @@ async function fetchSeries(symbol: string, interval: string, now: number): Promi
     const feed = await readFeedCandles(symbol, interval);
     // A terminal that has lost its connection keeps beating but writes old
     // bars: past FEED_BARS_MAX_AGE_MS (longer than an index's daily break)
-    // they're not used, and the web feeds take over.
+    // they're not used and the web feeds take over, unless the terminal is
+    // still connected and the market is just closed.
     const feedLast = feed?.[feed.length - 1];
-    if (feed?.length && feedLast && now - feedLast.closeTime < FEED_BARS_MAX_AGE_MS) {
+    if (feed?.length && feedLast && (now - feedLast.closeTime < FEED_BARS_MAX_AGE_MS || (await feedConnected(now)))) {
       let next = closedOnly(feed, now);
       if (next.length > bars) next = next.slice(next.length - bars);
       if (next.length) {

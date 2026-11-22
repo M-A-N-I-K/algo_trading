@@ -11,6 +11,7 @@ import TraderLoader from "@/components/trading-journal/TraderLoader";
 import { DashboardProvider, useDashboard } from "@/components/trading-journal/DashboardContext";
 import QueryProvider from "@/components/layout/QueryProvider";
 import { DisciplineProvider, StreakButton } from "@/components/discipline/DisciplineDock";
+import { LevelAlertsBar } from "@/components/levels/LiquidityLevels";
 
 const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   "/": { title: "Dashboard", subtitle: "Where your P&L comes from, and where it leaks." },
@@ -137,6 +138,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             </button>
           </header>
 
+          <LevelAlertsBar />
           {children}
         </div>
       </main>
