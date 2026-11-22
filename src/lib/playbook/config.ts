@@ -83,9 +83,9 @@ const SHARED_RULES = {
 };
 
 // Platform time is UTC+2 in winter and UTC+3 in summer, the EU switch dates.
-const FUNDINGPIPS_TZ = "Europe/Athens";
+const PLATFORM_TZ = "Europe/Athens";
 
-// Limits as the FundingPips dashboard shows them (10 Nov 2026). Risk sizes
+// Limits as the firm's dashboard shows them (10 Nov 2026). Risk sizes
 // from a Monte Carlo of the setups' baselines: by 30 Nov, Flex at 1% passes
 // about 46% of the time and Pro at 0.75% about 57%, each with a breach
 // chance of 5% or less (half that pass rate if live trading earns half the
@@ -93,13 +93,13 @@ const FUNDINGPIPS_TZ = "Europe/Athens";
 export const PLAYBOOK_ACCOUNTS: readonly PlaybookAccount[] = [
   {
     id: "flex-10k",
-    name: "FundingPips $10k 2-Step Flex",
+    name: "$10k 2-Step Flex",
     shortName: "Flex $10k",
     size: 10_000,
     maxLossPct: 12,
     dailyLossPct: 4,
     targetPct: 10,
-    timeZone: FUNDINGPIPS_TZ,
+    timeZone: PLATFORM_TZ,
     priorPnl: 0,
     rules: { ...SHARED_RULES, riskPctA: 1, riskPctB: 0.5, dailyStopPct: 2 },
     // The more frequent setups (MT5 Strategy Tester, Nov 2026, 1% risk):
@@ -118,13 +118,13 @@ export const PLAYBOOK_ACCOUNTS: readonly PlaybookAccount[] = [
   },
   {
     id: "pro-5k",
-    name: "FundingPips $5k 2-Step Pro",
+    name: "$5k 2-Step Pro",
     shortName: "Pro $5k",
     size: 5_000,
     maxLossPct: 6,
     dailyLossPct: 3,
     targetPct: 6,
-    timeZone: FUNDINGPIPS_TZ,
+    timeZone: PLATFORM_TZ,
     priorPnl: 0,
     // 0.5% from 16 Nov 2026 (was 0.75%): after week 46 only $242 of room was
     // left above the floor, about 6 losses at 0.75%. Back to 0.75% once the

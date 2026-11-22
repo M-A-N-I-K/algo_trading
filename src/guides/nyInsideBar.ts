@@ -37,7 +37,7 @@ export const nyInsideBarGuide: StrategyGuide = {
   ],
 
   chartSetup: [
-    { title: "Open a 15-minute chart", detail: "NAS100 (NDX100 on FundingPips) or SPX500. Candles must start on the quarter hour (:00, :15, :30, :45), which is the default." },
+    { title: "Open a 15-minute chart", detail: "NAS100 (NDX100 on the broker's MT5) or SPX500. Candles must start on the quarter hour (:00, :15, :30, :45), which is the default." },
     { title: "Mark 09:30 ET", detail: "Add a vertical line or a session marker at the New York open: 09:30 ET (19:00 or 20:00 India time, depending on US daylight saving). The indicator on the Indicators page marks it for you." },
     { title: "Have the order tools ready", detail: "You'll place pending buy stop / sell stop orders with a stop loss and take profit attached, and cancel them often. Know where that is on your platform before 09:30." },
   ],
@@ -125,7 +125,7 @@ export const nyInsideBarGuide: StrategyGuide = {
   ],
 
   backtest: {
-    period: "5 May – 3 Nov 2026 (6 months), FundingPips MT5 15m bars",
+    period: "5 May – 3 Nov 2026 (6 months), broker MT5 15m bars",
     settings: BACKTEST_SETTINGS,
     rows: [
       { symbol: "NAS100", timeframe: "15m", trades: 133, winRatePct: 52.6, profitFactor: 0.79, returnPct: -3.3, maxDrawdownPct: 6.5 },
@@ -133,6 +133,6 @@ export const nyInsideBarGuide: StrategyGuide = {
       { symbol: "XAUUSD", timeframe: "15m", trades: 147, winRatePct: 44.9, profitFactor: 0.38, returnPct: -12.5, maxDrawdownPct: 13.0 },
     ],
     verdict:
-      "It lost money. All three markets lost over these 6 months at the guides' 0.04% fee. At FundingPips' smaller measured costs the same 6 months made +18R on NAS100 (133 trades, profit factor 1.33) but lost on SPX500 (0.90) and gold (0.78). The long test is what counts, and it lost: on MT5 bars from Jan 2020 to Nov 2026 at measured costs, NAS100 made 1,877 trades, won 49%, profit factor 0.90, −98R, losing in every year but 2026; with no costs at all it only breaks even (1.00). SPX500 made 0.78 over 2,022 trades and gold 0.72. MT5's own Strategy Tester, placing real stop orders on NAS100 over the same years, made 1,696 trades, 51% won, profit factor 1.06 with its own spread: roughly break-even, a 27% drawdown at 1% risk. These numbers count a candle that reaches both the buy stop and the cancel level as a fill. The first version of this guide assumed the order was cancelled in those candles, which skipped trades a real order takes (in the MT5 test, 210 of 230 of them lost) and showed a profit factor of 1.31 that live trading can't get.",
+      "It lost money. All three markets lost over these 6 months at the guides' 0.04% fee. At the broker's smaller measured costs the same 6 months made +18R on NAS100 (133 trades, profit factor 1.33) but lost on SPX500 (0.90) and gold (0.78). The long test is what counts, and it lost: on MT5 bars from Jan 2020 to Nov 2026 at measured costs, NAS100 made 1,877 trades, won 49%, profit factor 0.90, −98R, losing in every year but 2026; with no costs at all it only breaks even (1.00). SPX500 made 0.78 over 2,022 trades and gold 0.72. MT5's own Strategy Tester, placing real stop orders on NAS100 over the same years, made 1,696 trades, 51% won, profit factor 1.06 with its own spread: roughly break-even, a 27% drawdown at 1% risk. These numbers count a candle that reaches both the buy stop and the cancel level as a fill. The first version of this guide assumed the order was cancelled in those candles, which skipped trades a real order takes (in the MT5 test, 210 of 230 of them lost) and showed a profit factor of 1.31 that live trading can't get.",
   },
 };

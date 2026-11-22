@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { OHLC } from "@/indicators/utils";
 import { parseMt5Bars, resampleBars } from "@/backtest/mt5Bars";
-import { platformSymbol } from "@/lib/costs/fundingpips";
+import { platformSymbol } from "@/lib/costs/broker";
 import { parseServerTime } from "./report";
 import { parseSpecs, registerSpecs, type SymbolSpec } from "./specs";
 

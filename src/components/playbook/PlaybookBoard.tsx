@@ -96,7 +96,7 @@ function BalanceEditor({ accountId, current, onDone }: { accountId: string; curr
         save.mutate();
       }}
     >
-      <Field label="Balance on your platform ($)" htmlFor={`pb-balance-${accountId}`} hint="The closed balance FundingPips shows, without open trades. Trades you log here are added on top from now on.">
+      <Field label="Balance on your platform ($)" htmlFor={`pb-balance-${accountId}`} hint="The closed balance your platform shows, without open trades. Trades you log here are added on top from now on.">
         <TextInput id={`pb-balance-${accountId}`} inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} className="sm:max-w-48" />
       </Field>
       {save.error && <p className="text-[13px] text-loss-ink">{save.error.message}</p>}
@@ -223,7 +223,7 @@ function AccountLane({ day, all, selected, onSelect }: { day: AccountDay; all: r
           <BalanceEditor accountId={a.id} current={s.balance} onDone={() => setEditing(false)} />
         ) : (
           <button type="button" onClick={() => setEditing(true)} className="text-[12px] text-mist underline-offset-2 hover:text-paper hover:underline">
-            Balance different on FundingPips? Match it
+            Balance different on your platform? Match it
           </button>
         )}
       </div>

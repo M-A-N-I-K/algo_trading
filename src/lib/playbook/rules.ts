@@ -1,5 +1,5 @@
 import { isForex } from "@/lib/markets/yahoo";
-import { usdPerUnitMove } from "@/lib/costs/fundingpips";
+import { usdPerUnitMove } from "@/lib/costs/broker";
 import { specFor } from "@/lib/mt5/specs";
 import type { LatestSignal } from "@/lib/signals/scan";
 import {
@@ -226,7 +226,7 @@ export interface Sizing {
 /**
  * Size so that a stopped-out trade loses `riskAmount` in all: the stop
  * distance plus `costPerUnitUsd`, the round trip's commission and spread per
- * unit (see roundTripCostPerUnitUsd in src/lib/costs/fundingpips.ts).
+ * unit (see roundTripCostPerUnitUsd in src/lib/costs/broker.ts).
  */
 export function sizePosition(symbol: string, entry: number, stop: number, riskAmount: number, costPerUnitUsd = 0): Sizing | null {
   const distance = Math.abs(entry - stop);

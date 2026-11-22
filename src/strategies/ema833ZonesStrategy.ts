@@ -1,7 +1,7 @@
 import { OHLC } from "../indicators/utils";
 import { Signal, Strategy, TradeTarget } from "../types";
 
-// "8/33 EMA" (a Hindi YouTube method), as it survived testing on FundingPips'
+// "8/33 EMA" (a Hindi YouTube method), as it survived testing on the broker's
 // MT5 bars since 2020: the same rules as mt5/PB_EMA833Zones_EA.mq5.
 //
 // Long (shorts are the mirror), on a closed candle:

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { analyseCommission, commissionRule, coveredByPlatform, feeRatePerSide, lotUnits, platformSymbol, roundTripCostPerUnitUsd, roundTripCostUsd } from "./fundingpips";
+import { analyseCommission, commissionRule, coveredByPlatform, feeRatePerSide, lotUnits, platformSymbol, roundTripCostPerUnitUsd, roundTripCostUsd } from "./broker";
 
-describe("FundingPips cost model", () => {
+describe("Broker cost model", () => {
   it("maps app symbols to the platform's", () => {
     expect(platformSymbol("XAUUSDT")).toBe("XAUUSD");
     expect(platformSymbol("NAS100")).toBe("NDX100");

@@ -1,5 +1,5 @@
 // The MT5 Strategy Tester reports behind the Tester reports page. Each one is
-// a run of a Playbook EA (mt5/*_EA.mq5) on FundingPips' own tick history,
+// a run of a Playbook EA (mt5/*_EA.mq5) on the broker's own tick history,
 // imported from the tester's Excel export with
 //   npx tsx src/backtest/importTesterReports.ts [folder]
 // into src/data/tester-reports/<slug>.json.
@@ -21,7 +21,7 @@ export interface TesterReportInfo {
 export const TESTER_REPORTS: TesterReportInfo[] = [
   { slug: "sr-sweep-nas100-1h", file: "SR_SWEEP_NDX100.xlsx", setupId: "sr-sweep-trendline:NAS100:1h", title: "S/R Sweep + Trend-Line Break", market: "NAS100", timeframe: "1h" },
   { slug: "macd-nas100-4h", file: "MACD200EMA_NDX100.xlsx", setupId: "macd-200ema-sr:NAS100:4h", title: "MACD + 200 EMA + S/R", market: "NAS100", timeframe: "4h" },
-  { slug: "smc-ftse100-4h", file: "SMC_FTSE100.xlsx", setupId: "smc:FTSE100:4h", title: "Smart Money Concepts", market: "FTSE100", timeframe: "4h", note: "FundingPips' FTSE 100 history starts in July 2023, so this is 3.3 years, not 6.9." },
+  { slug: "smc-ftse100-4h", file: "SMC_FTSE100.xlsx", setupId: "smc:FTSE100:4h", title: "Smart Money Concepts", market: "FTSE100", timeframe: "4h", note: "the broker's FTSE 100 history starts in July 2023, so this is 3.3 years, not 6.9." },
   { slug: "smc-xauusd-4h", file: "SMC_XAUUSD.xlsx", setupId: "smc:XAUUSDT:4h", title: "Smart Money Concepts", market: "XAUUSD", timeframe: "4h" },
   {
     slug: "sr-sweep-ethusd-4h",

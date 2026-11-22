@@ -19,7 +19,7 @@ Four scripts cover the 8 setups; `ny-inside-bar-strategy.pine` is kept for the r
 | Gold / ETH 8/33 EMA + Swing Zones 1h, NAS100 5m (quarter risk) | `ema833-zones-strategy.pine` | 1h (gold, ETH) / 5m (NAS100) | defaults (London or NY, stepped trail) | 0.0043 gold (default) / 0.0031 NAS100 / 0.0512 ETH | gold 135 trades, 30.4% won, PF 1.51; NAS100 177, PF 1.23; ETH 165, PF 1.17. No R panel: read the Strategy Tester tab |
 | *Retired:* NAS100 / S&P 500 NY Inside Bar, 15m | `ny-inside-bar-strategy.pine` | 15m | defaults | 0.0031 / 0.0037 | NAS100 1,877 trades, 49.4% won, PF 0.90; S&P 500 PF 0.78 (it loses) |
 
-The commission is FundingPips' spread plus commission as a percent of price, charged on entry and on exit, so the results are after costs like the app's.
+The commission is the broker's spread plus commission as a percent of price, charged on entry and on exit, so the results are after costs like the app's.
 
 ### Install
 
@@ -37,7 +37,7 @@ The commission is FundingPips' spread plus commission as a percent of price, cha
 ### Why TradingView's numbers won't match the app's exactly
 
 - **History.** TradingView loads a limited number of candles, which depends on your plan. A 15m chart may go back only weeks or months, not to 2020. Compare like with like: set **Trade from** to the first date the Tester shows, or use Deep Backtesting if your plan has it.
-- **Prices.** Each broker's feed has slightly different prices, and FundingPips' MT5 feed isn't on TradingView. Use a CFD feed close to it (Pepperstone, OANDA, FXCM, ICMarkets).
+- **Prices.** Each broker's feed has slightly different prices, and the broker's MT5 feed isn't on TradingView. Use a CFD feed close to it (Pepperstone, OANDA, FXCM, ICMarkets).
 - **Candles that hit two levels.** When one candle reaches both the stop and the target, the app always counts the stop, which is the cautious choice. TradingView guesses the order from the candle's shape. Turn on **Bar Magnifier** in Properties if your plan has it.
 - **NY Inside Bar fills.** When a candle gaps past the target, the app skips the trade but TradingView takes it.
 
@@ -57,7 +57,7 @@ The Playbook has four active setups. Each one has an indicator that marks entry,
 
 `liquidity-sweep-checkpoints.pine` (ETH 1h) and `liquidity-reversal-mtf-checkpoints.pine` (5m) are for setups the Playbook has retired because they lost money on 6.5 years of MT5 data. They are kept for reference only.
 
-The reference signals below come from the app's own strategy code run on FundingPips' MT5 bars (2020 to Nov 2026). MT5 indicators read that same feed, so they should match exactly. TradingView's feeds differ a little, so expect small differences in levels there, and now and then a signal that appears on one feed and not the other.
+The reference signals below come from the app's own strategy code run on the broker's MT5 bars (2020 to Nov 2026). MT5 indicators read that same feed, so they should match exactly. TradingView's feeds differ a little, so expect small differences in levels there, and now and then a signal that appears on one feed and not the other.
 
 ## NY Inside Bar checkpoints (NAS100 and S&P 500, 15m)
 
@@ -77,7 +77,7 @@ The panel shows today's side, what to do now (the order to place, or what to wai
 
 Alerts: one **Any alert() function call** alert gives every step with prices (the side at 10:00, the order to place, the fill, the exit). Or pick one of the four named conditions.
 
-The app's last NAS100 trades on FundingPips' MT5 15m bars (New York times). TradingView's NAS100 feed has slightly different prices, so a candle can occasionally qualify on one feed and not the other:
+The app's last NAS100 trades on the broker's MT5 15m bars (New York times). TradingView's NAS100 feed has slightly different prices, so a candle can occasionally qualify on one feed and not the other:
 
 | Inside candle | Filled | Side | Entry | Stop | Target | Exit candle |
 |---|---|---|---|---|---|---|
@@ -105,7 +105,7 @@ Put it on a **1h** chart. The app builds 4h candles on the UTC clock (00:00, 04:
 
 Alerts: **Any alert() function call** sends the entries with prices, plus the touches. Named conditions: **Long entry**, **Short entry**, **Support touched (long setup)**, **Resistance touched (short setup)**.
 
-App signals on MT5 NDX100 (FundingPips' NAS100), 55 since 2020:
+App signals on MT5 NDX100 (the broker's NAS100), 55 since 2020:
 
 | 4h candle open (UTC) | Side | Entry (close) | Stop | Target |
 |---|---|---|---|---|
@@ -232,7 +232,7 @@ App signals on MT5 EURUSD (the Playbook setup), 133 since 2020, times in UTC:
 | 2026-10-26 11:00 | BUY | 1.11991 | 1.11837 | 1.12315 |
 | 2026-11-05 07:00 | SELL | 1.12427 | 1.12746 | 1.11752 |
 
-Small differences in stops are expected for the first candles of a chart (ATR warm-up). On FundingPips' own XAUUSD feed, which closes at weekends, the levels will differ slightly from Binance's 24/7 contract.
+Small differences in stops are expected for the first candles of a chart (ATR warm-up). On the broker's own XAUUSD feed, which closes at weekends, the levels will differ slightly from Binance's 24/7 contract.
 
 ## Liquidity Sweep checkpoints (retired setup)
 

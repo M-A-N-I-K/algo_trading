@@ -21,7 +21,7 @@
 //     guesses the order from the candle's shape;
 //   - a gap past the target at the fill: the app skips the trade, TradingView takes it.
 //
-// Costs: commission_value is NAS100's per-side cost (FundingPips spread + commission as a
+// Costs: commission_value is NAS100's per-side cost (broker spread + commission as a
 // percent of price). S&P 500 is 0.0037. Change it in Properties (see README.md).
 strategy("NY Inside Bar strategy", shorttitle = "NY IB", overlay = true, initial_capital = 100000, default_qty_type = strategy.fixed, commission_type = strategy.commission.percent, commission_value = 0.0031, slippage = 0, pyramiding = 0, margin_long = 1, margin_short = 1, process_orders_on_close = false, calc_on_every_tick = false, max_labels_count = 500)
 

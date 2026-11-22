@@ -1,20 +1,20 @@
-# Passing and keeping a $5,000 FundingPips "2 Step Flex" account: rules, arithmetic, and which of our strategies fit
+# Passing and keeping a $5,000 prop-firm "2 Step Flex" account: rules, arithmetic, and which of our strategies fit
 
-Researched 2026-11-08. Scope: an India-resident retail trader holding a **$5,000 FundingPips 2 Step Flex** account (currently Phase 1, then Phase 2, then the "Master" funded account), who has algorithmic strategies in this repo (`src/strategies/`). The user confirmed the firm is FundingPips, so no firm-identification step was needed. The brief called the account "Flex"; this note works out what that means in FundingPips' own words (§1).
+Researched 2026-11-08. Scope: a retail trader holding a **$5,000 prop-firm 2 Step Flex** account (currently Phase 1, then Phase 2, then the "Master" funded account), who has algorithmic strategies in this repo (`src/strategies/`). The brief called the account "Flex"; this note works out what that means in the firm's own words (§1).
 
 **Educational research, not personalised financial or legal advice.** No strategy guarantees a pass, most evaluations fail (§6), and nothing here promises profit. Nothing was backtested for this note: every repo number is quoted from the repo's own docs and labelled with where it came from.
 
-**Rules and prices change often.** Every figure below is as of **2026-11-08**, the date I read it. The help-center articles were last updated **2026-10-19 to 2026-11-02** (dates in the source list). FundingPips changed Flex terms at least twice in 2026 (see §1), so **re-read your own dashboard and the Flex article before relying on any number**. Source labels:
+**Rules and prices change often.** Every figure below is as of **2026-11-08**, the date I read it. The help-center articles were last updated **2026-10-19 to 2026-11-02** (dates in the source list). The firm changed Flex terms at least twice in 2026 (see §1), so **re-read your own dashboard and the Flex article before relying on any number**. Source labels:
 
-- **Fetched:** I read the official FundingPips help-center article in full. The article pages returned HTTP 403 to the fetch tool, so I read the same article bodies through the help center's own public JSON endpoint (`help.fundingpips.com/api/v2/help_center/en-us/articles.json`). That is the official text, not a summary.
-- **Extract:** the official page blocked automated fetching (`fundingpips.com` product, blog and T&C pages returned HTTP 429), so the figure comes from a search-engine extract of that official page. One attempt to fetch the product page with a browser-style user agent was blocked by the tooling's permission check, and I did not retry it. Check these in the app.
+- **Fetched:** I read the firm's official help-center article in full. The article pages returned HTTP 403 to the fetch tool, so I read the same article bodies through the help center's own public JSON endpoint. That is the official text, not a summary.
+- **Extract:** the official page blocked automated fetching (the firm's product, blog and T&C pages returned HTTP 429), so the figure comes from a search-engine extract of that official page. One attempt to fetch the product page with a browser-style user agent was blocked by the tooling's permission check, and I did not retry it. Check these in the app.
 - **Unverified:** secondary source only (third-party review, press, forum). Never used as the citation for a rule.
 
 ---
 
 ## TL;DR
 
-**What "Flex" is.** FundingPips sells a named model called **2 Step Flex**, with a sibling called 1 Step Flex. Your description (two phases, then funded, $5K size) is 2 Step Flex [1][6]. What "Flex" changes versus **2 Step Standard** [1][5]:
+**What "Flex" is.** The firm sells a named model called **2 Step Flex**, with a sibling called 1 Step Flex. Your description (two phases, then funded, $5K size) is 2 Step Flex [1][6]. What "Flex" changes versus **2 Step Standard** [1][5]:
 
 | | 2 Step Flex | 2 Step Standard |
 |---|---|---|
@@ -24,32 +24,32 @@ Researched 2026-11-08. Scope: an India-resident retail trader holding a **$5,000
 | Reward split | **80% or 95% bi-weekly, or 100% on demand; the 80/95 choice is locked at purchase** | weekly 60%, bi-weekly 80%, on demand 100%; chosen after reaching Master |
 | Reg-fee refund at 4th reward | **No** | Yes |
 
-**Conclusion.** The Flex limits are looser than Standard's on daily and total loss but demand a bigger profit (+$500, then +$400). Both limits are measured on **equity including floating P&L**, and the daily limit is breached the instant it is *touched*. A pass is therefore decided by a small number of controlled-risk trades with an edge that has to exist before sizing, not by size. Derived from the rules (arithmetic, not FundingPips' numbers): the $ limits are **$200 a day and $600 total** (§3).
+**Conclusion.** The Flex limits are looser than Standard's on daily and total loss but demand a bigger profit (+$500, then +$400). Both limits are measured on **equity including floating P&L**, and the daily limit is breached the instant it is *touched*. A pass is therefore decided by a small number of controlled-risk trades with an edge that has to exist before sizing, not by size. Derived from the rules (arithmetic, not the firm's numbers): the $ limits are **$200 a day and $600 total** (§3).
 
-**Rules to follow (8 to 10; items marked [FP] are FundingPips rules, the rest are my derived suggestions):**
+**Rules to follow (8 to 10; items marked [firm] are the firm's rules, the rest are my derived suggestions):**
 
-1. **[FP] Never touch the loss limits.** Daily: 4% of the higher of that day's opening balance or equity = **$200** on a fresh $5,000, floating P&L counts, resets at 00:00 platform time (**22:00 UTC in winter = 03:30 IST; 21:00 UTC in summer = 02:30 IST**). Total: equity or balance **can never touch $4,400** (12% of the *starting* size, static, never moves) [1].
+1. **[firm] Never touch the loss limits.** Daily: 4% of the higher of that day's opening balance or equity = **$200** on a fresh $5,000, floating P&L counts, resets at 00:00 platform time (**22:00 UTC in winter = 03:30 IST; 21:00 UTC in summer = 02:30 IST**). Total: equity or balance **can never touch $4,400** (12% of the *starting* size, static, never moves) [1].
 2. **Risk 0.5% ($25) per trade, 1% ($50) as a hard ceiling.** At 1% four consecutive full losses reach the daily limit; at 0.5% it takes eight (§3).
 3. **Self-imposed daily stop at -2% ($100), closed plus floating.** Half the firm's 4%, to absorb slippage, spread spikes at rollover and gaps. Stop for the day and do not "make it back".
-4. **Cap total open risk at 1% ($50) across all positions**, and treat BTC and ETH as one idea. Always place a hard stop-loss, even though FundingPips does not require one [3].
-5. **[FP] Profit only counts when closed.** Reaching +$500 with open trades does not pass; close everything, and a Phase 1 account needs at least 1 trading day on the 80% split [1].
-6. **[FP] Place one fully closed trade at least every 30 days** or the account is breached for inactivity. There is no time limit otherwise [1].
-7. **[FP] Personal EA only, with proof of ownership; no VPN/VPS; no hedging, HFT, tick scalping, gap trading, latency tricks, or copying signals into the account** [2]. If your app will send orders automatically, ask support in writing first (§4.7). The simplest compliant path is to trade the signals by hand from your normal home connection.
-8. **[FP] On the Master account:** positions are force-closed daily (21:45 to 22:00 UTC winter) unless you bought the Swing add-on **at purchase**; profits on trades opened or closed within 5 minutes either side of high-impact news on the affected currency can be deducted [1][4]. Check which add-ons and which split (80% or 95%) your account was bought with.
+4. **Cap total open risk at 1% ($50) across all positions**, and treat BTC and ETH as one idea. Always place a hard stop-loss, even though the firm does not require one [3].
+5. **[firm] Profit only counts when closed.** Reaching +$500 with open trades does not pass; close everything, and a Phase 1 account needs at least 1 trading day on the 80% split [1].
+6. **[firm] Place one fully closed trade at least every 30 days** or the account is breached for inactivity. There is no time limit otherwise [1].
+7. **[firm] Personal EA only, with proof of ownership; no VPN/VPS; no hedging, HFT, tick scalping, gap trading, latency tricks, or copying signals into the account** [2]. If your app will send orders automatically, ask support in writing first (§4.7). The simplest compliant path is to trade the signals by hand from your normal home connection.
+8. **[firm] On the Master account:** positions are force-closed daily (21:45 to 22:00 UTC winter) unless you bought the Swing add-on **at purchase**; profits on trades opened or closed within 5 minutes either side of high-impact news on the affected currency can be deducted [1][4]. Check which add-ons and which split (80% or 95%) your account was bought with.
 9. **After the target, lower risk, do not raise it.** The 12% floor never moves, so profit adds cushion, not permission (§3). Phase 2 is only 8%, and a Master account that pays 80% of profit every 14 days is a long game.
-10. **Only trade what FundingPips lists** (41 instruments; crypto is only BTCUSD and ETHUSD, at 1:2 leverage, 1 lot per click) [1]. Only **4 of the 12 markets in our backtests** (BTC, ETH, XAU, XAG) are available (§5).
+10. **Only trade what the firm lists** (41 instruments; crypto is only BTCUSD and ETHUSD, at 1:2 leverage, 1 lot per click) [1]. Only **4 of the 12 markets in our backtests** (BTC, ETH, XAU, XAG) are available (§5).
 
-**Realistic chance.** Third-party and firm-CEO figures put the share of challenge buyers who pass at roughly **5 to 15%**, with about **7% ever reaching a payout** (§6, all unaudited). A 4%/12% rule set is forgiving, so most failures come from the trader's edge or behaviour, not the limits. If the strategy has no edge after FundingPips' real costs, sizing cannot save it (§3 table).
+**Realistic chance.** Third-party and firm-CEO figures put the share of challenge buyers who pass at roughly **5 to 15%**, with about **7% ever reaching a payout** (§6, all unaudited). A 4%/12% rule set is forgiving, so most failures come from the trader's edge or behaviour, not the limits. If the strategy has no edge after the firm's real costs, sizing cannot save it (§3 table).
 
 ---
 
-## 1. What "Flex" means in FundingPips' own wording
+## 1. What "Flex" means in the firm's own wording
 
 - The official help center lists the models as **1 Step Flex, 2 Step Standard, 2 Step Flex, 2 Step Pro and Zero** [6]. "Flex" is part of two model names. It is **not** a drawdown option or a payout option on another model.
 - **2 Step Flex** is "a two-phase evaluation. Phase 1 and Phase 2, then trading on a Master Account", with the reward structure chosen at purchase. Account sizes: $5K, $10K, $25K, $50K, $100K [1].
 - Terms have moved. Old 2 Step Standard accounts with a 10% profit target were reset into 2 Step Flex with an 85% split [5]. A launch blog (Extract only) described a 10%/6% target, 85% split and no minimum days; the current help center says **10%/8%** and an **80%/95%/100%** split, and I treat the help center as authoritative [1]. If your account was bought before **26 Aug 2026**, the 80%-split minimum-days rule is **0** for your existing phases; resets and new accounts need 1 day [1].
-- **"Master Account" is the funded stage.** It trades simulated capital, and FundingPips is explicit that it is "not a live brokerage" and that rewards are cash paid out of the firm's side [3]. So "funded" here means a Master account that pays a split of simulated profit.
-- **Not found officially:** the FundingPips Terms and Conditions text (page blocked, Extract-only), so I could not read the full legal terms. Read them before paying or withdrawing.
+- **"Master Account" is the funded stage.** It trades simulated capital, and the firm is explicit that it is "not a live brokerage" and that rewards are cash paid out of the firm's side [3]. So "funded" here means a Master account that pays a split of simulated profit.
+- **Not found officially:** the firm's Terms and Conditions text (page blocked, Extract-only), so I could not read the full legal terms. Read them before paying or withdrawing.
 
 ---
 
@@ -104,20 +104,20 @@ All from the 2 Step Flex help article [1] unless another number is cited. "Same"
 | Reward rules | Close all trades including pending orders; wait 15 minutes; trading is disabled while a reward processes; processed in 1 to 3 working days | Fetched [8] |
 | Payout methods | Card (Visa/Mastercard), crypto (USDT/USDC on ERC20, 1% minimum), Rise ($500 minimum, KYC), bank transfer ($500 minimum, "selected regions"). **India is not in the listed Pay-to-Card countries** | Fetched [8] |
 | Striking System (100% split only) | A "trade idea" losing 1% of the account (closed plus floating) earns a warning. 2nd warning halves the split, 3rd drops it to 20%, 4th closes the account. Same-instrument, same-direction trades and new trades within 10 minutes of a losing close count as one idea | Fetched [1] |
-| Scaling plan | **Not in the Flex article.** FundingPips' scaling plan sits on the invite-only **Prime Account** (x12.5 multiplier, 80% daily split), entry is by invitation after performance | Fetched [10]; not found officially for Flex Master |
+| Scaling plan | **Not in the Flex article.** The firm's scaling plan sits on the invite-only **Prime Account** (x12.5 multiplier, 80% daily split), entry is by invitation after performance | Fetched [10]; not found officially for Flex Master |
 | KYC / eligibility | 18+; restricted residents: Iran, Vietnam, UAE (India not listed); one verified account per person; KYC, 2-day review, agreement and 2-day onboarding before the Master account opens | Fetched [6][7] |
 
 ### Conduct rules that matter for an algorithmic workflow [2][3][9]
 
 - **Forbidden:** gap trading, high-frequency trading, server spamming, latency arbitrage, toxic flow, **hedging**, long-short arbitrage, reverse arbitrage, **tick scalping**, server execution exploits, opposite-account trading, churn-and-burn. Breaches can mean termination without warning [2].
 - **EA / bot policy:** a **third-party** EA is allowed only as a trade or risk manager; using one to generate and execute your trades means denial of the evaluation or reward and closure. A **personal EA you wrote** can fully automate, but you must **prove ownership**: uncompiled source, version-control history, development-environment evidence or a live call explaining the logic; "a compiled binary on its own is not proof" [2].
-- **Copy trading:** copying **out** of your FundingPips account to an external one is allowed; copying **into** it from any outside source, including signal providers, is prohibited and counts as third-party management [2]. FundingPips' own dashboard Copy Trader exists (MT5, cTrader, Match-Trader, Beta, max 4 accounts) but only a FundingPips account can be the Lead [11].
+- **Copy trading:** copying **out** of your prop account to an external one is allowed; copying **into** it from any outside source, including signal providers, is prohibited and counts as third-party management [2]. The firm's own dashboard Copy Trader exists (MT5, cTrader, Match-Trader, Beta, max 4 accounts) but only an account at the firm can be the Lead [11].
 - **VPN / VPS:** "Connecting to a VPN or VPS while accessing your trading account is not permitted." The IP region must stay consistent; a regional change can trigger a proof-of-location request [2]. This rules out running a bot on a cloud server.
 - **Not found officially:** a minimum trade duration, a trades-per-day cap, or definitions of "tick scalping", "gap trading" and "hedging". The Flex article has no consistency rule for the evaluation phases; absence is not a guarantee, so check support if you plan very short holds.
 
 ---
 
-## 3. The $5,000 arithmetic (derived from the rules above, not published by FundingPips)
+## 3. The $5,000 arithmetic (derived from the rules above, not published by the firm)
 
 ### 3.1 The dollar limits
 
@@ -134,7 +134,7 @@ Three maximum-loss days in a row (3 x 4%) reaches the 12% floor, so the daily ca
 
 ### 3.2 Risk per trade vs consecutive full-risk losses
 
-"Full-risk" means each loss is exactly the amount risked. "With costs" assumes each loss is 1.1x the amount risked (0.1R for spread, commission and slippage; **my assumption**, not a FundingPips number). A touch of the limit is a breach [1].
+"Full-risk" means each loss is exactly the amount risked. "With costs" assumes each loss is 1.1x the amount risked (0.1R for spread, commission and slippage; **my assumption**, not the firm's number). A touch of the limit is a breach [1].
 
 | Risk per trade | $ per trade | Losses to hit the **daily** $200 limit (gross / with costs) | Losses to hit the **total** $600 limit (gross / with costs) | Verdict |
 |---|---|---|---|---|
@@ -223,7 +223,7 @@ So a **1% risk** on a low-win-rate system hits the floor within 100 trades more 
 
 - A personal EA is allowed with proof of ownership; the repo is TypeScript, so any MT5/cTrader/Match-Trader link is either your own bridge or a third-party one. **Third-party tools that generate and execute trades are not allowed**, and "inbound copy trading" is prohibited [2]. Whether a bridge you wrote that sends your own app's signals counts is **not defined officially**: ask support in writing and keep the answer.
 - **No VPN/VPS**: a cloud-hosted bot is out [2]. Home-run only, same region.
-- **India-specific, not researched from primary sources:** the legal, FEMA and income-tax treatment of receiving payouts from an overseas prop firm. FundingPips' own blog says Indian residents can join (Extract; marketing). Ask a chartered accountant before withdrawing.
+- **India-specific, not researched from primary sources:** the legal, FEMA and income-tax treatment of receiving payouts from an overseas prop firm. The firm's own blog says Indian residents can join (Extract; marketing). Ask a chartered accountant before withdrawing.
 
 ---
 
@@ -233,10 +233,10 @@ So a **1% risk** on a low-win-rate system hits the floor within 100 trades more 
 
 **Four mismatches that apply to every strategy:**
 
-1. **Instruments.** FundingPips lists 41 instruments; the backtests used 12 markets. Only **BTC, ETH, XAU, XAG** overlap. XRP, SOL, AVAX, DOGE, ADA, SUI, NEAR and AAVE are not offered [1]. Of forex and indices, only forex pairs exist on the firm's list and only **Liquidity Reversal on USD/JPY 1h** qualifies in the repo (39 trades, PF 2.26) [[top-down-analysis.md](top-down-analysis.md) via high-win-rate-strategies.md §3]; no strategy qualifies on the Nasdaq 100 or S&P 500.
-2. **Costs and data.** Backtests charge a crypto exchange taker fee (0.059% per side). FundingPips charges spread plus $5/lot (forex, metals) or 0.04% (crypto) [1], on its own price feed. The costs are of the same order but not the same; re-run before trusting any row. The backtester also has **no swap model** (it records funding as 0).
+1. **Instruments.** The firm lists 41 instruments; the backtests used 12 markets. Only **BTC, ETH, XAU, XAG** overlap. XRP, SOL, AVAX, DOGE, ADA, SUI, NEAR and AAVE are not offered [1]. Of forex and indices, only forex pairs exist on the firm's list and only **Liquidity Reversal on USD/JPY 1h** qualifies in the repo (39 trades, PF 2.26) [[top-down-analysis.md](top-down-analysis.md) via high-win-rate-strategies.md §3]; no strategy qualifies on the Nasdaq 100 or S&P 500.
+2. **Costs and data.** Backtests charge a crypto exchange taker fee (0.059% per side). The firm charges spread plus $5/lot (forex, metals) or 0.04% (crypto) [1], on its own price feed. The costs are of the same order but not the same; re-run before trusting any row. The backtester also has **no swap model** (it records funding as 0).
 3. **Sizing and drawdown.** The backtests risk up to 2% per trade at full balance. That is **four times** the 0.5% default here, so the reported max drawdowns are not comparable to a 12% floor. Roughly proportional scaling may help but is **not verified**.
-4. **News calendar.** The repo reads the ForexFactory weekly feed (`src/lib/economicCalendar.ts`, described in its own comments as unofficial). FundingPips' official source is the calendar on **its own dashboard** [1]. The two can differ, which matters only for Master-account profit deductions.
+4. **News calendar.** The repo reads the ForexFactory weekly feed (`src/lib/economicCalendar.ts`, described in its own comments as unofficial). The firm's official source is the calendar on **its own dashboard** [1]. The two can differ, which matters only for Master-account profit deductions.
 
 **The best-after-fees rows on firm-listed instruments** (all from [high-win-rate-strategies.md](high-win-rate-strategies.md) §3, 19 qualifying pairs; trades are over 2 years, in-sample, selected after the fact):
 
@@ -260,7 +260,7 @@ Columns: **Freq** = trades per market over 2 years, from the pooled counts in §
 |---|---|---|---|---|---|
 | `macd-sma-atr` | 4h 396 trades (about 33 per market), **no stop** (comment in code; "MACD + SMA + ATR (no stop)"); PF 0.86; DD 71% median, 93% worst | Cannot cap risk per trade | **Incompatible**: 71 to 97% drawdowns | n/a | **Exclude.** Floating losses count and no stop means no defined risk |
 | `macd-200ema-sr` | 4h 175 trades (about 15 per market), stop = EMA200 at entry, **1.5R target**; WR 45.1%, +0.51%/trade, 8/12 markets profitable, **qualifies nowhere**; 1h and 15m lose | Fine at 0.5% | 4h median DD 6.2%, worst 19.6% | One closed trade per month is not enough to keep an account active | **Marginal.** Too few trades; EMA200 stop distance varies a lot, so lots must come from the stop distance |
-| `smc` (4h) | 279 trades (about 23 per market), stop = FVG/sweep low x 0.998, targets from structure; WR 29.7%, +1.17%/trade, qualifies on BTC (and SOL, AVAX, SUI which FundingPips does not list); 1h and 15m lose | Fine, about 1 trade per month per market | DD 13.9% median, 19.3% worst: **would have breached 12% at 2% sizing**; 0.5% sizing likely fits but is unverified | 4h swings fit weekend-holding in evaluation; the Master needs the Swing add-on | **Candidate on BTC only**, after re-testing with FundingPips costs |
+| `smc` (4h) | 279 trades (about 23 per market), stop = FVG/sweep low x 0.998, targets from structure; WR 29.7%, +1.17%/trade, qualifies on BTC (and SOL, AVAX, SUI which the firm does not list); 1h and 15m lose | Fine, about 1 trade per month per market | DD 13.9% median, 19.3% worst: **would have breached 12% at 2% sizing**; 0.5% sizing likely fits but is unverified | 4h swings fit weekend-holding in evaluation; the Master needs the Swing add-on | **Candidate on BTC only**, after re-testing with the firm's costs |
 | `session-london-bos` | Up to **3 arming windows per day** (0000-0200, 0700-0900, 1200-1400 defaults), stop = last pivot, **fixed 2R**; 1h 1,057 trades, 15m **5,073**; 1h WR 34.5%, 15m loses (PF 0.94); qualifies on BTC 1h only (86 trades, DD 17.0%) | **Highest risk of clustered losses**: 3 attempts a day; with 0.5% risk, 3 losses = 1.5% | BTC row DD 17.0% | Windows sit around London and New York opens, where scheduled releases cluster; evaluation has no news rule but the Master does; session time zone is not stated in the docs | **Conditional**, 1h BTC only; add the daily stop |
 | `extreme-order-block` | 15m only, 1,439 trades; WR 24.0%; PF 0.80; 1/12 profitable; **no qualifying market** | n/a | n/a | n/a | **Exclude** |
 | `perfect-entry` (1h) | 420 trades; **WR 13.8%**, payoff 8.05, BE WR 11.0%, +0.57%/trade; DD 25.3% median, **49.7% worst**; qualifies on AVAX and NEAR (not listed) | OK | **22-loss runs hit the 12% floor within 100 trades about 40% of the time** (§3.5) | n/a | **Poor fit**: the streak math above is the problem; also no qualifying firm-listed market |
@@ -282,11 +282,11 @@ Columns: **Freq** = trades per market over 2 years, from the pooled counts in §
 1. **Equity-based daily loss.** Reconstruct the day baseline at the platform reset (22:00 UTC from the first Sunday of November, 21:00 UTC from the first Sunday of March) as `max(balance, equity)`, then flag any bar whose **intrabar worst equity** (high or low against the position) touches 4% below it. Evaluate on bar extremes, not closes; floating P&L counts [1].
 2. **Static 12% floor** from the starting balance, tested on the same intrabar equity.
 3. **Close-only target:** count a phase passed only when balance, with nothing open, is >= +10% (then +8% for Phase 2), plus the 1-day minimum and the 30-day inactivity breach.
-4. **FundingPips costs and leverage:** spread plus $5/lot (forex, metals) or 0.04% (crypto), crypto notional <= 2x equity, 1 lot per click. Add a swap term. The existing sim records funding as 0.
+4. **The firm's costs and leverage:** spread plus $5/lot (forex, metals) or 0.04% (crypto), crypto notional <= 2x equity, 1 lot per click. Add a swap term. The existing sim records funding as 0.
 5. **Fixed-fractional sizing** at 0.25, 0.5, 0.75 and 1% of equity from the stop distance, with the self-imposed -2% daily stop and a 1% total-open-risk cap.
 6. **Pass probability, not one number.** Start a fresh Phase 1 attempt on every day of the sample (rolling start dates) and report the pass, breach-by-daily, breach-by-total and unfinished rates. Add a bootstrap that reshuffles the R-multiples (as in §3.4 but using your real trade list) to see the spread of outcomes.
 7. **Walk-forward and a held-out period.** The repo already has `pnpm backtest:walk-forward` ([high-win-rate-strategies.md](high-win-rate-strategies.md) §7); select markets and settings on the first half only.
-8. **Keep the Master constraints separate:** force-flat at 21:45 to 22:00 UTC, a +/-5 minute news mask using FundingPips' calendar, and the 14-day reward cycle, so Phase 1 results are not mixed with funded-stage behaviour.
+8. **Keep the Master constraints separate:** force-flat at 21:45 to 22:00 UTC, a +/-5 minute news mask using the firm's calendar, and the 14-day reward cycle, so Phase 1 results are not mixed with funded-stage behaviour.
 
 ---
 
@@ -294,9 +294,9 @@ Columns: **Freq** = trades per market over 2 years, from the pooled counts in §
 
 **What the evidence actually supports, and what it does not.**
 
-- **Most challenge buyers do not pass or get paid.** A prop-firm CEO said his firm's pass rate "ranges from 5 to 10%" and that about 20% of funded traders receive payouts, in a Discord update reported by Finance Magnates on 18 March 2025 (no sample size given); the same article cites FPFX Tech saying **7% of 300,000 prop accounts reached a payout** and PipFarm saying 41% of its clients do (no sample size) [12]. A search summary of industry sources gives a 5 to 15% pass range and says no major firm publishes audited statistics. **All of this is unaudited, self-reported, mostly marketing-adjacent data; it is not FundingPips' own figure**, and I found no FundingPips pass rate in an official page. Treat 5 to 15% as the order of magnitude only.
+- **Most challenge buyers do not pass or get paid.** A prop-firm CEO said his firm's pass rate "ranges from 5 to 10%" and that about 20% of funded traders receive payouts, in a Discord update reported by Finance Magnates on 18 March 2025 (no sample size given); the same article cites FPFX Tech saying **7% of 300,000 prop accounts reached a payout** and PipFarm saying 41% of its clients do (no sample size) [12]. A search summary of industry sources gives a 5 to 15% pass range and says no major firm publishes audited statistics. **All of this is unaudited, self-reported, mostly marketing-adjacent data; it is not the firm's own figure**, and I found no pass rate from the firm in an official page. Treat 5 to 15% as the order of magnitude only.
 - **Retail trading results are poor in general.** The repo's own note collects SEBI's F&O studies (93% lost money FY22 to FY24, about 91% FY25), ESMA's 74 to 89% of CFD accounts losing, and Barber et al.'s Taiwanese day traders (under 1% consistently outperform) ([high-win-rate-strategies.md](high-win-rate-strategies.md) §2, "Retail outcomes"). I did not re-open those pages today; the original access date was 2026-11-07 in that note.
-- **FundingPips' own guidance** lists the habits it recommends: avoid high-impact news, manage risk, watch equity not balance, keep stops wider than rollover and spread spikes, and avoid excessive leverage or full margin [3][9]. That is the firm's text, not research.
+- **The firm's own guidance** lists the habits it recommends: avoid high-impact news, manage risk, watch equity not balance, keep stops wider than rollover and spread spikes, and avoid excessive leverage or full margin [3][9]. That is the firm's text, not research.
 - **Position sizing and streak risk are arithmetic, not folklore.** Fixed-fractional sizing below the loss-limit-implied cap, a streak table (§3.5), and a pass probability that depends on the edge (§3.4) are derived from the rules plus an assumed random walk. The assumptions (independent trades, known edge, fixed costs) are generous; real trades are serially dependent and the edge is uncertain. Kelly-type sizing theory (Thorp's chapter on blackjack, sports betting and the stock market is the standard reference) says to avoid overbetting; I could read only the abstract online and did not verify any drawdown figure from it ([13]).
 - **What has no solid evidence here:** "stop after N losses", "reduce risk after the target", "trade only the best setups" are practitioner conventions. They are sensible given a hard daily cap, but I found **no primary study** showing they raise pass rates, and none of the third-party pass-rate pieces is controlled evidence.
 - **The repo's own evidence** is the more useful guide: low to moderate win rate (25 to 45%), winners 2 to 3x losers, 1h and up, beats the fee wall; high-win-rate small-target systems lose ([high-win-rate-strategies.md](high-win-rate-strategies.md) §6). That shape also fits the 4%/12% structure because it keeps losses small and streaks survivable at 0.5% risk.
@@ -309,30 +309,30 @@ Columns: **Freq** = trades per market over 2 years, from the pooled counts in §
 
 All accessed **2026-11-08**. "Updated" is the article's own last-updated date from the help-center JSON.
 
-**FundingPips official (help center, Fetched via the help center's public JSON endpoint)**
-1. 2 Step Flex, updated 2026-11-02. https://help.fundingpips.com/hc/en-us/articles/47835196271249-2-Step-Flex
-2. Trading Conduct and Security Standards (forbidden strategies, EA, copy trading, IP/VPN/VPS), updated 2026-08-19. https://help.fundingpips.com/hc/en-us/articles/34505029138449-Trading-Conduct-and-Security-Standards
-3. Understanding Trading Mechanics (stop loss, rollover, balance vs equity), updated 2026-08-21. https://help.fundingpips.com/hc/en-us/articles/44559256768529-Understanding-Trading-Mechanics
-4. News Trading & Weekend Holding, updated 2026-11-02. https://help.fundingpips.com/hc/en-us/articles/34504137479441-News-Trading-Weekend-Holding
-5. 2 Step Standard (for the Flex comparison), updated 2026-11-02. https://help.fundingpips.com/hc/en-us/articles/34501809112081-2-Step-Standard
-6. Get Started (models, sizes, eligibility, restricted countries, fee refund), updated 2026-09-24. https://help.fundingpips.com/hc/en-us/articles/44390730743825-Get-Started
-7. Master Account Setup (KYC, review, onboarding), updated 2026-08-28. https://help.fundingpips.com/hc/en-us/articles/48636294148497-Master-Account-Setup
-8. Reward Methods (payout methods, minimums), updated 2026-09-28. https://help.fundingpips.com/hc/en-us/articles/34504564970385-Reward-Methods
-9. Responsible Trading Policy, updated 2026-10-21. https://help.fundingpips.com/hc/en-us/articles/47328410434065-Responsible-Trading-Policy
-10. Prime Account (scaling plan, invite only), updated 2026-09-30. https://help.fundingpips.com/hc/en-us/articles/34447308895889-Prime-Account
-11. Trade Copier, updated 2026-09-10. https://help.fundingpips.com/hc/en-us/articles/49580068780817-Trade-Copier
+**The firm's official help center (Fetched via its public JSON endpoint)**
+1. 2 Step Flex, updated 2026-11-02. (the firm's help center)
+2. Trading Conduct and Security Standards (forbidden strategies, EA, copy trading, IP/VPN/VPS), updated 2026-08-19. (the firm's help center)
+3. Understanding Trading Mechanics (stop loss, rollover, balance vs equity), updated 2026-08-21. (the firm's help center)
+4. News Trading & Weekend Holding, updated 2026-11-02. (the firm's help center)
+5. 2 Step Standard (for the Flex comparison), updated 2026-11-02. (the firm's help center)
+6. Get Started (models, sizes, eligibility, restricted countries, fee refund), updated 2026-09-24. (the firm's help center)
+7. Master Account Setup (KYC, review, onboarding), updated 2026-08-28. (the firm's help center)
+8. Reward Methods (payout methods, minimums), updated 2026-09-28. (the firm's help center)
+9. Responsible Trading Policy, updated 2026-10-21. (the firm's help center)
+10. Prime Account (scaling plan, invite only), updated 2026-09-30. (the firm's help center)
+11. Trade Copier, updated 2026-09-10. (the firm's help center)
 
 **Other**
-12. Finance Magnates, "Only 1 in 20 Traders Pass Prop Firm Challenges, Reports The Funded Trader", 2025-03-18 (Unverified: CEO statement relayed on Discord; secondary press; pass-rate figures are not FundingPips'). https://www.financemagnates.com/forex/only-1-in-20-traders-pass-prop-firm-challenges-reports-the-funded-trader/
+12. Finance Magnates, "Only 1 in 20 Traders Pass Prop Firm Challenges, Reports The Funded Trader", 2025-03-18 (Unverified: CEO statement relayed on Discord; secondary press; pass-rate figures are not the firm's). https://www.financemagnates.com/forex/only-1-in-20-traders-pass-prop-firm-challenges-reports-the-funded-trader/
 13. Thorp, "The Kelly Criterion in Blackjack, Sports Betting and the Stock Market" (abstract page only read; Unverified for any specific drawdown claim). https://sites.oxy.edu/lengyel/M330/thorp/paper.htm
 
-**Extract-only (official FundingPips pages that returned 429 to fetching; figures come from search-engine extracts, so check in the app)**
-- 2 Step Flex product page, $5K price $35. https://fundingpips.com/2-step-flex
-- Launch blog (10%/6% target, 85% split; superseded by [1]). https://fundingpips.com/blog/introducing-fundingpips-2-step-flex-12-drawdown-up-to-95-reward-split
-- Terms and Conditions (not read). https://fundingpips.com/terms-and-conditions
+**Extract-only (official pages that returned 429 to fetching; figures come from search-engine extracts, so check in the app)**
+- 2 Step Flex product page, $5K price $35. (the firm's website)
+- Launch blog (10%/6% target, 85% split; superseded by [1]). (the firm's website)
+- Terms and Conditions (not read). (the firm's website)
 
 **Repo (read locally; not backtested here)**
 - `src/strategies/*.ts`, `src/strategies/registry.ts`, `src/lib/signals/scan.ts`, `src/lib/plan/weeklyPlan.ts`, `src/lib/economicCalendar.ts`
 - [high-win-rate-strategies.md](high-win-rate-strategies.md), [scalping-strategies.md](scalping-strategies.md), [top-down-analysis.md](top-down-analysis.md), [exchange-fees-india.md](exchange-fees-india.md)
 
-**Not found officially:** the $5K fee on a page I could read; the full Terms and Conditions text; whether the $5 per lot commission is per side or round turn; minimum trade duration; definitions of tick scalping, gap trading and hedging; a Phase 2 starting balance statement (assumed to reset to $5,000); a scaling plan for Flex Master accounts; any official FundingPips pass-rate statistic; whether a self-built signal bridge counts as an allowed personal EA.
+**Not found officially:** the $5K fee on a page I could read; the full Terms and Conditions text; whether the $5 per lot commission is per side or round turn; minimum trade duration; definitions of tick scalping, gap trading and hedging; a Phase 2 starting balance statement (assumed to reset to $5,000); a scaling plan for Flex Master accounts; any official pass-rate statistic from the firm; whether a self-built signal bridge counts as an allowed personal EA.

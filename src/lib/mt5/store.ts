@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { analyseCommission, COST_SOURCE, type CommissionFinding } from "@/lib/costs/fundingpips";
+import { analyseCommission, COST_SOURCE, type CommissionFinding } from "@/lib/costs/broker";
 import type { Mt5Position, Mt5Report } from "./report";
 
 // Database side of MT5 imports: upsert a parsed report's positions by

@@ -21,7 +21,7 @@ export const nyOpenFvgGuide: StrategyGuide = {
   summary: [
     "This is the price-action model from a popular YouTube video, coded rule by rule so it could be tested. The idea: trade only in the direction of the 15m trend, and only in the first 90 minutes after the New York stock market opens, when volume floods in.",
     "On the 1m chart you wait for a change of character, which is the first sign the small pullback against the trend is over. Then you buy (or sell) the pullback into the fair value gap that push left behind. The stop is small and the target is 3 times the risk.",
-    "Read the backtest before trading it. As taught, it lost money on gold, ETH and BTC over the whole test, even before costs. The 1m stops are so small that FundingPips' commission and spread add 0.2R (gold) to 1.5R (ETH, BTC) of loss to every trade. The guide is here so you can recognise the setup and know why it isn't in the Playbook.",
+    "Read the backtest before trading it. As taught, it lost money on gold, ETH and BTC over the whole test, even before costs. The 1m stops are so small that the broker's commission and spread add 0.2R (gold) to 1.5R (ETH, BTC) of loss to every trade. The guide is here so you can recognise the setup and know why it isn't in the Playbook.",
   ],
 
   terms: [
@@ -75,7 +75,7 @@ export const nyOpenFvgGuide: StrategyGuide = {
     "The 1m swing high you'd break wasn't a lower high, or price already closed above it earlier today.",
     "There's no gap in the push, or none within 3 candles after the change of character.",
     "Price hit the target or closed through the stop before your order filled.",
-    "Costs (spread + commission) are more than about a fifth of your risk. On FundingPips that's most ETH and BTC trades.",
+    "Costs (spread + commission) are more than about a fifth of your risk. On the prop account that's most ETH and BTC trades.",
   ],
 
   mistakes: [
@@ -94,7 +94,7 @@ export const nyOpenFvgGuide: StrategyGuide = {
       "A 1m candle opens at 4,008.0, runs to 4,014.0 and closes at 4,013.5, above 4,012.0: change of character. Its low was 4,007.5.",
       "The candle before it had a high of 4,009.0; the candle after it has a low of 4,011.0. Gap 4,009.0–4,011.0, middle 4,010.0.",
       "Limit buy at 4,010.0, stop 4,007.5 (the middle candle's low), risk 2.5, target 4,010.0 + 7.5 = 4,017.5.",
-      "Risking $25 on FundingPips (100 oz per lot): 2.5 × 100 = $250 per lot, so 0.1 lot. Costs: spread 0.3 × 10 oz = $3 plus commission $0.50 = $3.50, 14% of your risk. A win pays $75 − $3.50; a loss costs $25 + $3.50.",
+      "Risking $25 on the platform (100 oz per lot): 2.5 × 100 = $250 per lot, so 0.1 lot. Costs: spread 0.3 × 10 oz = $3 plus commission $0.50 = $3.50, 14% of your risk. A win pays $75 − $3.50; a loss costs $25 + $3.50.",
     ],
   },
 
@@ -136,6 +136,6 @@ export const nyOpenFvgGuide: StrategyGuide = {
       { symbol: "NAS100", timeframe: "1m (15m trend)", period: NAS100_30D, trades: 3, winRatePct: 66.7, profitFactor: 2.44, returnPct: 0.3, maxDrawdownPct: 0.3 },
     ],
     verdict:
-      "It lost money on all three markets. The returns look small only because these settings allow no leverage: a 1m stop of about 0.05–0.1% can't be sized up to 2% risk, so each trade risked well under 0.1%, while the 0.04% fee per side was bigger than the stop on many trades. A fill-accurate test with resting limit orders and FundingPips' real costs (2 years on ETH and BTC, 11 months on gold): gold 82 trades, 22% winners, profit factor 0.67, −25.5R; ETH 180 trades, 22%, 0.22, −273R; BTC 150 trades, 21%, 0.18, −278R. Before any costs it still lost about 0.1R a trade on every market. Costs then took about 0.2R a trade on gold and 1.4–1.7R on ETH and BTC, because the stops are tiny. Targets of 2R and 4R, a 08:30 start, wider 1m swings and closing by 16:00 New York all lost too. Putting the stop under the first candle of the gap (a wider stop) came closest: about break-even before costs, still a loss after them (profit factor 0.5–0.9). Don't trade it on FundingPips. NAS100 took only 3 trades in the 29 days of 1m candles Yahoo keeps (2 won, +0.3%): far too few to judge.",
+      "It lost money on all three markets. The returns look small only because these settings allow no leverage: a 1m stop of about 0.05–0.1% can't be sized up to 2% risk, so each trade risked well under 0.1%, while the 0.04% fee per side was bigger than the stop on many trades. A fill-accurate test with resting limit orders and the broker's real costs (2 years on ETH and BTC, 11 months on gold): gold 82 trades, 22% winners, profit factor 0.67, −25.5R; ETH 180 trades, 22%, 0.22, −273R; BTC 150 trades, 21%, 0.18, −278R. Before any costs it still lost about 0.1R a trade on every market. Costs then took about 0.2R a trade on gold and 1.4–1.7R on ETH and BTC, because the stops are tiny. Targets of 2R and 4R, a 08:30 start, wider 1m swings and closing by 16:00 New York all lost too. Putting the stop under the first candle of the gap (a wider stop) came closest: about break-even before costs, still a loss after them (profit factor 0.5–0.9). Don't trade it on the prop account. NAS100 took only 3 trades in the 29 days of 1m candles Yahoo keeps (2 won, +0.3%): far too few to judge.",
   },
 };

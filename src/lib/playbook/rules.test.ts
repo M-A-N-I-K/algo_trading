@@ -387,7 +387,7 @@ describe("scorecard", () => {
   });
 });
 
-describe("the two FundingPips accounts", () => {
+describe("the two prop accounts", () => {
   const flex = accountById("flex-10k")!;
   const pro = accountById("pro-5k")!;
   const FLEX_NAS = "sr-sweep-trendline:NAS100:1h"; // Flex's own
@@ -396,7 +396,7 @@ describe("the two FundingPips accounts", () => {
   const proPlan = (over: Partial<TradePlan> = {}) => plan({ setupId: NAS_MACD, ...nas, riskAmount: 25, ...over });
   const lossOn = (account: PlaybookAccount, pnl: number, over: Partial<JournalEntry> = {}) => closed(pnl, NOON - 1000, { accountId: account.id, riskAmount: Math.abs(pnl), ...over });
 
-  it("matches the limits on the FundingPips dashboards", () => {
+  it("matches the limits on the firm's dashboards", () => {
     expect(PLAYBOOK_ACCOUNTS.map((a) => a.id)).toEqual(["flex-10k", "pro-5k"]);
     const f = accountStatusOn([], NOON, flex);
     expect([f.floor, f.firmDailyLimit, f.targetBalance, f.ownDailyStop]).toEqual([8800, 400, 11000, 200]);

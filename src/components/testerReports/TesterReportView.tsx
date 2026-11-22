@@ -15,7 +15,7 @@ const fmtDay = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString(unde
 function AccountName({ a }: { a: AccountView }) {
   return (
     <span className="flex flex-wrap items-center gap-1.5">
-      <span className="text-paper">{a.account.name.replace("FundingPips ", "")}</span>
+      <span className="text-paper">{a.account.name}</span>
       {a.own ? <Tag tone="gain">its account</Tag> : <Tag>other setup</Tag>}
     </span>
   );
@@ -50,7 +50,7 @@ export default function TesterReportView({ d }: { d: Dashboard }) {
           {info.research ? <Tag tone="fees">Research, not in the Playbook</Tag> : d.setup?.retired ? <Tag tone="loss">Retired</Tag> : accounts.some((a) => a.own) ? <Tag tone="gain">In the Playbook</Tag> : <Tag tone="fees">In neither account&apos;s plan</Tag>}
         </div>
         <p className="text-[13px] text-fog">
-          MT5 Strategy Tester: {d.meta.expert} on {d.meta.symbol}, {d.meta.period}, history quality {d.meta.historyQuality}, FundingPips spreads and commission. Every result is in R: the P&amp;L
+          MT5 Strategy Tester: {d.meta.expert} on {d.meta.symbol}, {d.meta.period}, history quality {d.meta.historyQuality}, the broker's spreads and commission. Every result is in R: the P&amp;L
           over what the trade&apos;s stop would have lost, so lot rounding doesn&apos;t blur it.
         </p>
         <p className="text-[13px]">
@@ -111,7 +111,7 @@ export default function TesterReportView({ d }: { d: Dashboard }) {
           </div>
           <div className="text-[13px] leading-relaxed text-fog">
             <p>
-              On the {home.account.name.replace("FundingPips ", "")} at {homeR}% a trade, a {s.bad}-loss run costs about{" "}
+              On the {home.account.name} at {homeR}% a trade, a {s.bad}-loss run costs about{" "}
               <span className="text-paper">{(s.bad * homeR).toFixed(1)}%</span> ({usd((s.bad * homeR * home.account.size) / 100)}), against {home.account.maxLossPct}% of total room.
               {s.worst * homeR >= home.account.maxLossPct ? (
                 <span className="text-loss-ink"> A rare {s.worst}-loss run would breach it: that&apos;s why the risk is where it is.</span>
@@ -179,7 +179,7 @@ export default function TesterReportView({ d }: { d: Dashboard }) {
         id="worst-day"
         step={4}
         title="Your worst day"
-        note="Trades grouped by the platform day they closed on (FundingPips resets at 00:00 server time). The daily limit counts from the day's starting balance, open trades included."
+        note="Trades grouped by the platform day they closed on (the firm resets at 00:00 server time). The daily limit counts from the day's starting balance, open trades included."
       >
         <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
           <Stat label="Worst day" value={R(days.worstDay.r, 2)} tone="text-loss-ink" note={`${fmtDay(days.worstDay.day)}, ${days.worstDay.trades} trade${days.worstDay.trades > 1 ? "s" : ""}`} />
@@ -270,7 +270,7 @@ export default function TesterReportView({ d }: { d: Dashboard }) {
         <div className="text-[14px] leading-relaxed text-paper">
           <p>{d.verdict.reason}</p>
           <p className="mt-1 text-[13px] text-fog">
-            Judged on {home.account.name.replace("FundingPips ", "")} at {homeR}% a trade{home.own ? ", the account that trades it" : ", since neither account trades it"}, with half the tested edge.
+            Judged on {home.account.name} at {homeR}% a trade{home.own ? ", the account that trades it" : ", since neither account trades it"}, with half the tested edge.
           </p>
         </div>
       </section>

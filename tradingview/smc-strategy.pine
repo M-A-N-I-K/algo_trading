@@ -1,6 +1,6 @@
 //@version=6
 // STRATEGY version of smc-checkpoints.pine for the Strategy Tester (same rules, plus orders).
-// Costs: commission_value is the per-side cost of gold (XAUUSD); FTSE 100 is 0.0062 (FundingPips spread + commission as a
+// Costs: commission_value is the per-side cost of gold (XAUUSD); FTSE 100 is 0.0062 (broker spread + commission as a
 // percent of price). Change it in Properties for other markets (see README.md).
 //
 // Smart Money Concepts checkpoints (Playbook: Gold 4h)

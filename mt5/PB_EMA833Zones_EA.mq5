@@ -3,7 +3,7 @@
 //| Research EA: 8/33 EMA "dominance candle" with a swing-zone     |
 //| filter, 1h. NOT a Playbook setup: it is here so the app's      |
 //| backtest (PF ~1.04-1.20 on 7 of 8 markets, 2020-2026) can be   |
-//| checked in FundingPips' own Strategy Tester.                   |
+//| checked in the broker's own Strategy Tester.                   |
 //|                                                                |
 //| Port of the app research script ema833.mts (tf 60, rr 3,       |
 //| zones on), run on the chart's closed bars (H1, or M5 NDX100): |

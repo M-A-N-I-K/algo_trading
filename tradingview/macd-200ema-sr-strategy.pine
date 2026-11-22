@@ -1,6 +1,6 @@
 //@version=6
 // STRATEGY version of macd-200ema-sr-checkpoints.pine for the Strategy Tester (same rules, plus orders).
-// Costs: commission_value is the per-side cost of NAS100 (FundingPips spread + commission as a
+// Costs: commission_value is the per-side cost of NAS100 (broker spread + commission as a
 // percent of price). Change it in Properties for other markets (see README.md).
 //
 // MACD + 200 EMA + Support/Resistance checkpoints (Playbook: NAS100 4h)

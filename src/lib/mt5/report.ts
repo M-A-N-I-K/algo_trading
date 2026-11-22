@@ -2,7 +2,7 @@
 // right-click → Report → HTML). The file is UTF-16 HTML with four tables run
 // together: Positions, Orders, Deals and Open Positions, then a summary.
 //
-// MT5 prints times in the broker's server time. FundingPips' server runs on
+// MT5 prints times in the broker's server time. The broker's server runs on
 // Athens time (UTC+2, UTC+3 in summer), the same clock the prop firm's daily
 // loss limit resets on, so times are converted from that zone to UTC.
 

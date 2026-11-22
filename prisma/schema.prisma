@@ -518,7 +518,7 @@ model PlaybookCheckIn {
   @@map("playbook_check_ins")
 }
 
-// A position from a MetaTrader 5 account (the FundingPips prop account),
+// A position from a MetaTrader 5 account (the prop-firm account),
 // imported from MT5's "Trade History Report" (src/lib/mt5). Kept apart from
 // the CoinDCX-shaped Trade table. Times are converted from MT5 server time
 // to UTC. Re-importing a report updates rows by (userId, login, positionId).
@@ -526,7 +526,7 @@ model Mt5Trade {
   id          String    @id @default(uuid())
   userId      String
   login       String    // MT5 account number
-  server      String    // e.g. FundingPips-SIM1
+  server      String    // e.g. Broker-SIM1
   positionId  String    // MT5 position ticket
   symbol      String    // as MT5 names it: XAUUSD, ETHUSD, NDX100 ...
   side        String    // LONG or SHORT

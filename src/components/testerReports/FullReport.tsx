@@ -310,7 +310,7 @@ export default function FullReport({ d }: { d: Dashboard }) {
   const { report: rep, home, numbers: n } = d;
   const s = rep.stats;
   const risk = home.riskPct;
-  const account = home.account.name.replace("FundingPips ", "");
+  const account = home.account.name;
   const recent = d.trades
     .slice(-RECENT)
     .map((t, k) => ({ ...t, i: d.trades.length - RECENT + k + 1 }))
@@ -327,7 +327,7 @@ export default function FullReport({ d }: { d: Dashboard }) {
           </h2>
           <p className="mt-1 max-w-[75ch] text-[13px] text-fog">
             Everything MT5&apos;s own report shows, in R and in dollars on the{" "}
-            {account} at {risk}% a trade. Times are FundingPips server time.
+            {account} at {risk}% a trade. Times are broker server time.
           </p>
         </div>
         <a

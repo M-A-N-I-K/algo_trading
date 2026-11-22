@@ -1,6 +1,6 @@
 //@version=6
 // STRATEGY version of liquidity-reversal-checkpoints.pine for the Strategy Tester (same rules, plus orders).
-// Costs: commission_value is the per-side cost of S&P 500; GBP/USD is 0.0057, EUR/USD 0.0031 (FundingPips spread + commission as a
+// Costs: commission_value is the per-side cost of S&P 500; GBP/USD is 0.0057, EUR/USD 0.0031 (broker spread + commission as a
 // percent of price). Change it in Properties for other markets (see README.md).
 //
 // Liquidity Reversal checkpoints

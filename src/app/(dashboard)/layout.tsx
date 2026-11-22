@@ -22,7 +22,7 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   "/tester-reports": { title: "Tester reports", subtitle: "Each Playbook setup's MT5 Strategy Tester run: its numbers, losing streaks, worst day and the challenge attempts it needs." },
   "/backtest": { title: "Backtests", subtitle: "Run a strategy against historical candles." },
   "/guides": { title: "Guides", subtitle: "Step-by-step playbooks for trading each strategy by hand." },
-  "/import": { title: "Sync", subtitle: "Import your MT5 trade history (FundingPips), or pull trades from CoinDCX." },
+  "/import": { title: "Sync", subtitle: "Import your MT5 trade history (your prop firm), or pull trades from CoinDCX." },
   "/settings": { title: "Settings", subtitle: "Account size, loss limits and dashboard preferences." },
 };
 

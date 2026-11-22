@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { feeRatePerSide, roundTripCostPerUnitUsd, usdPerUnitMove } from "@/lib/costs/fundingpips";
+import { feeRatePerSide, roundTripCostPerUnitUsd, usdPerUnitMove } from "@/lib/costs/broker";
 import { lotUnits } from "@/lib/playbook/config";
 import { sizePosition } from "@/lib/playbook/rules";
 import { parseSpecs, registerSpecs, specFor } from "./specs";

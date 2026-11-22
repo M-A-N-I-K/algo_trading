@@ -1,13 +1,13 @@
-// What a round trip really costs on the FundingPips account, so backtests,
+// What a round trip really costs on the prop account, so backtests,
 // signals and position sizes charge the same costs the platform does.
 //
 // Commission is MEASURED from the user's MT5 "Trade History Report"
-// (account 21185703, FundingPips-SIM1, 25 positions, 4–9 Nov 2026):
+// (one account, 25 positions, 4–9 Nov 2026):
 //   XAUUSD, XAGUSD  $5 per lot, charged once on the opening deal (0.05 lot → $0.25,
 //                   0.1 → $0.50, 0.25 → $1.25); nothing on the close
 //   ETHUSD          0.04% of the opening value, once (1 lot at 2219.39 → $0.89)
 //   NDX100, SPX500  none
-// Not in the report, taken from FundingPips' published terms: forex $5 per lot
+// Not in the report, taken from the broker's published terms: forex $5 per lot
 // (same as metals) and BTCUSD 0.04% (same as ETH).
 //
 // Spread is NOT in the report (MT5 fills don't show the bid/ask). SPREAD below
@@ -19,7 +19,7 @@ import { lotUnits as playbookLotUnits } from "@/lib/playbook/config";
 import { specUsdPerUnitMove } from "@/lib/mt5/specs";
 
 export const COST_SOURCE =
-  "Commission measured from your MT5 report (FundingPips-SIM1, 25 trades, 4–9 Nov 2026); spreads are estimates until replaced with MT5's Market Watch values.";
+  "Commission measured from your MT5 report (Broker-SIM1, 25 trades, 4–9 Nov 2026); spreads are estimates until replaced with MT5's Market Watch values.";
 
 export type CommissionRule =
   | { kind: "perLot"; usdPerLot: number; measured: boolean }
@@ -54,7 +54,7 @@ const QUOTED_IN: Record<string, string> = { FTSE100: "GBP" };
 const CURRENCIES = new Set(["USD", "EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF"]);
 const isFx = (p: string) => p.length === 6 && CURRENCIES.has(p.slice(0, 3)) && CURRENCIES.has(p.slice(3));
 
-/** Markets the FundingPips account trades; the cost model covers only these. */
+/** Markets the prop account trades; the cost model covers only these. */
 export function coveredByPlatform(symbol: string): boolean {
   const p = platformSymbol(symbol);
   return isMetal(p) || isCrypto(p) || isIndex(p) || isFx(p) || isMt5Only(p);

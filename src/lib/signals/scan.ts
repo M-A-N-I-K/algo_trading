@@ -4,7 +4,7 @@ import { createCodedStrategy } from "@/strategies/registry";
 import type { Strategy } from "@/types/strategy";
 import type { Side } from "@/domain/backtesting";
 import { assetClass, type AssetClass } from "@/lib/markets/yahoo";
-import { coveredByPlatform, feeRatePerSide } from "@/lib/costs/fundingpips";
+import { coveredByPlatform, feeRatePerSide } from "@/lib/costs/broker";
 
 // One strategy on one market: how it did over the cached history, and what
 // it's saying now. Pure: candles in, row out, so it can be tested offline.
@@ -41,11 +41,11 @@ export const RECENT_MS = 3 * 24 * 60 * 60_000;
 //   side. They move roughly a third as much as crypto: judged at 5×.
 // The 2% risk cap still applies to every trade with a stop.
 //
-// Markets the FundingPips account trades (BTC, ETH, gold, silver, currency
+// Markets the prop account trades (BTC, ETH, gold, silver, currency
 // pairs, Nasdaq 100, S&P 500, and the MT5-feed markets FTSE 100, Brent,
 // EUR/JPY, GBP/AUD) are charged that account's real costs instead:
 // commission measured from the user's MT5 report plus spread, at the latest
-// price (src/lib/costs/fundingpips.ts). The table below covers the rest.
+// price (src/lib/costs/broker.ts). The table below covers the rest.
 export const MARKET_COSTS: Record<AssetClass, { feeRate: number; leverage: number }> = {
   crypto: { feeRate: 0.00059, leverage: 1 },
   forex: { feeRate: 0.0001, leverage: 10 },

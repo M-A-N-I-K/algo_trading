@@ -1,6 +1,6 @@
 //@version=6
 // STRATEGY version of sr-sweep-trendline-checkpoints.pine for the Strategy Tester (same rules, plus orders).
-// Costs: commission_value is the per-side cost of NAS100; ETH is 0.0512 (FundingPips spread + commission as a
+// Costs: commission_value is the per-side cost of NAS100; ETH is 0.0512 (broker spread + commission as a
 // percent of price). Change it in Properties for other markets (see README.md).
 //
 // S/R Sweep + Trend-Line Break checkpoints (Playbook: NAS100 1h)

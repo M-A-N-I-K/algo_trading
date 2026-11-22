@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button, Callout, Field, Segmented, SelectInput, TextArea, TextInput, money, signedNumber, toneClass } from "@/components/kit";
 import { CUSTOM_MARKETS, customSetupId, isCustomSetupId, lotUnits, loggableSetupById, MANUAL_CHECKS, MISTAKES, OTHER_SETUP_RISK_SCALE, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "@/lib/playbook/config";
 import { hardFailures, inAccountPlan, pnlUsd, preTradeChecks, riskBudget, sizePosition, usdPerUnitMove, type Check, type Grade, type JournalEntry, type Side } from "@/lib/playbook/rules";
-import { roundTripCostPerUnitUsd } from "@/lib/costs/fundingpips";
+import { roundTripCostPerUnitUsd } from "@/lib/costs/broker";
 import { fmtPrice } from "@/lib/plan/weeklyPlan";
 import { cn } from "@/lib/utils";
 import { NewsNote } from "./News";

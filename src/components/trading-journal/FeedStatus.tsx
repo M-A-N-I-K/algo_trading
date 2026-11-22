@@ -62,7 +62,7 @@ export default function FeedStatus() {
   const label = { live: "MT5 feed live", stale: "MT5 prices stale", off: "MT5 feed off" }[state];
   const detail =
     state === "live"
-      ? `${markets ?? "?"} markets · FundingPips prices`
+      ? `${markets ?? "?"} markets · broker prices`
       : state === "stale"
         ? newestBar
           ? `Newest bar ${ago(now - newestBar)}`
@@ -71,9 +71,9 @@ export default function FeedStatus() {
           ? `Last seen ${ago(now - lastBeat)}`
           : "Never started";
   const title = {
-    live: "PB_BarFeed is running in MT5 and its bars are current. Signals and backtests use FundingPips' own prices.",
+    live: "PB_BarFeed is running in MT5 and its bars are current. Signals and backtests use the broker's own prices.",
     stale:
-      "PB_BarFeed is running but writing old bars, usually because MT5 isn't connected to the FundingPips server. Signals use Binance and Yahoo until it reconnects; backtests end at the newest bar. Check the connection icon in MT5's bottom-right corner.",
+      "PB_BarFeed is running but writing old bars, usually because MT5 isn't connected to the broker's server. Signals use Binance and Yahoo until it reconnects; backtests end at the newest bar. Check the connection icon in MT5's bottom-right corner.",
     off: "PB_BarFeed isn't running. Signals fall back to Binance and Yahoo; backtests end at the last bar it wrote. Open MT5 and attach PB_BarFeed to a chart.",
   }[state];
   const dot = { live: "bg-gain", stale: "bg-amber-400", off: "bg-loss" }[state];

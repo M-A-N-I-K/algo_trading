@@ -39,7 +39,7 @@ The app builds its 4h candles on the **UTC** clock (00:00, 04:00, 08:00 … UTC)
 - **Server UTC offset in winter** = 2
 - **Server adds 1h for EU summer time** = true
 
-That is FundingPips' server clock (UTC+2 in winter, UTC+3 from the last Sunday in March to the last Sunday in October), the same rule the app uses for MT5 reports. Change it only if your broker's clock is different. Setting **4h candle grid** to *Broker server clock* uses MT5's own H4 candles instead. The backtest was not run on those.
+That is the broker's server clock (UTC+2 in winter, UTC+3 from the last Sunday in March to the last Sunday in October), the same rule the app uses for MT5 reports. Change it only if your broker's clock is different. Setting **4h candle grid** to *Broker server clock* uses MT5's own H4 candles instead. The backtest was not run on those.
 
 ## Alerts
 
@@ -51,7 +51,7 @@ Alerts fire only for candles that close after you load the indicator, never for 
 
 ## Check it matches the backtest
 
-These are the app's last signals on FundingPips' own MT5 bars, so the indicator should show the same candles and prices. Times are the **server** time of the candle's open, as MT5 shows them.
+These are the app's last signals on the broker's own MT5 bars, so the indicator should show the same candles and prices. Times are the **server** time of the candle's open, as MT5 shows them.
 
 NAS100, MACD + 200 EMA + S/R, 4h (55 signals since 2020):
 
@@ -180,8 +180,8 @@ The app's last NAS100 trades (fill candle in **server** time, as MT5 shows it):
 
 1. Save it in **File → Open Data Folder → MQL5/Experts** and compile it (F7).
 2. Open the tester: **View → Strategy Tester** (Ctrl+R). Choose **Expert: PB_NYInsideBar_EA**, **Symbol: NDX100** (or SPX500), **Timeframe: M15**, **Modelling: Every tick based on real ticks**, **Date: 2020.01.01** to today, **Deposit: 10000 USD**, leverage your account's.
-3. Inputs: **Risk per trade** 1% matches the app's R numbers ($100 on $10,000). Keep the rules at their defaults. The clock settings are FundingPips' server (UTC+2, +1 in EU summer).
-4. Click **Start**. The first run downloads FundingPips' tick history, which takes a while. The **Journal** tab logs every step (bias, order placed, deleted and why, filled, closed).
+3. Inputs: **Risk per trade** 1% matches the app's R numbers ($100 on $10,000). Keep the rules at their defaults. The clock settings are the broker's server (UTC+2, +1 in EU summer).
+4. Click **Start**. The first run downloads the broker's tick history, which takes a while. The **Journal** tab logs every step (bias, order placed, deleted and why, filled, closed).
 
 Compare with the app's backtest on the same data: NDX100 1,512 trades since 2020, 58.3% won, profit factor 1.31; SPX500 1,615 trades, profit factor 1.21. Expect small differences, because real orders behave slightly differently from the app's candle rules:
 
@@ -195,11 +195,11 @@ It can trade a live or demo account too, if your prop firm allows Expert Advisor
 
 **Playbook setups since Nov 2026: XAUUSD and ETHUSD on H1, NDX100 on M5, at a quarter of the $10k Flex's risk.** NDX100 moved to M5 because the app found it the one market where 5m works with every filter (1,539 trades since 2020, PF 1.18, +212R, every year up; 5m and 15m lost on the other seven). To check it, run the tester on **NDX100, Timeframe M5**, same inputs, and save the report. The EA reads the chart's timeframe since v1.30; older builds always read H1, whatever the tester's timeframe. The NAS100 M5 signals need the feed EA's **Write M5** input set to true (PB_BarFeed: right-click the chart → Expert list → Properties → Inputs). Settings: **Trail = true**, **Session = London or NY**, the rest default. Tester runs: gold PF 1.35 (136 trades), NDX100 1.10 (178), ETHUSD 1.33 on all hours (181; re-run it with Session = London or NY). NDX100 M5 (v1.30): 1,573 trades, PF 1.17, +197R, worst drawdown 32.3R (the app: 1,539, 1.18). As one basket (gold and ETH H1, NDX100 M5): PF 1.20, +274R, worst drawdown 38.3R, 5.3 trades a week.
 
-Originally a research EA. It tests a YouTube strategy (8 and 33 EMA trend, a big-bodied candle that retests the 8 EMA and closes through the previous candle, stop at the 5-candle extreme, 1:3) with a filter that skips any trade whose path to the target crosses a recent swing high or low. On 5m and 15m it loses on every market; on H1 with the filter the app found a small edge on most markets. Run it here to see if FundingPips' own tester agrees before trusting it.
+Originally a research EA. It tests a YouTube strategy (8 and 33 EMA trend, a big-bodied candle that retests the 8 EMA and closes through the previous candle, stop at the 5-candle extreme, 1:3) with a filter that skips any trade whose path to the target crosses a recent swing high or low. On 5m and 15m it loses on every market; on H1 with the filter the app found a small edge on most markets. Run it here to see if the broker's own tester agrees before trusting it.
 
 1. Copy `PB_EMA833Zones_EA.mq5` to `MQL5/Experts`, compile (0 errors, 0 warnings).
 2. Strategy Tester: **Expert: PB_EMA833Zones_EA**, **Timeframe: H1**, **Modelling: 1 minute OHLC**, **Date: 2020.01.01** to today, **Deposit: 10000 USD**, default inputs (Risk 1%, Magic 260920).
-3. Compare with the app's numbers (H1, 1:3, zones on, FundingPips costs, Jan 2020 to Nov 2026):
+3. Compare with the app's numbers (H1, 1:3, zones on, broker costs, Jan 2020 to Nov 2026):
 
 | Symbol | Trades | Won | Profit factor | Net |
 |---|---|---|---|---|
@@ -225,7 +225,7 @@ Originally a research EA. It tests a YouTube strategy (8 and 33 EMA trend, a big
 | EURJPY | 186 | 27% | 0.99 | −1.9R |
 | SPX500 | 201 | 25% | 0.90 | −14.7R |
 
-**Session** (input *Trade only when the signal candle closes in*, All hours by default): London 08:00–16:30 London time, New York 08:00–17:00 New York time, or either. Daylight saving is handled; the server clock is UTC+2 with EU summer time (FundingPips), as in the other EAs. App numbers for the two runs worth checking (H1, zones):
+**Session** (input *Trade only when the signal candle closes in*, All hours by default): London 08:00–16:30 London time, New York 08:00–17:00 New York time, or either. Daylight saving is handled; the server clock is UTC+2 with EU summer time , as in the other EAs. App numbers for the two runs worth checking (H1, zones):
 
 | Run | Session | Trail | Trades | Won | Profit factor | Net |
 |---|---|---|---|---|---|---|

@@ -61,7 +61,7 @@ export default async function IndicatorsPage() {
 
       <p className="text-xs text-mist">
         Alerts: create an alert on the indicator and pick &quot;Any alert() function call&quot; for entry messages with stop and target, or one of the
-        named conditions. The MT5 versions read FundingPips&apos; own bars, the same data as the backtest. TradingView&apos;s feeds can differ slightly.
+        named conditions. The MT5 versions read the broker&apos;s own bars, the same data as the backtest. TradingView&apos;s feeds can differ slightly.
       </p>
     </div>
   );

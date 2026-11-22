@@ -12,7 +12,7 @@ export default async function TesterReportsPage() {
   return (
     <div className="flex flex-col gap-6">
       <Callout title="What these are">
-        Each row is a run of a Playbook setup&apos;s Expert Advisor in MT5&apos;s Strategy Tester on FundingPips&apos; own tick history since 2020, with its real spreads and
+        Each row is a run of a Playbook setup&apos;s Expert Advisor in MT5&apos;s Strategy Tester on the broker&apos;s own tick history since 2020, with its real spreads and
         commission. Open one for its numbers, its normal losing streak, how many trades the target takes, its worst day, and how many challenge attempts it needs. To add or
         refresh a report, save it from the tester&apos;s Results tab (right-click → Report → Open XML) into MT5&apos;s Documents folder and run{" "}
         <code className="text-paper">npx tsx src/backtest/importTesterReports.ts</code>.

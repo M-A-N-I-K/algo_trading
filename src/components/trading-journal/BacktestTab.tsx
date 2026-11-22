@@ -41,7 +41,7 @@ interface BacktestResult {
 }
 
 const SOURCE_LABELS: Record<string, string> = {
-  MT5: "MT5 (FundingPips prices)",
+  MT5: "MT5 (broker prices)",
   Binance: "Binance",
   Yahoo: "Yahoo Finance",
 };
@@ -248,7 +248,7 @@ export default function BacktestTab({ addNotification }: { addNotification: (msg
               className={inputClass}
             />
             <p className="text-xs leading-snug text-mist">
-              Markets in the MT5 bar files (gold, silver, BTC, ETH, NAS100, SPX500, FTSE100, UKOIL and the major currency pairs) use FundingPips&apos; own prices at 5m, 15m, 1h and 4h: about 20,000 1h, 75,000 15m and 60,000 5m candles. Anything else comes from Binance, or Yahoo for currency pairs and indices (only 60 days below 1h).
+              Markets in the MT5 bar files (gold, silver, BTC, ETH, NAS100, SPX500, FTSE100, UKOIL and the major currency pairs) use the broker&apos;s own prices at 5m, 15m, 1h and 4h: about 20,000 1h, 75,000 15m and 60,000 5m candles. Anything else comes from Binance, or Yahoo for currency pairs and indices (only 60 days below 1h).
             </p>
           </div>
 

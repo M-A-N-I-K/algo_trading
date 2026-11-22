@@ -1,4 +1,4 @@
-import { platformSymbol } from "@/lib/costs/fundingpips";
+import { platformSymbol } from "@/lib/costs/broker";
 
 // Contract specifications as the MT5 terminal reports them (PB_BarFeed
 // writes MQL5/Files/PlaybookFeed/symbols.csv). Used to size markets whose lot
