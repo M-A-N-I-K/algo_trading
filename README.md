@@ -2,7 +2,7 @@
 
 A trading journal and playbook for passing and keeping prop-firm accounts. It decides whether you may trade right now, sizes every trade from the account's rules, warns you about news and liquidity levels, and keeps you honest with a daily discipline streak. Every setup it lets you trade has been backtested in the app and re-checked in MetaTrader 5's Strategy Tester.
 
-It's built around two FundingPips 2-step challenges (a $10k Flex and a $5k Pro) traded by hand on MT5, but the accounts, rules and setups are plain config.
+It works with any number of prop-firm challenge or funded accounts traded by hand on MT5. Each account's size, loss limits, profit target, risk rules and setups are plain config.
 
 ## What it's for
 
