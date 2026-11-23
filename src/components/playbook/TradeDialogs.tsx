@@ -408,7 +408,9 @@ function CloseTradeForm({ trade, onDone }: { trade: JournalEntry; onDone: () => 
       {(save.error || remove.error) && <Callout tone="critical">{(save.error ?? remove.error)!.message}</Callout>}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        {confirmDelete ? (
+        {trade.synced ? (
+          <span className="text-[12px] text-mist">Synced from MT5: prices and P&amp;L come from there.</span>
+        ) : confirmDelete ? (
           <span className="flex items-center gap-2 text-[13px] text-fog">
             Delete this trade?
             <Button size="sm" variant="danger" onClick={() => remove.mutate()} disabled={remove.isPending}>Delete</Button>

@@ -37,6 +37,9 @@ export function toEntry(t: PlaybookTrade): JournalEntry {
     exitReason: t.exitReason,
     mistakes: [...t.mistakes],
     notes: t.notes,
+    ...(t.source === "mt5" ? { source: "mt5" as const } : {}),
+    synced: t.mt5PositionId !== null,
+    floatingPnl: t.floatingPnl,
   };
 }
 
@@ -50,6 +53,9 @@ export function pickAccount(id: unknown): PlaybookAccount {
 
 /** Every trade this user logged, on every account, newest first: Playbook trades plus journal trades linked to an account. */
 export async function loadEntries(userId: string): Promise<JournalEntry[]> {
+  // Pull in anything new from MT5 first (throttled; never throws).
+  const { autoSyncMt5 } = await import("@/lib/mt5/sync");
+  await autoSyncMt5(userId);
   const [rows, linked] = await Promise.all([
     prisma.playbookTrade.findMany({ where: { userId }, orderBy: { entryTime: "desc" } }),
     prisma.trade.findMany({ where: { userId, playbookAccountId: { not: null } } }),
@@ -302,6 +308,8 @@ export async function updateTrade(userId: string, id: string, body: Body, now = 
 }
 
 export async function deleteTrade(userId: string, id: string): Promise<void> {
+  const synced = await prisma.playbookTrade.findFirst({ where: { id, userId, mt5PositionId: { not: null } }, select: { id: true } });
+  if (synced) throw appError("INVALID_INPUT", "This trade is synced from MT5, so it would come back on the next sync. Unlink the MT5 account on the Sync page to stop syncing it.");
   const { count } = await prisma.playbookTrade.deleteMany({ where: { id, userId } });
   if (count === 0) throw appError("NOT_FOUND", "Trade not found.");
 }

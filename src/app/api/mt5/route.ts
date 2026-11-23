@@ -3,6 +3,7 @@ import { authChallengeResponse, authenticateRequest } from "@/lib/auth";
 import { toErrorResponse } from "@/lib/errors";
 import { decodeReport, parseMt5Report } from "@/lib/mt5/report";
 import { importReport, mt5Summary } from "@/lib/mt5/store";
+import { syncReport } from "@/lib/mt5/sync";
 
 const MAX_BYTES = 2 * 1024 * 1024; // a real report is ~120 KB
 
@@ -36,8 +37,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: e instanceof Error ? e.message : "Couldn't read that report." }, { status: 422 });
     }
     const result = await importReport(user.id, report);
+    // A login linked to a prop account goes into the Playbook too.
+    const playbook = await syncReport(user.id, report.login, report.server, report.positions);
     return NextResponse.json({
       ...result,
+      playbook,
       account: { login: report.login, server: report.server, type: report.accountType, balance: report.balance, equity: report.equity },
       summary: await mt5Summary(user.id),
     });

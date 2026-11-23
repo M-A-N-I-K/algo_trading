@@ -55,6 +55,8 @@ model User {
   // Account ids are in PLAYBOOK_ACCOUNTS (src/lib/playbook/config.ts). Set
   // from the playbook page by entering the platform balance.
   playbookPriorPnls Json @default("{}")
+  // MT5 logins synced live, each to the prop account it is: { "<login>": "<account id>" }
+  mt5Links          Json @default("{}")
   // Legacy: the same for the single $5k account the playbook had before it
   // had accounts. No longer read.
   playbookPriorPnl  Float @default(0)
@@ -491,11 +493,18 @@ model PlaybookTrade {
   exitReason     String?   // stop, target, breakeven or manual
   mistakes       String[]  @default([])
   notes          String    @default("")
+  // Live MT5 sync (src/lib/mt5/sync.ts): the position this trade is, and
+  // "mt5" when the sync created it (not logged in the Playbook first).
+  source         String    @default("playbook")
+  mt5Login       String?
+  mt5PositionId  String?
+  floatingPnl    Float?    // open trades: net P&L right now, as MT5 shows it
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId, mt5Login, mt5PositionId])
   @@index([userId, status])
   @@index([userId, accountId, status])
   @@map("playbook_trades")

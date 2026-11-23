@@ -381,14 +381,14 @@ function SignalsPanel({ account, onPlan, freeSlots }: { account: PlaybookAccount
 
 function OpenTrades({ trades, onClose, onEdit }: { trades: JournalEntry[]; onClose: (t: JournalEntry) => void; onEdit: (t: JournalEntry) => void }) {
   return (
-    <Panel title="Open trades" note="Close each one with the P&L your platform shows, so costs and swap are counted.">
+    <Panel title="Open trades" note={trades.every((t) => t.synced) ? "Synced from MT5: they close here when they close there." : "Close each one with the P&L your platform shows, so costs and swap are counted. Trades synced from MT5 close by themselves."}>
       {trades.length === 0 ? (
         <EmptyState>No open trades.</EmptyState>
       ) : (
         <div className="relative overflow-x-auto">
           <table className={tableClass}>
             <thead>
-              <tr><th className={thClass}>Market</th><th className={thClass}>Setup</th><th className={thClass}>Entry</th><th className={thClass}>Stop</th><th className={thClass}>Target</th><th className={thClass}>Risk</th><th className={thClass}>Opened</th><th className={thClass}><span className="sr-only">Actions</span></th></tr>
+              <tr><th className={thClass}>Market</th><th className={thClass}>Setup</th><th className={thClass}>Entry</th><th className={thClass}>Stop</th><th className={thClass}>Target</th><th className={thClass}>Risk</th><th className={thClass}>Now</th><th className={thClass}>Opened</th><th className={thClass}><span className="sr-only">Actions</span></th></tr>
             </thead>
             <tbody>
               {trades.map((t) => {
@@ -396,14 +396,21 @@ function OpenTrades({ trades, onClose, onEdit }: { trades: JournalEntry[]; onClo
                 const p = (v: number | null) => (v === null ? "—" : fmtPrice(v, t.symbol));
                 return (
                   <tr key={t.id}>
-                    <td className={tdClass}><span className="flex flex-wrap items-center gap-1.5">{marketOf(t)} <SideTag side={t.side} /> <GradeTag grade={t.grade} />{!t.rulesFollowed && <Tag tone="loss">Rule break</Tag>}</span></td>
+                    <td className={tdClass}><span className="flex flex-wrap items-center gap-1.5">{marketOf(t)} <SideTag side={t.side} /> <GradeTag grade={t.grade} />{t.synced && <Tag tone="signal">MT5</Tag>}{!t.rulesFollowed && <Tag tone="loss">Rule break</Tag>}</span></td>
                     <td className={cn(tdClass, "text-fog")}>{s ? `${s.strategyName} ${s.interval}`.trim() : t.setupId}</td>
                     <td className={cn(tdClass, "tabular-nums")}>{p(t.entryPrice)}</td>
                     <td className={cn(tdClass, "tabular-nums text-loss-ink")}>{p(t.stopLoss)}</td>
                     <td className={cn(tdClass, "tabular-nums text-gain-ink")}>{p(t.takeProfit)}</td>
                     <td className={cn(tdClass, "tabular-nums")}>{usd(t.riskAmount)}</td>
+                    <td className={cn(tdClass, "tabular-nums", toneClass(t.floatingPnl ?? 0))}>{t.floatingPnl != null ? money(t.floatingPnl) : "—"}</td>
                     <td className={cn(tdClass, "whitespace-nowrap text-fog")}>{when.format(t.entryTime)}</td>
-                    <td className={cn(tdClass, "text-right")}><span className="flex justify-end gap-1.5"><Button size="sm" variant="ghost" onClick={() => onEdit(t)}>Edit</Button><Button size="sm" onClick={() => onClose(t)}>Close</Button></span></td>
+                    <td className={cn(tdClass, "text-right")}>
+                      {t.synced ? (
+                        <span className="text-[12px] text-mist">Closes with MT5</span>
+                      ) : (
+                        <span className="flex justify-end gap-1.5"><Button size="sm" variant="ghost" onClick={() => onEdit(t)}>Edit</Button><Button size="sm" onClick={() => onClose(t)}>Close</Button></span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -435,7 +442,7 @@ function History({ trades, onEdit }: { trades: JournalEntry[]; onEdit: (t: Journ
                 return (
                   <tr key={t.id}>
                     <td className={cn(tdClass, "whitespace-nowrap text-fog")}>{t.exitTime ? date.format(t.exitTime) : "—"}</td>
-                    <td className={tdClass}><span className="flex flex-wrap items-center gap-1.5">{marketOf(t)} <SideTag side={t.side} /> <GradeTag grade={t.grade} /></span></td>
+                    <td className={tdClass}><span className="flex flex-wrap items-center gap-1.5">{marketOf(t)} <SideTag side={t.side} /> <GradeTag grade={t.grade} />{t.synced && <Tag tone="signal">MT5</Tag>}</span></td>
                     <td className={cn(tdClass, "text-fog")}>{s ? `${s.strategyName} ${s.interval}`.trim() : t.setupId}</td>
                     <td className={cn(tdClass, "tabular-nums", toneClass(t.rMultiple ?? 0))}>{t.rMultiple !== null ? r(t.rMultiple) : "—"}</td>
                     <td className={cn(tdClass, "tabular-nums", toneClass(t.pnl ?? 0))}>

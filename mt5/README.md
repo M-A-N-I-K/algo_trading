@@ -277,3 +277,15 @@ MT5. Set `MT5_FEED_DIR` if your terminal's data folder is elsewhere.
 Limits: MT5 has to be running and the Mac awake. It only works while the app
 runs on the same machine; a hosted app would need the terminal to push bars
 over WebRequest instead.
+
+## Live trade sync
+
+`PB_BarFeed` (1.30 and later) also exports the account the terminal is logged into, for the app's Sync page, to `MQL5/Files/PlaybookFeed/accounts/`:
+
+| File | Holds |
+|---|---|
+| `<LOGIN>.txt` | Server, account mode, balance, equity and when it was written |
+| `<LOGIN>_deals.csv` | Every deal in the history, in server time |
+| `<LOGIN>_positions.csv` | The open positions, with stop, target and floating P&L |
+
+Deals are rewritten when a new one arrives, and positions every 10 seconds. Switch to another login and that account gets its own files. Turn it off with **Export this account's trades** (`InpTrades`). It never places or changes a trade.

@@ -27,7 +27,7 @@ Most prop-firm accounts are lost to rule breaks, not bad strategies: one revenge
 | **Tester reports** | Each setup's MT5 Strategy Tester run: profit factor, losing streaks, worst day and how many challenge attempts it needs. |
 | **Backtests** | Run a coded strategy on historical candles, with a history of runs and insights across them. |
 | **Guides** | A beginner's step-by-step guide for each strategy: definitions, entries, stops, a worked example, a diagram and real backtest numbers. |
-| **Sync** | Import MT5 trade history (the HTML report), or pull trades from CoinDCX. |
+| **Sync** | Live MT5 sync: link each MT5 login to its prop account and every trade lands in the Playbook by itself. Also imports MT5 HTML reports and CoinDCX trades. |
 | **Settings** | Account size, loss limits and dashboard preferences. |
 
 ## How it works
@@ -38,7 +38,7 @@ Most prop-firm accounts are lost to rule breaks, not bad strategies: one revenge
                                            │                ├─▶ weekly plan (A/B grade, levels)
                                            │                └─▶ liquidity levels ─▶ alerts
  ForexFactory weekly calendar ─────────────┴─▶ news window ──▶ pre-trade check
- MT5 HTML report / manual entry ─────────────▶ Postgres ─────▶ journal, review, discipline
+ MT5 trade export (PB_BarFeed) / HTML report ▶ Postgres ─────▶ journal, review, discipline
 ```
 
 - **Candles.** When MT5 is running the `PB_BarFeed` expert (`mt5/`), the app reads the broker's own bars from local CSV files, so signals and levels match your chart. Otherwise it uses Binance (crypto, gold) and Yahoo Finance (forex, indices). Candles are cached in memory and topped up as new ones close.
@@ -111,6 +111,8 @@ The first request after the server starts downloads the candle history (up to ab
 ### MT5 bar feed (recommended)
 
 Compile `mt5/PB_BarFeed.mq5` in MetaEditor and run it in the terminal. It writes each market's closed bars and a heartbeat to `MQL5/Files/PlaybookFeed`, and the app switches to them automatically while the heartbeat is fresh. See `mt5/README.md` for this, the indicators and the Strategy Tester EAs.
+
+It also exports the logged-in account's deals, open positions and balance to `PlaybookFeed/accounts/`. On the Sync page, link each login to its prop account. From then on its trades reach the Playbook by themselves, whenever the Playbook loads (at most every 15 seconds) or when you press Sync now. A trade you logged by hand is matched to its position (same account, market and side, opened within 3 minutes), not doubled. A trade you didn't log is checked against the rules as they stood when you opened it. The account's MT5 balance sets the Playbook's. No password leaves your machine.
 
 ## Scripts
 

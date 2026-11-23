@@ -53,7 +53,10 @@ export interface JournalEntry {
   notes: string;
   // "journal": a trade logged on the Trades page and linked to this account.
   // Counted like any other; edited there, not here.
-  source?: "journal";
+  // "mt5": found on the platform by the live sync, not logged here first.
+  source?: "journal" | "mt5";
+  synced?: boolean; // kept in step with its MT5 position
+  floatingPnl?: number | null; // open and synced: net P&L now
 }
 
 /* ---------- the firm's clock ---------- */

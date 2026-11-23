@@ -7,11 +7,16 @@ import type { Mt5Position, Mt5Report } from "./report";
 // positions that have since closed instead of duplicating them.
 
 export async function importReport(userId: string, report: Mt5Report) {
+  return upsertPositions(userId, report.login, report.server, report.positions);
+}
+
+/** Inserts or updates one login's positions by ticket. */
+export async function upsertPositions(userId: string, login: string, server: string, positions: readonly Mt5Position[]) {
   let created = 0;
   let updated = 0;
-  for (const p of report.positions) {
+  for (const p of positions) {
     const data = {
-      server: report.server,
+      server,
       symbol: p.symbol,
       side: p.side,
       volume: p.volume,
@@ -28,13 +33,13 @@ export async function importReport(userId: string, report: Mt5Report) {
       netPnl: p.netPnl,
       exitReason: p.exitReason,
     };
-    const key = { userId_login_positionId: { userId, login: report.login, positionId: p.positionId } };
+    const key = { userId_login_positionId: { userId, login, positionId: p.positionId } };
     const existing = await prisma.mt5Trade.findUnique({ where: key, select: { id: true } });
-    await prisma.mt5Trade.upsert({ where: key, create: { userId, login: report.login, positionId: p.positionId, ...data }, update: data });
+    await prisma.mt5Trade.upsert({ where: key, create: { userId, login, positionId: p.positionId, ...data }, update: data });
     if (existing) updated++;
     else created++;
   }
-  return { created, updated, positions: report.positions.length };
+  return { created, updated, positions: positions.length };
 }
 
 export interface Mt5Summary {

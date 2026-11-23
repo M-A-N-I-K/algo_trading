@@ -73,7 +73,7 @@ export default function Mt5Import() {
     <div className="flex flex-col gap-6">
       <Panel
         title="MT5 trade history"
-        note="Your prop-firm account. In MT5: Toolbox → History → right-click → Report → HTML, then upload the file here. Uploading a newer report updates trades that have since closed."
+        note="No live sync, or an account you no longer log into? In MT5: Toolbox → History → right-click → Report → HTML, then upload the file here. Uploading a newer report updates trades that have since closed."
       >
         <form
           className="flex flex-wrap items-center gap-3"
