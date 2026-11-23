@@ -6,6 +6,7 @@ import { parseMt5Bars, resampleBars } from "@/backtest/mt5Bars";
 import { platformSymbol } from "@/lib/costs/broker";
 import { parseServerTime } from "./report";
 import { parseSpecs, registerSpecs, type SymbolSpec } from "./specs";
+import { housekeepMt5 } from "./housekeeping";
 
 // Live candles from the MT5 terminal on this machine. The PB_BarFeed expert
 // (mt5/PB_BarFeed.mq5) writes each symbol's closed bars to
@@ -52,6 +53,8 @@ export const feedFile = (symbol: string, interval: string, dir = MT5_FEED_DIR): 
 
 /** Is the PB_BarFeed expert running (heartbeat written in the last two minutes)? */
 export async function feedLive(now = Date.now(), dir = MT5_FEED_DIR): Promise<boolean> {
+  // Once a day, trim the terminal's old logs and history (housekeeping.ts).
+  if (dir === MT5_FEED_DIR && !process.env.VITEST) void housekeepMt5(dir, now);
   try {
     const s = await stat(join(dir, "heartbeat.txt"));
     return now - s.mtimeMs < FEED_STALE_MS;

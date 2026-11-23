@@ -290,4 +290,10 @@ over WebRequest instead.
 
 Deals are rewritten when a new one arrives, and positions every 10 seconds. Switch to another login and that account gets its own files. Turn it off with **Export this account's trades** (`InpTrades`). It never places or changes a trade.
 
+Only one copy of `PB_BarFeed` runs: a second one dropped on another chart removes itself, and write errors are logged at most once every 10 minutes.
+
+### Disk space
+
+The feed and trade files are rewritten in place, so they don't grow. What does grow is MT5's own: a log file a day, and 1-minute price history for every symbol the feed reads (300–550 MB a year across all of them). Once a day the app deletes, inside this terminal's folder only, logs older than 30 days and history from before the last 7 years (`MT5_KEEP_LOG_DAYS`, `MT5_KEEP_HISTORY_YEARS` in `.env`). That covers the feed's 3 years and the Strategy Tester runs above, which start in 2020. MT5 downloads an older year again if a test asks for it.
+
 To sync without this terminal running, connect the account through MetaApi on the Sync page instead (see the main README).

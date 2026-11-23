@@ -22,9 +22,14 @@
 //|   <LOGIN>_positions.csv  open positions                          |
 //| Switch accounts in the terminal and the next one is exported     |
 //| too; each keeps its own files.                                   |
+//|                                                                  |
+//| Only one copy runs: a second one dragged onto another chart      |
+//| removes itself, so two never fight over the same files. Write    |
+//| errors are logged at most once every 10 minutes, so MT5's daily  |
+//| log stays small.                                                 |
 //+------------------------------------------------------------------+
 #property copyright "AuraJournal"
-#property version   "1.30"
+#property version   "1.31"
 
 input string InpSymbols   = "XAUUSD,XAGUSD,BTCUSD,ETHUSD,EURUSD,GBPUSD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD,NDX100,SPX500,EURJPY,GBPAUD,FTSE100,UKOIL"; // Broker symbols (missing ones are skipped)
 input bool   InpM5        = true;   // Write M5 (NAS100 8/33 EMA signals use it)
@@ -45,6 +50,42 @@ string           g_tfName[];
 int              g_bars[];
 datetime         g_last[];   // last closed bar written, per symbol × timeframe
 int              g_count[];  // bars written then (more arrive while MT5 downloads history)
+
+// ---- one copy at a time ----
+#define GV_OWNER "PB_BarFeed.chart"
+#define GV_BEAT  "PB_BarFeed.beat"
+
+// True while another chart's copy is running (it has beaten recently).
+bool OtherCopyRunning()
+{
+   if(!GlobalVariableCheck(GV_OWNER) || !GlobalVariableCheck(GV_BEAT)) return false;
+   if((long)GlobalVariableGet(GV_OWNER) == ChartID()) return false;
+   return TimeLocal() - (datetime)GlobalVariableGet(GV_BEAT) < 3 * MathMax(1, InpSeconds) + 30;
+}
+
+void ClaimOwner()
+{
+   if(!GlobalVariableCheck(GV_OWNER)) GlobalVariableTemp(GV_OWNER);
+   if(!GlobalVariableCheck(GV_BEAT)) GlobalVariableTemp(GV_BEAT);
+   GlobalVariableSet(GV_OWNER, (double)ChartID());
+   GlobalVariableSet(GV_BEAT, (double)TimeLocal());
+}
+
+// ---- quiet logging: write errors at most once every 10 minutes ----
+datetime g_warnAt = 0;
+int      g_warnQuiet = 0;
+void Warn(string msg)
+{
+   if(TimeLocal() - g_warnAt < 600)
+   {
+      g_warnQuiet++;
+      return;
+   }
+   if(g_warnQuiet > 0) msg += StringFormat(" (and %d more errors in the last 10 minutes)", g_warnQuiet);
+   Print(msg);
+   g_warnAt = TimeLocal();
+   g_warnQuiet = 0;
+}
 bool             g_warned[]; // "not available" logged once per symbol
 
 void AddTf(bool on, ENUM_TIMEFRAMES tf, string name, int bars)
@@ -84,7 +125,7 @@ bool WriteSeries(int s, int k)
    int h = FileOpen(tmp, FILE_WRITE | FILE_TXT | FILE_ANSI);
    if(h == INVALID_HANDLE)
    {
-      PrintFormat("PB_BarFeed: cannot write %s (error %d)", tmp, GetLastError());
+      Warn(StringFormat("PB_BarFeed: cannot write %s (error %d)", tmp, GetLastError()));
       return false;
    }
    FileWriteString(h, "<DATE>\t<TIME>\t<OPEN>\t<HIGH>\t<LOW>\t<CLOSE>\t<TICKVOL>\t<VOL>\t<SPREAD>\r\n");
@@ -104,7 +145,7 @@ bool WriteSeries(int s, int k)
    FileClose(h);
    if(!FileMove(tmp, 0, DIR + name + ".csv", FILE_REWRITE))
    {
-      PrintFormat("PB_BarFeed: cannot replace %s.csv (error %d)", name, GetLastError());
+      Warn(StringFormat("PB_BarFeed: cannot replace %s.csv (error %d)", name, GetLastError()));
       return false;
    }
    g_last[slot] = r[got - 1].time;
@@ -197,7 +238,7 @@ string Px(double v, int digits) { return v == 0 ? "" : DoubleToString(v, digits)
 bool Replace(string tmp, string dest)
 {
    if(FileMove(tmp, 0, dest, FILE_REWRITE)) return true;
-   PrintFormat("PB_BarFeed: cannot replace %s (error %d)", dest, GetLastError());
+   Warn(StringFormat("PB_BarFeed: cannot replace %s (error %d)", dest, GetLastError()));
    return false;
 }
 
@@ -304,6 +345,12 @@ int g_loops = 0;
 
 int OnInit()
 {
+   if(OtherCopyRunning())
+   {
+      Print("PB_BarFeed: already running on another chart, so this copy won't start. One copy is all the app needs.");
+      return INIT_FAILED;
+   }
+   ClaimOwner();
    ArrayResize(g_sym, 0);
    ArrayResize(g_tf, 0);
    ArrayResize(g_tfName, 0);
@@ -344,10 +391,23 @@ int OnInit()
 void OnDeinit(const int reason)
 {
    EventKillTimer();
+   if(GlobalVariableCheck(GV_OWNER) && (long)GlobalVariableGet(GV_OWNER) == ChartID())
+   {
+      GlobalVariableDel(GV_OWNER);
+      GlobalVariableDel(GV_BEAT);
+   }
 }
 
 void OnTimer()
 {
+   // Two copies started together: the later one stands down.
+   if(OtherCopyRunning())
+   {
+      Print("PB_BarFeed: another chart's copy is running, so this one is removing itself.");
+      ExpertRemove();
+      return;
+   }
+   ClaimOwner();
    int live = 0;
    for(int s = 0; s < ArraySize(g_sym) && !IsStopped(); s++)
    {
