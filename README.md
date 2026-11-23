@@ -104,7 +104,7 @@ Required in `.env`:
 | `NEXTAUTH_URL`, `NEXTAUTH_SECRET` | NextAuth |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in |
 
-Optional: `COINDCX_API_KEY` and `COINDCX_SECRET_KEY` (CoinDCX sync), `BINANCE_API_KEY` and `BINANCE_SECRET_KEY` (CLI scripts), `MT5_FEED_DIR` (if MT5's `MQL5/Files/PlaybookFeed` isn't in the default Mac location) and `SIGNAL_HISTORY_DAYS` (candle history, 730 by default). `.env.example` lists them all.
+Optional: `COINDCX_API_KEY` and `COINDCX_SECRET_KEY` (CoinDCX sync), `BINANCE_API_KEY` and `BINANCE_SECRET_KEY` (CLI scripts), `MT5_SYNC_EMAILS` (who may use live MT5 sync; set it if anyone else can sign in), `MT5_FEED_DIR` (if MT5's `MQL5/Files/PlaybookFeed` isn't in the default Mac location) and `SIGNAL_HISTORY_DAYS` (candle history, 730 by default). `.env.example` lists them all.
 
 The first request after the server starts downloads the candle history (up to about 30 seconds without the MT5 feed). Later ones are quick.
 

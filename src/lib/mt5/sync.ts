@@ -1,6 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { prisma } from "@/lib/db";
+import { appError } from "@/lib/errors";
 import { loadCalendar } from "@/lib/economicCalendar";
 import { newsClash, selectCatalysts, type Catalyst } from "@/lib/news/catalysts";
 import { locationGrade } from "@/lib/plan/weeklyPlan";
@@ -19,6 +20,16 @@ import { upsertPositions } from "./store";
 // account. Runs on demand and, throttled, whenever the Playbook loads.
 
 export const MT5_ACCOUNTS_DIR = process.env.MT5_ACCOUNTS_DIR || join(MT5_FEED_DIR, "accounts");
+
+/**
+ * The export folder is this machine's MT5, so it belongs to whoever runs it.
+ * MT5_SYNC_EMAILS (comma-separated) limits live sync to those users; unset,
+ * any signed-in user may link a login nobody else has linked.
+ */
+export function mayUseLiveSync(email: string | null | undefined): boolean {
+  const allowed = (process.env.MT5_SYNC_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+  return allowed.length === 0 || (!!email && allowed.includes(email.toLowerCase()));
+}
 const AUTO_EVERY_MS = 15_000;
 // A snapshot this fresh is the account as it is now: its balance can set the Playbook's.
 const BALANCE_FRESH_MS = 15 * 60_000;
@@ -81,8 +92,22 @@ export async function loadLinks(userId: string): Promise<Record<string, string>>
   return linksOf(user?.mt5Links);
 }
 
-/** Links a login to a prop account (or unlinks it with null). A login can be one account; an account can have several logins (one per phase). */
-export async function setLink(userId: string, login: string, accountId: string | null) {
+/** Logins another user has linked: a login belongs to whoever links it first, and nobody else sees or syncs it. */
+async function claimedByOthers(userId: string): Promise<Set<string>> {
+  const users = await prisma.user.findMany({ where: { id: { not: userId } }, select: { mt5Links: true } });
+  return new Set(users.flatMap((u) => Object.keys(linksOf(u.mt5Links))));
+}
+
+/**
+ * Links a login to a prop account (or unlinks it with null). A login can be
+ * one account; an account can have several logins (one per phase). Only a
+ * login the expert has exported and no other user has linked can be linked.
+ */
+export async function setLink(userId: string, login: string, accountId: string | null, dir = MT5_ACCOUNTS_DIR) {
+  if (accountId !== null) {
+    const [snaps, others] = await Promise.all([readSnapshots(dir), claimedByOthers(userId)]);
+    if (!snaps.some((s) => s.info.login === login) || others.has(login)) throw appError("NOT_FOUND", "That MT5 login isn't available to link.");
+  }
   const links = await loadLinks(userId);
   if (accountId === null) delete links[login];
   else links[login] = accountId;
@@ -244,14 +269,15 @@ export async function syncMt5(userId: string, now = Date.now(), dir = MT5_ACCOUN
   const errors: string[] = [];
   for (const snap of snaps) {
     const login = snap.info.login;
+    // Only this user's own logins: never another account's trades.
+    const accountId = links[login];
+    if (!accountId) continue;
     try {
       const allKey = `${userId}|${login}|*`;
       if (signatures.get(allKey) !== sigAll(snap)) {
         await upsertPositions(userId, login, snap.info.server, snap.positions);
         signatures.set(allKey, sigAll(snap));
       }
-      const accountId = links[login];
-      if (!accountId) continue;
       const c = await syncAccount(userId, login, accountId, snap, now);
       changes.created += c.created;
       changes.linked += c.linked;
@@ -267,6 +293,11 @@ export async function syncMt5(userId: string, now = Date.now(), dir = MT5_ACCOUN
 
 /** The sync, at most every 15 seconds per user and never two at once. Never throws. */
 export async function autoSyncMt5(userId: string, now = Date.now()): Promise<void> {
+  // Without an allowlist, links decide: syncMt5 only touches this user's linked logins.
+  if (process.env.MT5_SYNC_EMAILS) {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    if (!mayUseLiveSync(user?.email)) return;
+  }
   const run = runs.get(userId);
   if (run?.running) {
     await run.running.catch(() => {});
@@ -298,8 +329,9 @@ export interface Mt5AccountRow {
 
 /** The accounts the expert has exported, with what each is linked to. */
 export async function mt5Accounts(userId: string, dir = MT5_ACCOUNTS_DIR): Promise<Mt5AccountRow[]> {
-  const [snaps, links] = await Promise.all([readSnapshots(dir), loadLinks(userId)]);
+  const [snaps, links, others] = await Promise.all([readSnapshots(dir), loadLinks(userId), claimedByOthers(userId)]);
   return snaps
+    .filter((s) => !others.has(s.info.login))
     .map(({ info, positions, deposit }) => ({
       login: info.login,
       server: info.server,
