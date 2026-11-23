@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, RefreshCw } from "lucide-react";
 import { Button, Callout, EmptyState, Field, Panel, Stat, Tag, TextInput, money, signedNumber, tableClass, tdClass, thClass, toneClass } from "@/components/kit";
+import { useSession } from "next-auth/react";
 import { fetchJson } from "@/lib/apiClient";
+import { readCachedView, writeCachedView } from "@/lib/playbook/viewCache";
 import { MAX_TRADES_PER_DAY, OTHER_SETUP_RISK_SCALE, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "@/lib/playbook/config";
 import { MID_AVG_R, STRONG_AVG_R, type JournalEntry, type RankedSignal, type SetupVerdict, type Tier } from "@/lib/playbook/rules";
 import type { PlaybookView } from "@/lib/playbook/store";
@@ -636,22 +638,18 @@ function useStored<T extends string>(key: string, initial: T, valid: (v: string)
   return [value, set];
 }
 
-const VIEW_STORAGE_PREFIX = "playbook:view:";
-
 export default function PlaybookBoard() {
   const [accountId, selectAccount] = useStored<string>(ACCOUNT_STORAGE_KEY, PLAYBOOK_ACCOUNTS[0].id, (v) => PLAYBOOK_ACCOUNTS.some((a) => a.id === v));
   const [tab, setTab] = useStored<Tab>(TAB_STORAGE_KEY, "trade", (v) => TABS.some((t) => t.id === v));
   // The last view of this account, kept in the browser so a reload shows it
   // at once (marked as updating) while the server answers.
+  // Only for the signed-in user (see viewCache.ts).
+  const { data: session } = useSession();
+  const userId = (session?.user as { id?: string } | undefined)?.id ?? null;
   const [cached, setCached] = useState<PlaybookView | undefined>(undefined);
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(VIEW_STORAGE_PREFIX + accountId);
-      setCached(saved ? (JSON.parse(saved) as PlaybookView) : undefined);
-    } catch {
-      setCached(undefined);
-    }
-  }, [accountId]);
+    setCached(userId ? readCachedView<PlaybookView>(userId, accountId) : undefined);
+  }, [userId, accountId]);
   const { data: view, error, isLoading, isPlaceholderData } = useQuery({
     queryKey: [...PLAYBOOK_KEY, accountId],
     queryFn: () => fetchJson<PlaybookView>(`/api/playbook?account=${encodeURIComponent(accountId)}`),
@@ -659,11 +657,8 @@ export default function PlaybookBoard() {
     placeholderData: (prev) => (cached?.account.id === accountId ? cached : prev),
   });
   useEffect(() => {
-    if (!view || isPlaceholderData) return;
-    try {
-      localStorage.setItem(VIEW_STORAGE_PREFIX + view.account.id, JSON.stringify(view));
-    } catch {}
-  }, [view, isPlaceholderData]);
+    if (view && userId && !isPlaceholderData) writeCachedView(userId, view.account.id, view);
+  }, [view, userId, isPlaceholderData]);
   const [plan, setPlan] = useState<PlanDefaults | null>(null);
   const [closing, setClosing] = useState<JournalEntry | null>(null);
   const [editing, setEditing] = useState<JournalEntry | null>(null);

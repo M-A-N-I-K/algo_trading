@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession, signIn, signOut } from "next-auth/react";
+import { clearCachedViews } from "@/lib/playbook/viewCache";
 import { Plus, CheckCircle, AlertTriangle, Menu } from "lucide-react";
 import Sidebar from "@/components/trading-journal/Sidebar";
 import TradeFormModal from "@/components/trading-journal/TradeFormModal";
@@ -102,7 +103,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       <Sidebar
         user={session?.user || null}
-        onLogout={() => signOut()}
+        onLogout={() => {
+          clearCachedViews();
+          signOut();
+        }}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
