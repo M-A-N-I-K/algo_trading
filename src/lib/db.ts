@@ -6,8 +6,15 @@ const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
 let prismaClient: PrismaClient;
 
-if (process.env.DATABASE_URL) {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+if (globalForPrisma.prisma) {
+  // Dev reloads this module often: reuse the client (and its warm pool).
+  prismaClient = globalForPrisma.prisma;
+} else if (process.env.DATABASE_URL) {
+  // Opening a connection to the database takes ~3 s from here (TLS and auth
+  // over a long round trip), a query on an open one ~0.3 s. pg closes idle
+  // connections after 10 s by default, so nearly every page load paid for a
+  // new one; keep them open for 10 minutes instead.
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, idleTimeoutMillis: 10 * 60_000, keepAlive: true });
   // node-postgres emits 'error' on the pool for problems with idle clients
   // (e.g. Neon closing a connection server-side after its own idle
   // timeout) — without a listener, that's an unhandled event that can
@@ -22,7 +29,7 @@ if (process.env.DATABASE_URL) {
   prismaClient = new PrismaClient();
 }
 
-export const prisma = globalForPrisma.prisma || prismaClient;
+export const prisma = prismaClient;
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;

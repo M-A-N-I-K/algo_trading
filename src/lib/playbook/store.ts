@@ -52,10 +52,14 @@ export function pickAccount(id: unknown): PlaybookAccount {
 }
 
 /** Every trade this user logged, on every account, newest first: Playbook trades plus journal trades linked to an account. */
+const SYNC_WAIT_MS = 1_000;
+
 export async function loadEntries(userId: string): Promise<JournalEntry[]> {
-  // Pull in anything new from MT5 first (throttled; never throws).
+  // Pull in anything new from MT5 first (throttled; never throws), but wait
+  // for it at most a second: a slow sync finishes in the background and its
+  // trades show on the next refresh instead of holding up this one.
   const { autoSyncMt5 } = await import("@/lib/mt5/sync");
-  await autoSyncMt5(userId);
+  await Promise.race([autoSyncMt5(userId), new Promise((r) => setTimeout(r, SYNC_WAIT_MS))]);
   const [rows, linked] = await Promise.all([
     prisma.playbookTrade.findMany({ where: { userId }, orderBy: { entryTime: "desc" } }),
     prisma.trade.findMany({ where: { userId, playbookAccountId: { not: null } } }),

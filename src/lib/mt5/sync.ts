@@ -163,7 +163,14 @@ async function allSnapshots(userId: string, email: string | null | undefined, no
   return { snaps: out, cloud };
 }
 
-const emailOf = async (userId: string) => (await prisma.user.findUnique({ where: { id: userId }, select: { email: true } }))?.email ?? null;
+// A user's email doesn't change; remembered so each sync saves a database round trip.
+const emails = new Map<string, string | null>();
+const emailOf = async (userId: string) => {
+  if (emails.has(userId)) return emails.get(userId)!;
+  const email = (await prisma.user.findUnique({ where: { id: userId }, select: { email: true } }))?.email ?? null;
+  emails.set(userId, email);
+  return email;
+};
 
 /**
  * Connects an MT5 account through MetaApi with its investor password (sent to

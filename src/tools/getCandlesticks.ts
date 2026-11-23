@@ -5,6 +5,18 @@ import { fetchYahooCandles, isYahooMarket } from "../lib/markets/yahoo";
 const SPOT_API = () => process.env.BASE_API || "https://api.binance.com";
 const FUTURES_API = () => process.env.BINANCE_FUTURES_API || "https://fapi.binance.com";
 const INVALID_SYMBOL = -1121;
+// A stuck connection gives up after this, instead of holding the scan for the OS's minutes-long default.
+const TIMEOUT_MS = 15_000;
+
+// One retry when the request got no answer at all (hang-up, timeout), never on an error Binance sent.
+async function get<T>(url: string, params: object): Promise<T> {
+  try {
+    return (await axios.get<T>(url, { params, timeout: TIMEOUT_MS })).data;
+  } catch (error) {
+    if (!axios.isAxiosError(error) || error.response) throw error;
+    return (await axios.get<T>(url, { params, timeout: TIMEOUT_MS })).data;
+  }
+}
 
 // Symbols Binance spot rejected, fetched from USDⓈ-M futures from then on.
 const futuresOnly = new Set<string>();
@@ -15,12 +27,12 @@ const futuresOnly = new Set<string>();
 export async function getCandleSticks(symbol: string, interval: string, startTime?: string, endTime?: string, limit = 10) {
   if (isYahooMarket(symbol)) return yahooKlines(symbol, interval, startTime, endTime, limit);
   const params = { symbol, interval, startTime, endTime, limit };
-  const futures = () => axios.get<Candlestick[]>(`${FUTURES_API()}/fapi/v1/klines`, { params }).then((r) => r.data);
+  const futures = () => get<Candlestick[]>(`${FUTURES_API()}/fapi/v1/klines`, params);
 
   try {
     if (futuresOnly.has(symbol)) return await futures();
     try {
-      return (await axios.get<Candlestick[]>(`${SPOT_API()}/api/v3/klines`, { params })).data;
+      return await get<Candlestick[]>(`${SPOT_API()}/api/v3/klines`, params);
     } catch (error) {
       if (!axios.isAxiosError(error) || error.response?.data?.code !== INVALID_SYMBOL) throw error;
       futuresOnly.add(symbol);

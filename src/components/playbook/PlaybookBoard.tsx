@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 import { Button, Callout, EmptyState, Field, Panel, Stat, Tag, TextInput, money, signedNumber, tableClass, tdClass, thClass, toneClass } from "@/components/kit";
 import { fetchJson } from "@/lib/apiClient";
 import { MAX_TRADES_PER_DAY, OTHER_SETUP_RISK_SCALE, PLAYBOOK_ACCOUNTS, PLAYBOOK_SETUPS, setupById, type PlaybookAccount } from "@/lib/playbook/config";
@@ -636,15 +636,34 @@ function useStored<T extends string>(key: string, initial: T, valid: (v: string)
   return [value, set];
 }
 
+const VIEW_STORAGE_PREFIX = "playbook:view:";
+
 export default function PlaybookBoard() {
   const [accountId, selectAccount] = useStored<string>(ACCOUNT_STORAGE_KEY, PLAYBOOK_ACCOUNTS[0].id, (v) => PLAYBOOK_ACCOUNTS.some((a) => a.id === v));
   const [tab, setTab] = useStored<Tab>(TAB_STORAGE_KEY, "trade", (v) => TABS.some((t) => t.id === v));
-  const { data: view, error, isLoading } = useQuery({
+  // The last view of this account, kept in the browser so a reload shows it
+  // at once (marked as updating) while the server answers.
+  const [cached, setCached] = useState<PlaybookView | undefined>(undefined);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_STORAGE_PREFIX + accountId);
+      setCached(saved ? (JSON.parse(saved) as PlaybookView) : undefined);
+    } catch {
+      setCached(undefined);
+    }
+  }, [accountId]);
+  const { data: view, error, isLoading, isPlaceholderData } = useQuery({
     queryKey: [...PLAYBOOK_KEY, accountId],
     queryFn: () => fetchJson<PlaybookView>(`/api/playbook?account=${encodeURIComponent(accountId)}`),
     refetchInterval: 60_000,
-    placeholderData: (prev) => prev,
+    placeholderData: (prev) => (cached?.account.id === accountId ? cached : prev),
   });
+  useEffect(() => {
+    if (!view || isPlaceholderData) return;
+    try {
+      localStorage.setItem(VIEW_STORAGE_PREFIX + view.account.id, JSON.stringify(view));
+    } catch {}
+  }, [view, isPlaceholderData]);
   const [plan, setPlan] = useState<PlanDefaults | null>(null);
   const [closing, setClosing] = useState<JournalEntry | null>(null);
   const [editing, setEditing] = useState<JournalEntry | null>(null);
@@ -665,6 +684,12 @@ export default function PlaybookBoard() {
 
   return (
     <div className="flex flex-col gap-5">
+      {isPlaceholderData && (
+        <p role="status" className="-mb-2 flex items-center gap-2 text-[12px] text-mist">
+          <RefreshCw size={12} aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+          Showing your last view while the latest loads.
+        </p>
+      )}
       <TodayBoard view={view} onSelect={selectAccount} />
 
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule">
