@@ -29,5 +29,7 @@ export function writeCachedView(userId: string, accountId: string, view: unknown
 export function clearCachedViews() {
   try {
     for (const k of Object.keys(localStorage)) if (k.startsWith(PREFIX)) localStorage.removeItem(k);
-  } catch {}
+  } catch {
+    // Storage blocked: nothing was cached.
+  }
 }
