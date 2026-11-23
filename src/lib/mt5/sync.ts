@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { prisma } from "@/lib/db";
@@ -64,6 +65,10 @@ const runs = (g.__mt5SyncRun ??= new Map());
 const cloudCache = (g.__mt5Cloud ??= new Map());
 // MetaApi is asked at most this often per account; the sync itself runs every 15 s.
 const CLOUD_EVERY_MS = 60_000;
+// Even "Sync now" waits this long between MetaApi calls for one account.
+const CLOUD_FORCED_MS = 15_000;
+// A connect in progress: the row holds the login until MetaApi answers.
+const PENDING = "pending:";
 
 const mtime = (file: string) => stat(file).then((s) => s.mtimeMs, () => null);
 const readOr = (file: string) => readFile(file, "utf8").catch(() => "");
@@ -121,8 +126,9 @@ export async function readCloudSnapshots(userId: string, now = Date.now(), force
   const rows = await prisma.mt5CloudAccount.findMany({ where: { userId }, orderBy: { createdAt: "asc" } });
   return Promise.all(
     rows.map(async (r) => {
+      if (r.metaapiId.startsWith(PENDING)) return { login: r.login, server: r.server, snap: null, status: "connecting" };
       const hit = cloudCache.get(r.metaapiId);
-      if (hit && !force && now - hit.at < CLOUD_EVERY_MS) return { login: r.login, server: r.server, snap: hit.snap, status: hit.status };
+      if (hit && now - hit.at < (force ? CLOUD_FORCED_MS : CLOUD_EVERY_MS)) return { login: r.login, server: r.server, snap: hit.snap, status: hit.status };
       let snap: Mt5Snapshot | null = hit?.snap ?? null;
       let status: string;
       try {
@@ -168,18 +174,27 @@ export async function connectCloudAccount(userId: string, a: { login: string; se
   if (!isLogin(a.login)) throw appError("INVALID_INPUT", "The login is the MT5 account number: digits only.");
   if (!a.server.trim() || a.server.length > 100) throw appError("INVALID_INPUT", "Enter the server name exactly as MT5 shows it.");
   if (!a.password || a.password.length > 100) throw appError("INVALID_INPUT", "Enter the account's investor password.");
-  const [mine, others, taken] = await Promise.all([
-    prisma.mt5CloudAccount.findFirst({ where: { userId, login: a.login } }),
-    claimedByOthers(userId),
-    prisma.mt5CloudAccount.findFirst({ where: { login: a.login, userId: { not: userId } }, select: { id: true } }),
-  ]);
-  if (mine) throw appError("INVALID_INPUT", "That account is already connected.");
-  if (others.has(a.login) || taken) throw appError("FORBIDDEN", "That MT5 login is connected to another user.");
-  const { id, region } = await createCloudAccount({ login: a.login, server: a.server.trim(), password: a.password });
+  // Reserve the login first, checked and written in one serializable
+  // transaction, so two users can't both connect it while MetaApi answers.
+  const row = await prisma.$transaction(
+    async (tx) => {
+      const [rows, users] = await Promise.all([
+        tx.mt5CloudAccount.findMany({ where: { login: a.login }, select: { userId: true } }),
+        tx.user.findMany({ where: { id: { not: userId } }, select: { mt5Links: true } }),
+      ]);
+      if (rows.some((r) => r.userId === userId)) throw appError("INVALID_INPUT", "That account is already connected.");
+      if (rows.length || users.some((u) => a.login in linksOf(u.mt5Links))) throw appError("FORBIDDEN", "That MT5 login is connected to another user.");
+      return tx.mt5CloudAccount.create({ data: { userId, login: a.login, server: a.server.trim(), metaapiId: `${PENDING}${randomUUID()}` } });
+    },
+    { isolationLevel: "Serializable" },
+  );
+  let created: { id: string; region: string } | null = null;
   try {
-    await prisma.mt5CloudAccount.create({ data: { userId, login: a.login, server: a.server.trim(), metaapiId: id, region } });
+    created = await createCloudAccount({ login: a.login, server: a.server.trim(), password: a.password });
+    await prisma.mt5CloudAccount.update({ where: { id: row.id }, data: { metaapiId: created.id, region: created.region } });
   } catch (e) {
-    await removeCloudAccount(id).catch(() => {});
+    if (created) await removeCloudAccount(created.id).catch(() => {});
+    await prisma.mt5CloudAccount.delete({ where: { id: row.id } }).catch(() => {});
     throw e;
   }
   if (a.accountId) await setLink(userId, a.login, a.accountId);
@@ -189,7 +204,7 @@ export async function connectCloudAccount(userId: string, a: { login: string; se
 export async function disconnectCloudAccount(userId: string, login: string) {
   const row = await prisma.mt5CloudAccount.findFirst({ where: { userId, login } });
   if (!row) throw appError("NOT_FOUND", "That account isn't connected.");
-  await removeCloudAccount(row.metaapiId);
+  if (!row.metaapiId.startsWith(PENDING)) await removeCloudAccount(row.metaapiId);
   await prisma.mt5CloudAccount.delete({ where: { id: row.id } });
   cloudCache.delete(row.metaapiId);
   await setLink(userId, login, null);
@@ -213,7 +228,8 @@ export async function setLink(userId: string, login: string, accountId: string |
       const users = await tx.user.findMany({ select: { id: true, mt5Links: true } });
       const own = linksOf(users.find((u) => u.id === userId)?.mt5Links);
       if (accountId !== null) {
-        if (users.some((u) => u.id !== userId && login in linksOf(u.mt5Links))) throw appError("NOT_FOUND", "That MT5 login isn't available to link.");
+        const cloudElsewhere = await tx.mt5CloudAccount.findFirst({ where: { login, userId: { not: userId } }, select: { id: true } });
+        if (cloudElsewhere || users.some((u) => u.id !== userId && login in linksOf(u.mt5Links))) throw appError("NOT_FOUND", "That MT5 login isn't available to link.");
         own[login] = accountId;
       } else delete own[login];
       await tx.user.update({ where: { id: userId }, data: { mt5Links: own } });
@@ -377,7 +393,18 @@ export interface SyncResult {
 }
 
 /** Syncs every account this user can see: positions into the MT5 table, and into the Playbook for linked logins. */
-export async function syncMt5(userId: string, now = Date.now(), dir = MT5_ACCOUNTS_DIR, force = false): Promise<SyncResult> {
+const syncing = ((g as G & { __mt5Syncing?: Map<string, Promise<SyncResult>> }).__mt5Syncing ??= new Map<string, Promise<SyncResult>>());
+
+/** One sync per user at a time: a second request while one runs gets the running one's result. */
+export function syncMt5(userId: string, now = Date.now(), dir = MT5_ACCOUNTS_DIR, force = false): Promise<SyncResult> {
+  const running = syncing.get(userId);
+  if (running) return running;
+  const p = runSync(userId, now, dir, force).finally(() => syncing.delete(userId));
+  syncing.set(userId, p);
+  return p;
+}
+
+async function runSync(userId: string, now: number, dir: string, force: boolean): Promise<SyncResult> {
   const [{ snaps }, links] = await Promise.all([emailOf(userId).then((email) => allSnapshots(userId, email, now, dir, force)), loadLinks(userId)]);
   const changes: SyncChanges = { created: 0, linked: 0, updated: 0, skipped: 0 };
   const errors: string[] = [];
