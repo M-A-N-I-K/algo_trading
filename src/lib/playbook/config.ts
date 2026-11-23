@@ -298,12 +298,12 @@ export const PLAYBOOK_SETUP_IDS: ReadonlySet<string> = new Set(PLAYBOOK_SETUPS.m
 // every market the accounts trade. App data symbol, then the platform's name.
 export const CUSTOM_MARKETS: readonly { symbol: string; platformSymbol: string }[] = [
   ["XAUUSDT", "XAUUSD"], ["XAGUSDT", "XAGUSD"], ["BTCUSDT", "BTCUSD"], ["ETHUSDT", "ETHUSD"],
-  ["NAS100", "NDX100"], ["SPX500", "SPX500"], ["FTSE100", "FTSE100"], ["UKOIL", "UKOIL"],
+  ["NAS100", "NDX100"], ["SPX500", "SPX500"], ["FTSE100", "FTSE100"], ["UKOIL", "UKOIL"], ["USOIL", "USOIL"],
   ["EURUSD", "EURUSD"], ["GBPUSD", "GBPUSD"], ["USDJPY", "USDJPY"], ["AUDUSD", "AUDUSD"], ["USDCAD", "USDCAD"],
   ["USDCHF", "USDCHF"], ["NZDUSD", "NZDUSD"], ["EURJPY", "EURJPY"], ["GBPAUD", "GBPAUD"],
 ].map(([symbol, platformSymbol]) => ({ symbol, platformSymbol }));
 
-const MARKET_ALIASES: Record<string, string> = { US100: "NAS100", USTEC: "NAS100", NDX100: "NAS100", US500: "SPX500", UK100: "FTSE100", BRENT: "UKOIL" };
+const MARKET_ALIASES: Record<string, string> = { US100: "NAS100", USTEC: "NAS100", NDX100: "NAS100", US500: "SPX500", UK100: "FTSE100", BRENT: "UKOIL", WTI: "USOIL", XTIUSD: "USOIL", USOUSD: "USOIL" };
 /** The market behind a symbol as typed in the journal (BTCUSD, XAUUSD, NDX100, ETHUSDT…). */
 export function marketForSymbol(raw: string): { symbol: string; platformSymbol: string } | undefined {
   const s = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -352,6 +352,9 @@ export function lotUnits(symbol: string): number {
   // $14.59 on a 72.93-point move, 0.01 of SPX500 $4.52 on 9.03 points.
   if (s === "NAS100" || s === "NDX100" || s === "US100" || s === "USTEC") return 20;
   if (s === "SPX500" || s === "US500") return 50;
+  // WTI crude, measured from the MT5 history: 0.10 lot made $68.00 on a
+  // 0.680 move (2026-11-23), so a lot is 1,000 barrels.
+  if (s === "USOIL") return 1000;
   if (symbol.startsWith("XAU")) return 100; // ounces
   if (symbol.startsWith("XAG")) return 5000; // ounces
   if (symbol.startsWith("BTC") || symbol.startsWith("ETH")) return 1; // coins

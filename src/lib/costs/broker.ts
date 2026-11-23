@@ -84,7 +84,7 @@ export function commissionRule(symbol: string): CommissionRule {
   if (isMetal(p)) return { kind: "perLot", usdPerLot: 5, measured: true };
   if (p === "ETHUSD") return { kind: "percent", rate: 0.0004, measured: true };
   if (p === "BTCUSD") return { kind: "percent", rate: 0.0004, measured: false };
-  if (p === "FTSE100" || p === "UKOIL") return { kind: "none", measured: false };
+  if (p === "FTSE100" || p === "UKOIL" || p === "USOIL") return { kind: "none", measured: false };
   if (isIndex(p)) return { kind: "none", measured: true };
   return { kind: "perLot", usdPerLot: 5, measured: false }; // forex
 }

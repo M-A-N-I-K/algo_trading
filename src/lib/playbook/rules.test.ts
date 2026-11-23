@@ -510,6 +510,7 @@ describe("index lot sizes", () => {
   it("sizes NAS100 as the platform's 20-unit lot, not a currency lot", () => {
     expect(lotUnits("NAS100")).toBe(20);
     expect(lotUnits("NDX100")).toBe(20);
+    expect(lotUnits("USOIL")).toBe(1000);
     // 1% of $10k on a 50-point stop: $100 / (50 × 20) = 0.1 lot
     expect(sizePosition("NAS100", 25_000, 24_950, 100)?.lots).toBeCloseTo(0.1, 5);
   });

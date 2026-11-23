@@ -17,6 +17,7 @@ describe("journal trades linked to a prop account", () => {
   it("finds the market however the symbol is typed", () => {
     expect(marketForSymbol("btcusd")?.symbol).toBe("BTCUSDT");
     expect(marketForSymbol("XAUUSD")?.symbol).toBe("XAUUSDT");
+    expect(marketForSymbol("XTIUSD")?.symbol).toBe("USOIL");
     expect(marketForSymbol("US100")?.platformSymbol).toBe("NDX100");
     expect(marketForSymbol("EUR/USD")?.symbol).toBe("EURUSD");
     expect(marketForSymbol("DOGEUSD")).toBeUndefined();
