@@ -3,18 +3,20 @@ import { authChallengeResponse, authenticateRequest } from "@/lib/auth";
 import { appError, toErrorResponse } from "@/lib/errors";
 import { feedLive } from "@/lib/mt5/feed";
 import { isLogin } from "@/lib/mt5/accountFiles";
+import { metaApiConfigured } from "@/lib/mt5/metaapi";
 import { mayUseLiveSync, mt5Accounts, setLink, syncMt5 } from "@/lib/mt5/sync";
 import { accountById } from "@/lib/playbook/config";
 
 // Live MT5 sync (src/lib/mt5/sync.ts).
-// GET   → the accounts the PB_BarFeed expert has exported and what each is linked to.
+// GET   → the accounts this user can sync (exported by PB_BarFeed here, or
+//         connected through MetaApi's cloud) and what each is linked to.
 // PATCH { login, accountId | null } → link a login to a prop account (or unlink), then sync.
 // POST  → sync now.
 
 const forbidden = () => NextResponse.json({ message: "Live MT5 sync is off for this account. Add your sign-in email to MT5_SYNC_EMAILS in .env and restart the app." }, { status: 403 });
 
 async function view(userId: string) {
-  return { feedLive: await feedLive(), accounts: await mt5Accounts(userId) };
+  return { feedLive: await feedLive(), cloudReady: metaApiConfigured(), accounts: await mt5Accounts(userId) };
 }
 
 export async function GET(request: NextRequest) {
@@ -40,7 +42,7 @@ export async function PATCH(request: NextRequest) {
     const accountId = body.accountId === null || body.accountId === "" ? null : String(body.accountId);
     if (accountId !== null && !accountById(accountId)) throw appError("INVALID_INPUT", "Unknown prop account.");
     await setLink(user.id, login, accountId);
-    const sync = await syncMt5(user.id);
+    const sync = await syncMt5(user.id, Date.now(), undefined, true);
     return NextResponse.json({ ...(await view(user.id)), sync });
   } catch (err) {
     const { body, status } = toErrorResponse(err);
@@ -53,7 +55,7 @@ export async function POST(request: NextRequest) {
   if (!user) return authChallengeResponse();
   if (!mayUseLiveSync(user.email)) return forbidden();
   try {
-    const sync = await syncMt5(user.id);
+    const sync = await syncMt5(user.id, Date.now(), undefined, true);
     return NextResponse.json({ ...(await view(user.id)), sync });
   } catch (err) {
     const { body, status } = toErrorResponse(err);

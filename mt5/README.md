@@ -289,3 +289,5 @@ over WebRequest instead.
 | `<LOGIN>_positions.csv` | The open positions, with stop, target and floating P&L |
 
 Deals are rewritten when a new one arrives, and positions every 10 seconds. Switch to another login and that account gets its own files. Turn it off with **Export this account's trades** (`InpTrades`). It never places or changes a trade.
+
+To sync without this terminal running, connect the account through MetaApi on the Sync page instead (see the main README).

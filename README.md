@@ -27,7 +27,7 @@ Most prop-firm accounts are lost to rule breaks, not bad strategies: one revenge
 | **Tester reports** | Each setup's MT5 Strategy Tester run: profit factor, losing streaks, worst day and how many challenge attempts it needs. |
 | **Backtests** | Run a coded strategy on historical candles, with a history of runs and insights across them. |
 | **Guides** | A beginner's step-by-step guide for each strategy: definitions, entries, stops, a worked example, a diagram and real backtest numbers. |
-| **Sync** | Live MT5 sync: link each MT5 login to its prop account and every trade lands in the Playbook by itself. Also imports MT5 HTML reports and CoinDCX trades. |
+| **Sync** | Live MT5 sync: connect each MT5 account (through MetaApi's cloud, or the MT5 app on this computer), link it to its prop account, and every trade lands in the Playbook by itself. Also imports MT5 HTML reports and CoinDCX trades. |
 | **Settings** | Account size, loss limits and dashboard preferences. |
 
 ## How it works
@@ -104,7 +104,7 @@ Required in `.env`:
 | `NEXTAUTH_URL`, `NEXTAUTH_SECRET` | NextAuth |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in |
 
-Optional: `COINDCX_API_KEY` and `COINDCX_SECRET_KEY` (CoinDCX sync), `BINANCE_API_KEY` and `BINANCE_SECRET_KEY` (CLI scripts), `MT5_SYNC_EMAILS` (your sign-in email, to turn on live MT5 sync; off when unset), `MT5_FEED_DIR` (if MT5's `MQL5/Files/PlaybookFeed` isn't in the default Mac location) and `SIGNAL_HISTORY_DAYS` (candle history, 730 by default). `.env.example` lists them all.
+Optional: `COINDCX_API_KEY` and `COINDCX_SECRET_KEY` (CoinDCX sync), `BINANCE_API_KEY` and `BINANCE_SECRET_KEY` (CLI scripts), `MT5_SYNC_EMAILS` (your sign-in email, to turn on live MT5 sync; off when unset), `METAAPI_TOKEN` (to connect MT5 accounts through MetaApi's cloud), `MT5_FEED_DIR` (if MT5's `MQL5/Files/PlaybookFeed` isn't in the default Mac location) and `SIGNAL_HISTORY_DAYS` (candle history, 730 by default). `.env.example` lists them all.
 
 The first request after the server starts downloads the candle history (up to about 30 seconds without the MT5 feed). Later ones are quick.
 
@@ -113,6 +113,10 @@ The first request after the server starts downloads the candle history (up to ab
 Compile `mt5/PB_BarFeed.mq5` in MetaEditor and run it in the terminal. It writes each market's closed bars and a heartbeat to `MQL5/Files/PlaybookFeed`, and the app switches to them automatically while the heartbeat is fresh. See `mt5/README.md` for this, the indicators and the Strategy Tester EAs.
 
 It also exports the logged-in account's deals, open positions and balance to `PlaybookFeed/accounts/`. On the Sync page, link each login to its prop account. From then on its trades reach the Playbook by themselves, whenever the Playbook loads (at most every 15 seconds) or when you press Sync now. A trade you logged by hand is matched to its position (same account, market and side, opened within 3 minutes), not doubled. A trade you didn't log is checked against the rules as they stood when you opened it. The account's MT5 balance sets the Playbook's. No password leaves your machine.
+
+### MT5 sync without the MT5 app
+
+To sync an account without MT5 running here, connect it through [MetaApi](https://metaapi.cloud), a paid service that runs an MT5 terminal in its cloud. Create an API token at app.metaapi.cloud/token, put it in `.env` as `METAAPI_TOKEN`, restart the app, and on the Sync page enter the account's login, server and **investor** (read-only) password. The password goes to MetaApi once and isn't stored by the app. The account then syncs about once a minute, the same way as above. **Disconnect** removes it from MetaApi, which stops its billing; trades already synced stay.
 
 ## Scripts
 

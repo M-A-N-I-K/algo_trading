@@ -70,6 +70,7 @@ model User {
   playbookTrades  PlaybookTrade[]
   playbookCheckIns PlaybookCheckIn[]
   mt5Trades       Mt5Trade[]
+  mt5CloudAccounts Mt5CloudAccount[]
 
   @@map("users")
 }
@@ -560,4 +561,22 @@ model Mt5Trade {
   @@unique([userId, login, positionId])
   @@index([userId, openTime])
   @@map("mt5_trades")
+}
+
+// An MT5 account connected through MetaApi's cloud (src/lib/mt5/metaapi.ts),
+// so it syncs without the MT5 app running here. The investor password goes
+// to MetaApi once, when connecting, and is never stored here.
+model Mt5CloudAccount {
+  id        String   @id @default(uuid())
+  userId    String
+  login     String   // MT5 account number
+  server    String
+  metaapiId String   @unique // MetaApi's account id
+  region    String   @default("")
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, login])
+  @@map("mt5_cloud_accounts")
 }

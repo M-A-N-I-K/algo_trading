@@ -11,11 +11,13 @@ import { planSync, syncedFields, type SyncStep } from "@/lib/playbook/mt5Sync";
 import { accountStatus, hardFailures, preTradeChecks, type Check, type JournalEntry } from "@/lib/playbook/rules";
 import { firstDeposit, isLogin, parseAccountInfo, parseDeals, parseOpenPositions, positionsFromDeals, type Mt5AccountInfo } from "./accountFiles";
 import { MT5_FEED_DIR, loadFeedSpecs } from "./feed";
+import { createCloudAccount, fetchCloudAccount, metaApiConfigured, readCloudAccount, removeCloudAccount } from "./metaapi";
 import type { Mt5Position } from "./report";
 import { upsertPositions } from "./store";
 
-// Live MT5 sync: reads what the PB_BarFeed expert exports for each account
-// (PlaybookFeed/accounts/, see accountFiles.ts), stores the positions, and
+// Live MT5 sync: reads each account from one of two sources, what the
+// PB_BarFeed expert exports from the MT5 app here (PlaybookFeed/accounts/, see
+// accountFiles.ts) or MetaApi's cloud terminal (metaapi.ts), stores the positions, and
 // keeps the Playbook journal in step for every login linked to a prop
 // account. Runs on demand and, throttled, whenever the Playbook loads.
 
@@ -30,6 +32,12 @@ export function mayUseLiveSync(email: string | null | undefined): boolean {
   const allowed = (process.env.MT5_SYNC_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
   return !!email && allowed.includes(email.toLowerCase());
 }
+
+/**
+ * Cloud accounts are billed to the METAAPI_TOKEN's owner, so they're limited
+ * to the same named users, and need the token set.
+ */
+export const mayUseCloudSync = (email: string | null | undefined) => metaApiConfigured() && mayUseLiveSync(email);
 const AUTO_EVERY_MS = 15_000;
 // A snapshot this fresh is the account as it is now: its balance can set the Playbook's.
 const BALANCE_FRESH_MS = 15 * 60_000;
@@ -40,15 +48,22 @@ export interface Mt5Snapshot {
   deposit: number | null;
 }
 
+/** Where an account's data comes from: the MT5 app on this machine, or MetaApi's cloud. */
+export type Mt5Source = "local" | "cloud";
+
 type G = typeof globalThis & {
   __mt5Snapshots?: Map<string, { key: string; snap: Mt5Snapshot }>;
   __mt5SyncSig?: Map<string, string>;
   __mt5SyncRun?: Map<string, { at: number; running: Promise<unknown> | null }>;
+  __mt5Cloud?: Map<string, { at: number; snap: Mt5Snapshot | null; status: string }>;
 };
 const g = globalThis as G;
 const snapshots = (g.__mt5Snapshots ??= new Map());
 const signatures = (g.__mt5SyncSig ??= new Map());
 const runs = (g.__mt5SyncRun ??= new Map());
+const cloudCache = (g.__mt5Cloud ??= new Map());
+// MetaApi is asked at most this often per account; the sync itself runs every 15 s.
+const CLOUD_EVERY_MS = 60_000;
 
 const mtime = (file: string) => stat(file).then((s) => s.mtimeMs, () => null);
 const readOr = (file: string) => readFile(file, "utf8").catch(() => "");
@@ -92,6 +107,94 @@ export async function loadLinks(userId: string): Promise<Record<string, string>>
   return linksOf(user?.mt5Links);
 }
 
+export interface CloudSnapshot {
+  login: string;
+  server: string;
+  snap: Mt5Snapshot | null;
+  /** connected, connecting, or what went wrong. */
+  status: string;
+}
+
+/** This user's cloud accounts, each fetched from MetaApi at most once a minute. Never throws per account. */
+export async function readCloudSnapshots(userId: string, now = Date.now(), force = false): Promise<CloudSnapshot[]> {
+  if (!metaApiConfigured()) return [];
+  const rows = await prisma.mt5CloudAccount.findMany({ where: { userId }, orderBy: { createdAt: "asc" } });
+  return Promise.all(
+    rows.map(async (r) => {
+      const hit = cloudCache.get(r.metaapiId);
+      if (hit && !force && now - hit.at < CLOUD_EVERY_MS) return { login: r.login, server: r.server, snap: hit.snap, status: hit.status };
+      let snap: Mt5Snapshot | null = hit?.snap ?? null;
+      let status: string;
+      try {
+        const acc = await readCloudAccount(r.metaapiId);
+        if (acc.region && acc.region !== r.region) await prisma.mt5CloudAccount.update({ where: { id: r.id }, data: { region: acc.region } });
+        if (acc.state !== "DEPLOYED" || acc.connectionStatus !== "CONNECTED") {
+          status = acc.connectionStatus === "DISCONNECTED_FROM_BROKER" ? "MetaApi can't reach the broker: check the server name and investor password" : "connecting";
+        } else {
+          const { info, deals, open } = await fetchCloudAccount(r.metaapiId, acc.region || r.region, now);
+          snap = { info: { ...info, login: r.login }, positions: positionsFromDeals(deals, open), deposit: firstDeposit(deals) };
+          status = "connected";
+        }
+      } catch (e) {
+        status = e instanceof Error ? e.message : String(e);
+      }
+      cloudCache.set(r.metaapiId, { at: now, snap, status });
+      return { login: r.login, server: r.server, snap, status };
+    }),
+  );
+}
+
+/** Every account this user can sync, from both sources; a login in both uses the fresher copy. */
+async function allSnapshots(userId: string, email: string | null | undefined, now = Date.now(), dir = MT5_ACCOUNTS_DIR, force = false) {
+  const [local, cloud] = await Promise.all([mayUseLiveSync(email) ? readSnapshots(dir) : Promise.resolve([]), readCloudSnapshots(userId, now, force)]);
+  const out = new Map<string, { snap: Mt5Snapshot; source: Mt5Source }>();
+  for (const snap of local) out.set(snap.info.login, { snap, source: "local" });
+  for (const c of cloud) {
+    if (!c.snap) continue;
+    const prev = out.get(c.login);
+    if (!prev || (c.snap.info.writtenAt ?? 0) >= (prev.snap.info.writtenAt ?? 0)) out.set(c.login, { snap: c.snap, source: "cloud" });
+  }
+  return { snaps: out, cloud };
+}
+
+const emailOf = async (userId: string) => (await prisma.user.findUnique({ where: { id: userId }, select: { email: true } }))?.email ?? null;
+
+/**
+ * Connects an MT5 account through MetaApi with its investor password (sent to
+ * MetaApi once, never stored), and links it to a prop account if one is given.
+ * A login another user has linked or connected can't be connected again.
+ */
+export async function connectCloudAccount(userId: string, a: { login: string; server: string; password: string; accountId: string | null }) {
+  if (!isLogin(a.login)) throw appError("INVALID_INPUT", "The login is the MT5 account number: digits only.");
+  if (!a.server.trim() || a.server.length > 100) throw appError("INVALID_INPUT", "Enter the server name exactly as MT5 shows it.");
+  if (!a.password || a.password.length > 100) throw appError("INVALID_INPUT", "Enter the account's investor password.");
+  const [mine, others, taken] = await Promise.all([
+    prisma.mt5CloudAccount.findFirst({ where: { userId, login: a.login } }),
+    claimedByOthers(userId),
+    prisma.mt5CloudAccount.findFirst({ where: { login: a.login, userId: { not: userId } }, select: { id: true } }),
+  ]);
+  if (mine) throw appError("INVALID_INPUT", "That account is already connected.");
+  if (others.has(a.login) || taken) throw appError("FORBIDDEN", "That MT5 login is connected to another user.");
+  const { id, region } = await createCloudAccount({ login: a.login, server: a.server.trim(), password: a.password });
+  try {
+    await prisma.mt5CloudAccount.create({ data: { userId, login: a.login, server: a.server.trim(), metaapiId: id, region } });
+  } catch (e) {
+    await removeCloudAccount(id).catch(() => {});
+    throw e;
+  }
+  if (a.accountId) await setLink(userId, a.login, a.accountId);
+}
+
+/** Disconnects a cloud account: removes it from MetaApi and unlinks it. Trades already synced stay. */
+export async function disconnectCloudAccount(userId: string, login: string) {
+  const row = await prisma.mt5CloudAccount.findFirst({ where: { userId, login } });
+  if (!row) throw appError("NOT_FOUND", "That account isn't connected.");
+  await removeCloudAccount(row.metaapiId);
+  await prisma.mt5CloudAccount.delete({ where: { id: row.id } });
+  cloudCache.delete(row.metaapiId);
+  await setLink(userId, login, null);
+}
+
 /**
  * Links a login to a prop account (or unlinks it with null). A login can be
  * one account; an account can have several logins (one per phase). Only a
@@ -100,7 +203,11 @@ export async function loadLinks(userId: string): Promise<Record<string, string>>
  * can't claim the same login at once.
  */
 export async function setLink(userId: string, login: string, accountId: string | null, dir = MT5_ACCOUNTS_DIR) {
-  if (accountId !== null && !(await readSnapshots(dir)).some((s) => s.info.login === login)) throw appError("NOT_FOUND", "That MT5 login isn't available to link.");
+  if (accountId !== null) {
+    const cloud = await prisma.mt5CloudAccount.findFirst({ where: { userId, login }, select: { id: true } });
+    const local = !cloud && mayUseLiveSync(await emailOf(userId)) && (await readSnapshots(dir)).some((s) => s.info.login === login);
+    if (!cloud && !local) throw appError("NOT_FOUND", "That MT5 login isn't available to link.");
+  }
   await prisma.$transaction(
     async (tx) => {
       const users = await tx.user.findMany({ select: { id: true, mt5Links: true } });
@@ -269,12 +376,12 @@ export interface SyncResult {
   errors: string[];
 }
 
-/** Syncs every exported account: positions into the MT5 table, and into the Playbook for linked logins. */
-export async function syncMt5(userId: string, now = Date.now(), dir = MT5_ACCOUNTS_DIR): Promise<SyncResult> {
-  const [snaps, links] = await Promise.all([readSnapshots(dir), loadLinks(userId)]);
+/** Syncs every account this user can see: positions into the MT5 table, and into the Playbook for linked logins. */
+export async function syncMt5(userId: string, now = Date.now(), dir = MT5_ACCOUNTS_DIR, force = false): Promise<SyncResult> {
+  const [{ snaps }, links] = await Promise.all([emailOf(userId).then((email) => allSnapshots(userId, email, now, dir, force)), loadLinks(userId)]);
   const changes: SyncChanges = { created: 0, linked: 0, updated: 0, skipped: 0 };
   const errors: string[] = [];
-  for (const snap of snaps) {
+  for (const { snap } of snaps.values()) {
     const login = snap.info.login;
     // Only this user's own logins: never another account's trades.
     const accountId = links[login];
@@ -300,8 +407,7 @@ export async function syncMt5(userId: string, now = Date.now(), dir = MT5_ACCOUN
 
 /** The sync, at most every 15 seconds per user and never two at once. Never throws. */
 export async function autoSyncMt5(userId: string, now = Date.now()): Promise<void> {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
-  if (!mayUseLiveSync(user?.email)) return;
+  if (!mayUseLiveSync(await emailOf(userId))) return;
   const run = runs.get(userId);
   if (run?.running) {
     await run.running.catch(() => {});
@@ -329,14 +435,18 @@ export interface Mt5AccountRow {
   deposit: number | null;
   accountId: string | null;
   suggested: string | null; // the prop account whose size matches the first deposit
+  source: Mt5Source;
+  /** Set for accounts connected through MetaApi: connected, connecting, or what went wrong. */
+  status: string | null;
 }
 
-/** The accounts the expert has exported, with what each is linked to. */
+/** The accounts this user can sync, from both sources, with what each is linked to. */
 export async function mt5Accounts(userId: string, dir = MT5_ACCOUNTS_DIR): Promise<Mt5AccountRow[]> {
-  const [snaps, links, others] = await Promise.all([readSnapshots(dir), loadLinks(userId), claimedByOthers(userId)]);
-  return snaps
-    .filter((s) => !others.has(s.info.login))
-    .map(({ info, positions, deposit }) => ({
+  const [{ snaps, cloud }, links, others] = await Promise.all([emailOf(userId).then((email) => allSnapshots(userId, email, Date.now(), dir)), loadLinks(userId), claimedByOthers(userId)]);
+  const statusOf = new Map(cloud.map((c) => [c.login, c.status]));
+  const rows: Mt5AccountRow[] = [...snaps.values()]
+    .filter(({ snap }) => !others.has(snap.info.login))
+    .map(({ snap: { info, positions, deposit }, source }) => ({
       login: info.login,
       server: info.server,
       company: info.company,
@@ -351,8 +461,15 @@ export async function mt5Accounts(userId: string, dir = MT5_ACCOUNTS_DIR): Promi
       deposit,
       accountId: links[info.login] ?? null,
       suggested: deposit !== null ? (PLAYBOOK_ACCOUNTS.find((a) => Math.abs(a.size - deposit) < 1)?.id ?? null) : null,
-    }))
-    .sort((a, b) => (b.writtenAt ?? 0) - (a.writtenAt ?? 0));
+      source,
+      status: statusOf.get(info.login) ?? null,
+    }));
+  // Cloud accounts MetaApi hasn't fetched yet (still connecting, or failing).
+  for (const c of cloud) {
+    if (snaps.has(c.login)) continue;
+    rows.push({ login: c.login, server: c.server, company: "", mode: "", currency: "", balance: null, equity: null, writtenAt: null, positions: 0, open: 0, firstTrade: null, deposit: null, accountId: links[c.login] ?? null, suggested: null, source: "cloud", status: c.status });
+  }
+  return rows.sort((a, b) => (b.writtenAt ?? 0) - (a.writtenAt ?? 0));
 }
 
 /** An uploaded HTML report, synced into the Playbook when its login is linked. Its balance is a past one, so it doesn't move the Playbook's. */
