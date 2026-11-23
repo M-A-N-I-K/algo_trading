@@ -13,6 +13,7 @@ import {
   OTHER_SETUP_RISK_SCALE,
   PLAYBOOK_SETUPS,
   RETIRED_SETUPS,
+  profitLockUsd,
   setupById,
   type PlaybookAccount,
   type PlaybookSetup,
@@ -153,7 +154,7 @@ export function accountStatus(entries: JournalEntry[], now: number, account: Pla
   const floor = account.size * (1 - account.maxLossPct / 100);
   const ownDailyStop = (account.size * rules.dailyStopPct) / 100;
   const targetBalance = account.size * (1 + account.targetPct / 100);
-  const profitLock = (account.size * rules.profitLockPct) / 100;
+  const profitLock = profitLockUsd({ size: account.size, rules });
   return {
     size: account.size,
     balance,

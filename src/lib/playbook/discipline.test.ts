@@ -39,9 +39,9 @@ describe("evaluateAutoRules", () => {
   });
 
   it("flags trades after the profit lock or past 6 a day", () => {
-    const win = trade({ entryTime: at(MON, "08:00"), exitTime: at(MON, "09:00"), pnl: 50 }); // Pro lock: +$50
+    const win = trade({ entryTime: at(MON, "08:00"), exitTime: at(MON, "09:00"), pnl: 75 }); // Pro lock: 3R = +$75
     expect(status([win, trade({ entryTime: at(MON, "13:00"), exitTime: at(MON, "14:00") })])["day-limits"]).toBe("broken");
-    expect(status([trade({ pnl: 49 }), trade({ entryTime: at(MON, "13:00"), exitTime: at(MON, "14:00") })])["day-limits"]).toBe("kept");
+    expect(status([trade({ pnl: 74 }), trade({ entryTime: at(MON, "13:00"), exitTime: at(MON, "14:00") })])["day-limits"]).toBe("kept");
     const seven = Array.from({ length: 7 }, (_, i) => trade({ accountId: i % 2 ? "pro-5k" : "flex-10k", pnl: 1, entryTime: at(MON, `${String(8 + i).padStart(2, "0")}:00`), exitTime: at(MON, `${String(8 + i).padStart(2, "0")}:30`) }));
     expect(status(seven)["day-limits"]).toBe("broken");
     expect(status(seven.slice(0, 6))["day-limits"]).toBe("kept");

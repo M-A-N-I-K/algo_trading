@@ -34,7 +34,7 @@ export interface PlaybookRules {
   maxOpen: number; // trades open at once
   dailyStopPct: number; // own daily stop, % of the starting balance: half the firm's limit
   maxLossesPerDay: number; // stop for the day after this many losing trades
-  profitLockPct: number; // stop for the day once this much profit (% of the starting balance) is closed
+  profitLockR: number; // stop for the day once this many R (A-grade risk) of profit is closed
   skipBOnForex: boolean; // B-grade currency trades lost money in the backtest
   riskTolerance: number; // rounding to a lot size may add up to 5%
   chaseR: number; // entering more than this many R from the signal is chasing
@@ -75,7 +75,9 @@ export const MAX_TRADES_PER_DAY = 6;
 const SHARED_RULES = {
   maxOpen: 2,
   maxLossesPerDay: 2,
-  profitLockPct: 1,
+  // 3R: above either account's daily stop (Flex 2R, Pro one loss), so a good
+  // day can outgrow a bad one, and one 2R winner doesn't end the day.
+  profitLockR: 3,
   skipBOnForex: true,
   riskTolerance: 1.05,
   chaseR: 0.25,
@@ -90,6 +92,10 @@ const PLATFORM_TZ = "Europe/Athens";
 // about 46% of the time and Pro at 0.75% about 57%, each with a breach
 // chance of 5% or less (half that pass rate if live trading earns half the
 // backtest's edge). The Pro's static loss is only 8R, so it skips B-grade.
+/** $ of closed profit that ends the day: profitLockR times the A-grade risk. */
+export const profitLockUsd = (a: { size: number; rules: Pick<PlaybookRules, "riskPctA" | "profitLockR"> }) =>
+  ((a.size * a.rules.riskPctA) / 100) * a.rules.profitLockR;
+
 export const PLAYBOOK_ACCOUNTS: readonly PlaybookAccount[] = [
   {
     id: "flex-10k",

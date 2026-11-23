@@ -449,9 +449,10 @@ describe("the two prop accounts", () => {
   it("stops the Pro after one loss, at the profit lock, and at 6 trades across accounts", () => {
     expect(accountStatusOn([lossOn(pro, -25)], NOON, pro).dailyStopHit).toBe(true);
     expect(accountStatusOn([lossOn(flex, -25)], NOON, flex).dailyStopHit).toBe(false);
-    expect(status(preTradeChecksOn(flexPlan(), [closed(100, NOON - 1000, { accountId: flex.id })], flex), "profit-lock")).toBe("fail");
-    expect(status(preTradeChecksOn(flexPlan(), [closed(99, NOON - 1000, { accountId: flex.id })], flex), "profit-lock")).toBe("pass");
-    expect(status(preTradeChecksOn(proPlan(), [closed(50, NOON - 1000, { accountId: pro.id })], pro), "profit-lock")).toBe("fail");
+    expect(status(preTradeChecksOn(flexPlan(), [closed(300, NOON - 1000, { accountId: flex.id })], flex), "profit-lock")).toBe("fail"); // 3R at 1%
+    expect(status(preTradeChecksOn(flexPlan(), [closed(299, NOON - 1000, { accountId: flex.id })], flex), "profit-lock")).toBe("pass");
+    expect(status(preTradeChecksOn(proPlan(), [closed(75, NOON - 1000, { accountId: pro.id })], pro), "profit-lock")).toBe("fail"); // 3R at 0.5%
+    expect(status(preTradeChecksOn(proPlan(), [closed(74, NOON - 1000, { accountId: pro.id })], pro), "profit-lock")).toBe("pass");
     const three = [1, 2, 3].map((i) => closed(1, NOON - i * 1000, { accountId: flex.id, entryTime: NOON - i * 2000 }));
     expect(status(preTradeChecksOn(flexPlan(), three, flex, [], 2), "day-trades")).toBe("pass");
     expect(status(preTradeChecksOn(flexPlan(), three, flex, [], 3), "day-trades")).toBe("fail");

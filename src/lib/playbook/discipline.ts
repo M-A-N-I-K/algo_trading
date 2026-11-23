@@ -1,6 +1,6 @@
 import { activeSetupById, customSetup, type PlaybookAccount } from "./config";
 import { isLoss, platformDay, riskBudget, type JournalEntry } from "./rules";
-import { MAX_TRADES_PER_DAY } from "./config";
+import { MAX_TRADES_PER_DAY, profitLockUsd } from "./config";
 
 // The discipline streak: a daily checklist of the habits that cost money in
 // week 46 (9–13 Nov 2026: −$240, most of it oversized and revenge trades). Most
@@ -95,7 +95,7 @@ export function evaluateAutoRules(day: string, entries: JournalEntry[], accounts
     const a = acct(e.accountId);
     if (!a) return false;
     const pnl = entries.filter((x) => x.accountId === a.id && x.id !== e.id && x.pnl !== null && x.exitTime !== null && x.exitTime <= e.entryTime && dayOf(x.exitTime) === day).reduce((s, x) => s + x.pnl!, 0);
-    return pnl >= (a.size * a.rules.profitLockPct) / 100;
+    return pnl >= profitLockUsd(a);
   });
   const overCap = Math.max(0, todays.length - MAX_TRADES_PER_DAY);
   results.push(pastLock.length || overCap
