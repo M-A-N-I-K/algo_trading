@@ -11,7 +11,7 @@ import { accountById } from "@/lib/playbook/config";
 // PATCH { login, accountId | null } → link a login to a prop account (or unlink), then sync.
 // POST  → sync now.
 
-const forbidden = () => NextResponse.json({ message: "Live MT5 sync isn't enabled for this account." }, { status: 403 });
+const forbidden = () => NextResponse.json({ message: "Live MT5 sync is off for this account. Add your sign-in email to MT5_SYNC_EMAILS in .env and restart the app." }, { status: 403 });
 
 async function view(userId: string) {
   return { feedLive: await feedLive(), accounts: await mt5Accounts(userId) };

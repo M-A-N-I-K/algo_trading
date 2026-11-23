@@ -23,12 +23,12 @@ export const MT5_ACCOUNTS_DIR = process.env.MT5_ACCOUNTS_DIR || join(MT5_FEED_DI
 
 /**
  * The export folder is this machine's MT5, so it belongs to whoever runs it.
- * MT5_SYNC_EMAILS (comma-separated) limits live sync to those users; unset,
- * any signed-in user may link a login nobody else has linked.
+ * Only the users named in MT5_SYNC_EMAILS (comma-separated) may use live
+ * sync. Unset, nobody can: it fails closed.
  */
 export function mayUseLiveSync(email: string | null | undefined): boolean {
   const allowed = (process.env.MT5_SYNC_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
-  return allowed.length === 0 || (!!email && allowed.includes(email.toLowerCase()));
+  return !!email && allowed.includes(email.toLowerCase());
 }
 const AUTO_EVERY_MS = 15_000;
 // A snapshot this fresh is the account as it is now: its balance can set the Playbook's.
@@ -92,27 +92,34 @@ export async function loadLinks(userId: string): Promise<Record<string, string>>
   return linksOf(user?.mt5Links);
 }
 
-/** Logins another user has linked: a login belongs to whoever links it first, and nobody else sees or syncs it. */
-async function claimedByOthers(userId: string): Promise<Set<string>> {
-  const users = await prisma.user.findMany({ where: { id: { not: userId } }, select: { mt5Links: true } });
-  return new Set(users.flatMap((u) => Object.keys(linksOf(u.mt5Links))));
-}
-
 /**
  * Links a login to a prop account (or unlinks it with null). A login can be
  * one account; an account can have several logins (one per phase). Only a
- * login the expert has exported and no other user has linked can be linked.
+ * login the expert has exported and no other user has linked can be linked:
+ * the check and the write run in one serializable transaction, so two users
+ * can't claim the same login at once.
  */
 export async function setLink(userId: string, login: string, accountId: string | null, dir = MT5_ACCOUNTS_DIR) {
-  if (accountId !== null) {
-    const [snaps, others] = await Promise.all([readSnapshots(dir), claimedByOthers(userId)]);
-    if (!snaps.some((s) => s.info.login === login) || others.has(login)) throw appError("NOT_FOUND", "That MT5 login isn't available to link.");
-  }
-  const links = await loadLinks(userId);
-  if (accountId === null) delete links[login];
-  else links[login] = accountId;
-  await prisma.user.update({ where: { id: userId }, data: { mt5Links: links } });
+  if (accountId !== null && !(await readSnapshots(dir)).some((s) => s.info.login === login)) throw appError("NOT_FOUND", "That MT5 login isn't available to link.");
+  await prisma.$transaction(
+    async (tx) => {
+      const users = await tx.user.findMany({ select: { id: true, mt5Links: true } });
+      const own = linksOf(users.find((u) => u.id === userId)?.mt5Links);
+      if (accountId !== null) {
+        if (users.some((u) => u.id !== userId && login in linksOf(u.mt5Links))) throw appError("NOT_FOUND", "That MT5 login isn't available to link.");
+        own[login] = accountId;
+      } else delete own[login];
+      await tx.user.update({ where: { id: userId }, data: { mt5Links: own } });
+    },
+    { isolationLevel: "Serializable" },
+  );
   for (const k of [...signatures.keys()]) if (k.startsWith(`${userId}|`)) signatures.delete(k);
+}
+
+/** Logins another user has linked: nobody else sees or syncs them. */
+async function claimedByOthers(userId: string): Promise<Set<string>> {
+  const users = await prisma.user.findMany({ where: { id: { not: userId } }, select: { mt5Links: true } });
+  return new Set(users.flatMap((u) => Object.keys(linksOf(u.mt5Links))));
 }
 
 export interface SyncChanges {
@@ -293,11 +300,8 @@ export async function syncMt5(userId: string, now = Date.now(), dir = MT5_ACCOUN
 
 /** The sync, at most every 15 seconds per user and never two at once. Never throws. */
 export async function autoSyncMt5(userId: string, now = Date.now()): Promise<void> {
-  // Without an allowlist, links decide: syncMt5 only touches this user's linked logins.
-  if (process.env.MT5_SYNC_EMAILS) {
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
-    if (!mayUseLiveSync(user?.email)) return;
-  }
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+  if (!mayUseLiveSync(user?.email)) return;
   const run = runs.get(userId);
   if (run?.running) {
     await run.running.catch(() => {});
