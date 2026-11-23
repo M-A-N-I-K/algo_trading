@@ -107,7 +107,10 @@ export const PLAYBOOK_ACCOUNTS: readonly PlaybookAccount[] = [
     targetPct: 10,
     timeZone: PLATFORM_TZ,
     priorPnl: 0,
-    rules: { ...SHARED_RULES, riskPctA: 1, riskPctB: 0.5, dailyStopPct: 2 },
+    // 0.5% from 23 Nov 2026 (was 1%): at $9,570 only $770 was left above the
+    // floor, 7.7 losses at 1%, less than the best setup's 7.8R tester
+    // drawdown. Back to 0.75% above $10,000 after 10 clean days, 1% above $10,300.
+    rules: { ...SHARED_RULES, riskPctA: 0.5, riskPctB: 0.25, dailyStopPct: 1 },
     // The more frequent setups (MT5 Strategy Tester, Nov 2026, 1% risk):
     // deeper drawdowns that 12% of room can carry.
     setups: [

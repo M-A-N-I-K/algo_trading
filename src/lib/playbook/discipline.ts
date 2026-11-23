@@ -1,6 +1,6 @@
 import { activeSetupById, customSetup, type PlaybookAccount } from "./config";
 import { isLoss, platformDay, riskBudget, type JournalEntry } from "./rules";
-import { MAX_TRADES_PER_DAY, profitLockUsd } from "./config";
+import { MAX_TRADES_PER_DAY, PLAYBOOK_ACCOUNTS, profitLockUsd } from "./config";
 
 // The discipline streak: a daily checklist of the habits that cost money in
 // week 46 (9–13 Nov 2026: −$240, most of it oversized and revenge trades). Most
@@ -20,7 +20,7 @@ export interface DisciplineRule {
 
 export const DISCIPLINE_RULES: readonly DisciplineRule[] = [
   { id: "loss-limit", kind: "auto", label: "No trade after the loss limit or the daily stop", why: "Flex: 2 losses. Pro: 1 loss. Once an account is stopped for the day, close it." },
-  { id: "day-limits", kind: "auto", label: `Stop at the profit lock; at most ${MAX_TRADES_PER_DAY} trades`, why: `Flex done at +1% ($100), Pro at +1% ($50). ${MAX_TRADES_PER_DAY} trades a day across both accounts.` },
+  { id: "day-limits", kind: "auto", label: `Stop at the profit lock; at most ${MAX_TRADES_PER_DAY} trades`, why: `Done at 3R of profit: ${PLAYBOOK_ACCOUNTS.map((a) => `${a.shortName} +$${profitLockUsd(a)}`).join(", ")}. ${MAX_TRADES_PER_DAY} trades a day across both accounts.` },
   { id: "no-revenge", kind: "auto", label: "No re-entry within an hour of a loss", why: "And never flip direction in the same market on the same day after a loss." },
   { id: "right-size", kind: "auto", label: "Risk no more than the plan's size", why: "The Playbook's A/B risk times the setup's scale (8/33 setups: a quarter). Your own trades: the account's A risk, or B if graded B." },
   { id: "logged-first", kind: "auto", label: "Logged in the Playbook before entry", why: "Trades logged afterwards on the Trades page skip the pre-trade checks." },

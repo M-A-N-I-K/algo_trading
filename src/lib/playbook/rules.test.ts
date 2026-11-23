@@ -392,20 +392,20 @@ describe("the two prop accounts", () => {
   const pro = accountById("pro-5k")!;
   const FLEX_NAS = "sr-sweep-trendline:NAS100:1h"; // Flex's own
   const nas = { entry: 25_000, stop: 24_950, target: 25_150 };
-  const flexPlan = (over: Partial<TradePlan> = {}) => plan({ setupId: FLEX_NAS, ...nas, riskAmount: 100, ...over });
+  const flexPlan = (over: Partial<TradePlan> = {}) => plan({ setupId: FLEX_NAS, ...nas, riskAmount: 50, ...over });
   const proPlan = (over: Partial<TradePlan> = {}) => plan({ setupId: NAS_MACD, ...nas, riskAmount: 25, ...over });
   const lossOn = (account: PlaybookAccount, pnl: number, over: Partial<JournalEntry> = {}) => closed(pnl, NOON - 1000, { accountId: account.id, riskAmount: Math.abs(pnl), ...over });
 
   it("matches the limits on the firm's dashboards", () => {
     expect(PLAYBOOK_ACCOUNTS.map((a) => a.id)).toEqual(["flex-10k", "pro-5k"]);
     const f = accountStatusOn([], NOON, flex);
-    expect([f.floor, f.firmDailyLimit, f.targetBalance, f.ownDailyStop]).toEqual([8800, 400, 11000, 200]);
+    expect([f.floor, f.firmDailyLimit, f.targetBalance, f.ownDailyStop]).toEqual([8800, 400, 11000, 100]);
     const p = accountStatusOn([], NOON, pro);
     expect([p.floor, p.firmDailyLimit, p.targetBalance, p.ownDailyStop]).toEqual([4700, 150, 5300, 75]);
   });
-  it("risks $100/$50 on the Flex and $25 A-grade only on the Pro (0.5%)", () => {
-    expect(riskBudgetOn("ETHUSDT", "A", flex).amount).toBe(100);
-    expect(riskBudgetOn("ETHUSDT", "B", flex).amount).toBe(50);
+  it("risks $50/$25 on the Flex and $25 A-grade only on the Pro (both 0.5%)", () => {
+    expect(riskBudgetOn("ETHUSDT", "A", flex).amount).toBe(50);
+    expect(riskBudgetOn("ETHUSDT", "B", flex).amount).toBe(25);
     expect(riskBudgetOn("EURUSD", "B", flex).skip).toMatch(/0\.72/);
     expect(riskBudgetOn("ETHUSDT", "A", pro).amount).toBe(25);
     expect(riskBudgetOn("ETHUSDT", "B", pro).skip).toMatch(/A-grade trades only/);
@@ -417,23 +417,23 @@ describe("the two prop accounts", () => {
   it("takes an ungradedFullRisk setup at full risk though it has no grade", () => {
     const onFlex = { ...setupById(FLEX_NAS)!, ungradedFullRisk: true };
     const onPro = { ...setupById(NAS_MACD)!, ungradedFullRisk: true };
-    expect(riskBudgetOn("NAS100", null, flex, onFlex).amount).toBe(100);
+    expect(riskBudgetOn("NAS100", null, flex, onFlex).amount).toBe(50);
     expect(riskBudgetOn("NAS100", null, pro, onPro)).toMatchObject({ amount: 25, skip: null });
     // Other ungraded setups keep the B-grade rule.
     expect(riskBudgetOn("NAS100", null, pro).skip).toMatch(/A-grade trades only/);
   });
   it("allows 2 open trades", () => {
-    const open = [entry({ accountId: flex.id, setupId: XAU_SMC, riskAmount: 100 })];
+    const open = [entry({ accountId: flex.id, setupId: XAU_SMC, riskAmount: 50 })];
     expect(status(preTradeChecksOn(flexPlan(), open, flex), "slots")).toBe("pass");
-    open.push(entry({ accountId: flex.id, setupId: JPY_LR, riskAmount: 100 }));
+    open.push(entry({ accountId: flex.id, setupId: JPY_LR, riskAmount: 50 }));
     expect(status(preTradeChecksOn(flexPlan(), open, flex), "slots")).toBe("fail");
   });
   it("stops the day after 2 losses, not counting breakeven exits", () => {
-    expect(accountStatusOn([lossOn(flex, -100)], NOON, flex).dailyStopHit).toBe(false);
-    expect(accountStatusOn([lossOn(flex, -100), lossOn(pro, -2, { exitReason: "breakeven" })], NOON, flex).dailyStopHit).toBe(false);
+    expect(accountStatusOn([lossOn(flex, -50)], NOON, flex).dailyStopHit).toBe(false);
+    expect(accountStatusOn([lossOn(flex, -50), lossOn(pro, -2, { exitReason: "breakeven" })], NOON, flex).dailyStopHit).toBe(false);
     // A stop trailed to entry, logged as "stop": closed at entry on price, down only on costs.
     const trailed = lossOn(flex, -3, { exitReason: "stop" });
-    expect(accountStatusOn([lossOn(flex, -100), { ...trailed, exitPrice: trailed.entryPrice }], NOON, flex).lossesToday).toBe(1);
+    expect(accountStatusOn([lossOn(flex, -50), { ...trailed, exitPrice: trailed.entryPrice }], NOON, flex).lossesToday).toBe(1);
     const s = accountStatusOn([lossOn(flex, -40), lossOn(flex, -40)], NOON, flex);
     expect(s.lossesToday).toBe(2);
     expect(s.dailyStopHit).toBe(true);
@@ -449,8 +449,8 @@ describe("the two prop accounts", () => {
   it("stops the Pro after one loss, at the profit lock, and at 6 trades across accounts", () => {
     expect(accountStatusOn([lossOn(pro, -25)], NOON, pro).dailyStopHit).toBe(true);
     expect(accountStatusOn([lossOn(flex, -25)], NOON, flex).dailyStopHit).toBe(false);
-    expect(status(preTradeChecksOn(flexPlan(), [closed(300, NOON - 1000, { accountId: flex.id })], flex), "profit-lock")).toBe("fail"); // 3R at 1%
-    expect(status(preTradeChecksOn(flexPlan(), [closed(299, NOON - 1000, { accountId: flex.id })], flex), "profit-lock")).toBe("pass");
+    expect(status(preTradeChecksOn(flexPlan(), [closed(150, NOON - 1000, { accountId: flex.id })], flex), "profit-lock")).toBe("fail"); // 3R at 0.5%
+    expect(status(preTradeChecksOn(flexPlan(), [closed(149, NOON - 1000, { accountId: flex.id })], flex), "profit-lock")).toBe("pass");
     expect(status(preTradeChecksOn(proPlan(), [closed(75, NOON - 1000, { accountId: pro.id })], pro), "profit-lock")).toBe("fail"); // 3R at 0.5%
     expect(status(preTradeChecksOn(proPlan(), [closed(74, NOON - 1000, { accountId: pro.id })], pro), "profit-lock")).toBe("pass");
     const three = [1, 2, 3].map((i) => closed(1, NOON - i * 1000, { accountId: flex.id, entryTime: NOON - i * 2000 }));
@@ -458,11 +458,11 @@ describe("the two prop accounts", () => {
     expect(status(preTradeChecksOn(flexPlan(), three, flex, [], 3), "day-trades")).toBe("fail");
   });
   it("keeps closed losses plus open risk inside the own daily stop", () => {
-    // −$100 today and $100 open: another $100 could reach −$300, past the $200 stop.
-    const entries = [lossOn(flex, -100), entry({ accountId: flex.id, setupId: XAU_SMC, riskAmount: 100 })];
+    // −$50 today and $50 open: another $50 could reach −$150, past the $100 stop.
+    const entries = [lossOn(flex, -50), entry({ accountId: flex.id, setupId: XAU_SMC, riskAmount: 50 })];
     expect(status(preTradeChecksOn(flexPlan(), entries, flex), "own-daily")).toBe("fail");
-    // Two fresh trades fit exactly: −$200 worst case, with room for lot rounding.
-    expect(status(preTradeChecksOn(flexPlan({ riskAmount: 103 }), [entry({ accountId: flex.id, setupId: XAU_SMC, riskAmount: 100 })], flex), "own-daily")).toBe("pass");
+    // Two fresh trades fit exactly: −$100 worst case, with room for lot rounding.
+    expect(status(preTradeChecksOn(flexPlan({ riskAmount: 51.5 }), [entry({ accountId: flex.id, setupId: XAU_SMC, riskAmount: 50 })], flex), "own-daily")).toBe("pass");
     // Pro: $37.50 open plus $25 new fits inside its $75 stop.
     expect(status(preTradeChecksOn(proPlan(), [entry({ accountId: pro.id, setupId: XAU_SMC, riskAmount: 37.5 })], pro), "own-daily")).toBe("pass");
     expect(status(preTradeChecksOn(proPlan(), [lossOn(pro, -37.5), entry({ accountId: pro.id, setupId: XAU_SMC, riskAmount: 37.5 })], pro), "own-daily")).toBe("fail");
@@ -487,22 +487,22 @@ describe("the two prop accounts", () => {
     const [f, p] = PLAYBOOK_ACCOUNTS.map((a) => a.setups.map((x) => x.id));
     expect(f.filter((id) => p.includes(id))).toEqual([]);
     const gbp = setupById("liquidity-reversal:GBPUSD:1h")!;
-    expect(riskBudgetOn("GBPUSD", "A", flex, gbp).amount).toBe(50);
+    expect(riskBudgetOn("GBPUSD", "A", flex, gbp).amount).toBe(25);
   });
   it("sizes the other setups at half risk, with a warning that breaks no rule", () => {
-    expect(riskBudgetOn("NAS100", "A", flex, setupById(NAS_MACD)!).amount).toBe(50);
+    expect(riskBudgetOn("NAS100", "A", flex, setupById(NAS_MACD)!).amount).toBe(25);
     expect(riskBudgetOn("NAS100", "A", pro, setupById(FLEX_NAS)!).amount).toBe(12.5);
-    const checks = preTradeChecksOn(flexPlan({ setupId: NAS_MACD, riskAmount: 50 }), [], flex);
+    const checks = preTradeChecksOn(flexPlan({ setupId: NAS_MACD, riskAmount: 25 }), [], flex);
     expect(checks.find((c) => c.id === "account-plan")).toMatchObject({ status: "warn", hard: false });
     expect(hardFailures(checks)).toEqual([]);
     // Full risk on an other setup is oversized.
-    expect(status(preTradeChecksOn(flexPlan({ setupId: NAS_MACD, riskAmount: 100 }), [], flex), "risk")).toBe("fail");
+    expect(status(preTradeChecksOn(flexPlan({ setupId: NAS_MACD, riskAmount: 50 }), [], flex), "risk")).toBe("fail");
     expect(status(preTradeChecksOn(flexPlan(), [], flex), "account-plan")).toBe("pass");
   });
   it("ranks the account's own setups ahead of the others, and marks which is which", () => {
     const row = (id: string) => ({ id, lastClose: 25_000, lastCloseTime: NOON, signal: { status: "new" as const, side: "LONG" as const, signalTime: NOON, entry: 25_000, stop: 24_950, target: 25_150, rr: 3, exitPrice: null, exitTime: null, rMultiple: null, grade: "A" as const } });
     const ranked = rankSignalsOn([row(NAS_MACD), row(FLEX_NAS)], [], NOON, flex);
-    expect(ranked.map((r) => [r.setup.id, r.inPlan, r.riskPct])).toEqual([[FLEX_NAS, true, 1], [NAS_MACD, false, 0.5]]);
+    expect(ranked.map((r) => [r.setup.id, r.inPlan, r.riskPct])).toEqual([[FLEX_NAS, true, 0.5], [NAS_MACD, false, 0.25]]);
     expect(ranked[1].tierReason).toMatch(/Not one of this account's setups/);
   });
 });
