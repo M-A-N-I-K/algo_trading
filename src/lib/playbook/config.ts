@@ -127,7 +127,7 @@ export const PLAYBOOK_ACCOUNTS: readonly PlaybookAccount[] = [
   },
   {
     id: "pro-5k",
-    name: "$5k 2-Step Pro",
+    name: "$5k 2-Step Pro, Phase 2",
     shortName: "Pro $5k",
     size: 5_000,
     maxLossPct: 6,
@@ -135,10 +135,10 @@ export const PLAYBOOK_ACCOUNTS: readonly PlaybookAccount[] = [
     targetPct: 6,
     timeZone: PLATFORM_TZ,
     priorPnl: 0,
-    // 0.5% from 16 Nov 2026 (was 0.75%): after week 46 only $242 of room was
-    // left above the floor, about 6 losses at 0.75%. Back to 0.75% once the
-    // balance is above $5,000 again.
-    // One loss and it's done for the day (20 Nov 2026): $331 of room above the floor.
+    // Phase 1 passed 27 Nov 2026 at $5,305.72; Phase 2 is a new MT5 login that
+    // starts again at $5,000 (the user's prior P&L offsets Phase 1's trades).
+    // Same limits: $300 to the target, $300 to the floor. Kept at 0.5% ($25)
+    // and one loss a day, which is how Phase 1 was passed: 12 losses of room.
     rules: { ...SHARED_RULES, riskPctA: 0.5, riskPctB: null, dailyStopPct: 1.5, maxLossesPerDay: 1 },
     // 6% of room is 8R at 0.75%: only setups whose tester drawdown stayed
     // near 4–6R and whose worst losing streak was 4 or fewer.
